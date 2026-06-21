@@ -287,6 +287,13 @@ def main():
             maxiter,
             line_search="strong_wolfe",
         ),
+        # --- QQN with a cubic Hermite spline line search ---
+        "QQN-Spln": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="spline",
+        ),
         # --- QQN with a momentum oracle instead of L-BFGS ---
         "QQN-Mom": lambda: _run_qqn_configured(
             loss_fn,

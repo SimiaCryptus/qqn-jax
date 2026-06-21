@@ -231,6 +231,7 @@ def run_config(
     sizes: List[int],
     maxiter: int = 100,
     seed: int = 0,
+    line_search: str = "strong_wolfe",
 ) -> Dict[str, Any]:
     """Train one configuration and collect metrics.
 
@@ -267,7 +268,7 @@ def run_config(
         maxiter=maxiter,
         tol=1e-6,
         history_size=10,
-        line_search="strong_wolfe",
+        line_search=line_search,
         region=region,
     )
 
@@ -304,16 +305,24 @@ def main():
     maxiter = 5000
 
     configs = [
-        ("baseline (dense)", None),
-        ("orthant (sparse)", OrthantRegion(l1=1e-1)),
+        ("baseline (dense)", None, "strong_wolfe"),
+        ("baseline (spline)", None, "spline"),
+        ("orthant (sparse)", OrthantRegion(l1=1e-1), "strong_wolfe"),
+        ("orthant (spline)", OrthantRegion(l1=1e-1), "spline"),
         (
             "orthant + trust",
             Sequential([OrthantRegion(l1=1e-1), TrustRegion(radius=1.0)]),
+            "strong_wolfe",
+        ),
+        (
+            "orthant + trust (spline)",
+            Sequential([OrthantRegion(l1=1e-1), TrustRegion(radius=1.0)]),
+            "spline",
         ),
     ]
 
     results = []
-    for name, region in configs:
+    for name, region, line_search in configs:
         print(f"\n=== Running: {name} ===")
         res = run_config(
             name,
@@ -324,6 +333,7 @@ def main():
             y_test,
             sizes,
             maxiter=maxiter,
+            line_search=line_search,
         )
         results.append(res)
         print(
