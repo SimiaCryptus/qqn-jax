@@ -99,7 +99,7 @@ class QQN:
         maxiter: int = 100,
         tol: float = 1e-5,
         history_size: int = 10,
-        line_search: str = "strong_wolfe",
+        line_search: str = "armijo",
         line_search_options: Optional[Dict[str, Any]] = None,
         has_aux: bool = False,
         t_grid: Optional[jnp.ndarray] = None,
