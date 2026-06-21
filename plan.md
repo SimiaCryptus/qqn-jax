@@ -2,7 +2,7 @@
 
 ## Overview
 
-QQN will be implemented as a standalone PyPI package (`qqn-jax`) with JAX and JAXopt as dependencies. This approach gives full control over API design, release cadence, and documentation while remaining fully compatible with the JAX ecosystem.
+QQN will be implemented as a standalone PyPI package (`qqn-jax`) with JAX and Optax as dependencies. This approach gives full control over API design, release cadence, and documentation while remaining fully compatible with the JAX ecosystem.
 
 ## Package Structure
 
@@ -74,7 +74,7 @@ new_params = params + alpha * d
 [project]
 dependencies = [
     "jax>=0.4",
-    "jaxopt>=0.8",
+     "optax>=0.2.3",
     "chex>=0.1",
     "jaxtyping>=0.2",
 ]
@@ -86,7 +86,7 @@ dependencies = [
 - **No Python-level loops**: All iteration via JAX-compatible control flow (`lax.while_loop`, `lax.cond`)
 - **Strongly typed**: All arrays typed via `chex.Array` / `jaxtyping`
 - **Pure functions**: `init_state` and `update` are stateless and side-effect-free
-- **Reuse JAXopt internals**: LBFGS oracle and line search are delegated to JAXopt, not reimplemented
+- **Reuse Optax internals**: The L-BFGS scaling and zoom line search are delegated to Optax where possible; the two-loop recursion is implemented directly on our own fixed-size buffers for full control.
 
 ## Line Search Strategy
 
@@ -97,7 +97,7 @@ The line search is a first-class component, not an implementation detail. It is 
 3. Enforcing sufficient decrease (Armijo / Wolfe conditions)
 4. Ensuring curvature updates fed back to L-BFGS remain valid (Strong Wolfe)
 
-Default: Strong Wolfe line search (from JAXopt).
+Default: Strong Wolfe line search (Optax `scale_by_zoom_linesearch`).
 Fallback: Backtracking with Armijo condition.
 
 ## JAX Acceleration
@@ -150,4 +150,3 @@ params, states = batched(init_params_batch)
 - [ ] API reference (auto-generated from docstrings)
 - [ ] Algorithm explainer (based on `algorithm.md`)
 - [ ] Benchmark results and comparison plots
-

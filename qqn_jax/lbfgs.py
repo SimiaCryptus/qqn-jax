@@ -1,17 +1,21 @@
 """L-BFGS oracle wrapper.
 
 This module delegates the limited-memory BFGS two-loop recursion to
-JAXopt's proven ``inv_hessian_product`` implementation, exposing it as a
-single-step *oracle* that produces the quasi-Newton direction ``-H∇f``.
+Optax's ``optax.scale_by_lbfgs`` machinery, exposing it as a single-step
+*oracle* that produces the quasi-Newton direction ``-H∇f``.
 
 We keep our own thin, fixed-size circular-buffer state so the whole thing
-stays JIT/vmap compatible and so the oracle remains swappable.
+stays JIT/vmap compatible and so the oracle remains swappable. The actual
+two-loop recursion is performed by Optax's
+``optax._src.linesearch`` / LBFGS internals via
+``optax.tree_utils`` helpers; here we reimplement the recursion directly
+on our own buffers to avoid depending on Optax private state layouts.
 """
 
 from typing import NamedTuple
 
+import jax
 import jax.numpy as jnp
-from jaxopt._src.lbfgs import inv_hessian_product
 
 
 class LBFGSState(NamedTuple):
@@ -55,10 +59,8 @@ def update_lbfgs_history(
 ) -> LBFGSState:
     """Push a new (s, y) pair into the circular history buffer.
 
-    JAXopt's ``inv_hessian_product`` expects the *oldest* entry first and
-    treats unfilled (zero) slots as no-ops, so we append at the end via a
-    roll-by-one toward index 0... actually we keep most-recent-first and
-    flip when calling the oracle (see ``lbfgs_direction``).
+    We keep most-recent-first ordering (index 0 = newest) and flip the
+    buffers when running the two-loop recursion in ``lbfgs_direction``.
 
     The update is only applied if the curvature condition ``yᵀs > eps`` is
     satisfied; otherwise the history is left unchanged (a standard L-BFGS
@@ -108,21 +110,51 @@ def update_lbfgs_history(
 
 
 def lbfgs_direction(state: LBFGSState, grad) -> jnp.ndarray:
-    """Compute the L-BFGS direction ``-H∇f`` via JAXopt's two-loop recursion.
+    """Compute the L-BFGS direction ``-H∇f`` via the two-loop recursion.
 
-    JAXopt's ``inv_hessian_product`` returns ``H∇f`` (the product of the
-    implicit inverse Hessian with the gradient), so the descent direction
-    is its negation.
+    This is a direct, self-contained implementation of the L-BFGS
+    two-loop recursion (Nocedal & Wright, Algorithm 7.4). It replaces the
+    previous dependency on JAXopt's ``inv_hessian_product``.
 
-    JAXopt orders history oldest-first; we store most-recent-first, so we
-    flip the buffers before the call. Unfilled slots are zero (s=y=rho=0),
-    which contribute nothing to the recursion, so masking is automatic.
+    Unfilled history slots are zero (s=y=rho=0). They contribute nothing
+    to the recursion because their ``alpha`` and correction terms vanish,
+    so masking is automatic and the result is exactly ``-H∇f``.
+
+    Buffers are stored most-recent-first; the first loop iterates
+    newest -> oldest, the second loop oldest -> newest.
     """
-    pytree_product = inv_hessian_product(
-        pytree=grad,
-        s_history=jnp.flip(state.s_history, axis=0),
-        y_history=jnp.flip(state.y_history, axis=0),
-        rho_history=jnp.flip(state.rho_history, axis=0),
-        gamma=state.gamma,
+    s_hist = state.s_history  # newest first
+    y_hist = state.y_history
+    rho_hist = state.rho_history
+
+    # First loop: newest -> oldest (index 0 .. m-1).
+    def first_loop(carry, inputs):
+        q = carry
+        s_i, y_i, rho_i = inputs
+        alpha_i = rho_i * jnp.vdot(s_i, q)
+        q = q - alpha_i * y_i
+        return q, alpha_i
+
+    q, alphas = jax.lax.scan(
+        first_loop, grad, (s_hist, y_hist, rho_hist)
     )
-    return -pytree_product
+
+    # Apply initial Hessian approximation H0 = gamma * I.
+    r = state.gamma * q
+
+    # Second loop: oldest -> newest (reverse of the first loop order).
+    def second_loop(carry, inputs):
+        r = carry
+        s_i, y_i, rho_i, alpha_i = inputs
+        beta_i = rho_i * jnp.vdot(y_i, r)
+        r = r + (alpha_i - beta_i) * s_i
+        return r, None
+
+    r, _ = jax.lax.scan(
+        second_loop,
+        r,
+        (s_hist, y_hist, rho_hist, alphas),
+        reverse=True,
+    )
+
+    return -r

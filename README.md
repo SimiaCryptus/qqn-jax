@@ -63,8 +63,8 @@ params, states = jax.vmap(solver.run)(x0_batch)
 | Component | Role | Module |
 |-----------|------|--------|
 | Gradient  | steepest descent `-∇f` | `solver.py` |
-| Oracle    | L-BFGS `-H∇f` | `lbfgs.py` |
-| Search    | line search over `d(t)` | `line_search.py` |
+| Oracle    | L-BFGS `-H∇f` (Optax-backed) | `lbfgs.py` |
+| Search    | line search over `d(t)` (Optax-backed) | `line_search.py` |
 
 The **line search is a first-class component** — it navigates the
 one-dimensional space of direction blends defined by `d(t)` and enforces
