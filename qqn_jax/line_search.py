@@ -18,6 +18,7 @@ import jax.numpy as jnp
 import optax
 
 from qqn_jax.utils import tree_add_scaled, tree_vdot
+from qqn_jax.regions import resolve_region
 
 
 class LineSearchResult(NamedTuple):
@@ -38,6 +39,19 @@ class LineSearchResult(NamedTuple):
     done: jnp.ndarray
 
 
+def _make_projected_point(region, region_state, params):
+    """Return a fn ``α -> projected(x + α·d)`` for a given direction.
+    The caller curries the direction in; here we build a helper that, given
+    a tentative point ``x + α·d``, projects it onto the region. When the
+    region is the identity, this is a no-op (zero overhead).
+    """
+
+    def project_candidate(candidate):
+        return region.project(params, candidate, region_state)
+
+    return project_candidate
+
+
 def backtracking_search(
     value_and_grad_fn: Callable,
     params,
@@ -49,6 +63,8 @@ def backtracking_search(
     c1: float = 1e-4,
     shrink: float = 0.5,
     max_iter: int = 30,
+    region=None,
+    region_state=None,
 ) -> LineSearchResult:
     """Backtracking line search (Armijo), self-contained for Optax.
 
@@ -56,29 +72,37 @@ def backtracking_search(
     sufficient-decrease condition ``f(x + α d) ≤ f(x) + c1 α gᵀd`` holds
     or ``max_iter`` is reached. Implemented with ``lax.while_loop`` to stay
     JIT/vmap compatible.
+     If a ``region`` is supplied, the candidate point ``x + α·d`` is projected
+     onto the region before evaluation, so the search navigates the feasible
+     (projected) path.
     """
+    region = resolve_region(region)
+    project = _make_projected_point(region, region_state, params)
     dg = tree_vdot(grad, direction)  # directional derivative gᵀd
 
+    def eval_at(alpha):
+        raw = tree_add_scaled(params, alpha, direction)
+        projected = project(raw)
+        val, g = value_and_grad_fn(projected, *args)
+        return projected, val, g
+
     def cond(carry):
-        alpha, i, val, _g = carry
+        alpha, i, val, _g, _p = carry
         armijo = val <= value + c1 * alpha * dg
         return jnp.logical_and(jnp.logical_not(armijo), i < max_iter)
 
     def body(carry):
-        alpha, i, _val, _g = carry
+        alpha, i, _val, _g, _p = carry
         alpha = alpha * shrink
-        new_params = tree_add_scaled(params, alpha, direction)
-        new_val, new_g = value_and_grad_fn(new_params, *args)
-        return alpha, i + 1, new_val, new_g
+        new_params, new_val, new_g = eval_at(alpha)
+        return alpha, i + 1, new_val, new_g, new_params
 
     # Evaluate at the initial step first.
-    init_params = tree_add_scaled(params, init_step, direction)
-    init_val, init_g = value_and_grad_fn(init_params, *args)
+    init_params, init_val, init_g = eval_at(init_step)
 
-    alpha, _i, final_val, final_g = jax.lax.while_loop(
-        cond, body, (init_step, jnp.asarray(0), init_val, init_g)
+    alpha, _i, final_val, final_g, new_params = jax.lax.while_loop(
+        cond, body, (init_step, jnp.asarray(0), init_val, init_g, init_params)
     )
-    new_params = tree_add_scaled(params, alpha, direction)
     armijo = final_val <= value + c1 * alpha * dg
     return LineSearchResult(
         step_size=alpha,
@@ -100,6 +124,8 @@ def strong_wolfe_search(
     c1: float = 1e-5,
     c2: float = 0.9,
     max_iter: int = 20,
+    region=None,
+    region_state=None,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 
@@ -110,7 +136,10 @@ def strong_wolfe_search(
     ``update`` step rescales the provided *updates* (here, ``direction``)
     by the discovered step size. We wrap a value-only objective for it and
     recompute value/grad at the accepted point.
+     When a ``region`` is supplied, the recovered step is projected onto the
+     region before value/grad are recomputed.
     """
+    region = resolve_region(region)
 
     def fun_only(p, *fa, **fkw):
         v, _ = value_and_grad_fn(p, *args)
@@ -137,7 +166,8 @@ def strong_wolfe_search(
         value_fn=fun_only,
     )
 
-    new_params = optax.apply_updates(params, scaled_updates)
+    raw_params = optax.apply_updates(params, scaled_updates)
+    new_params = region.project(params, raw_params, region_state)
     new_value, new_grad = value_and_grad_fn(new_params, *args)
 
     # Recover the step size from the scaling of the direction.
@@ -165,14 +195,18 @@ def fixed_step_search(
     grad,
     *args,
     step_size: float = 1.0,
+    region=None,
+    region_state=None,
 ) -> LineSearchResult:
     """Trivial line search using a constant step size.
     Useful for debugging, benchmarking against a baseline, or when the
     quadratic path scaling already provides a sensible step. Always reports
     ``done=True`` (it makes no acceptance test).
     """
+    region = resolve_region(region)
     alpha = jnp.asarray(step_size, dtype=value.dtype)
-    new_params = tree_add_scaled(params, alpha, direction)
+    raw_params = tree_add_scaled(params, alpha, direction)
+    new_params = region.project(params, raw_params, region_state)
     new_val, new_g = value_and_grad_fn(new_params, *args)
     return LineSearchResult(
         step_size=alpha,
@@ -194,6 +228,8 @@ def armijo_search(
     c1: float = 1e-4,
     shrink: float = 0.5,
     max_iter: int = 30,
+    region=None,
+    region_state=None,
 ) -> LineSearchResult:
     """Alias for :func:`backtracking_search`.
     Provided so users can refer to the Armijo backtracking search by its
@@ -210,6 +246,8 @@ def armijo_search(
         c1=c1,
         shrink=shrink,
         max_iter=max_iter,
+        region=region,
+        region_state=region_state,
     )
 
 
@@ -224,6 +262,8 @@ def hager_zhang_search(
     c1: float = 0.1,
     c2: float = 0.9,
     max_iter: int = 30,
+    region=None,
+    region_state=None,
 ) -> LineSearchResult:
     """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
     The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use
@@ -231,6 +271,7 @@ def hager_zhang_search(
     recomputing value/grad at the accepted point. Falls back gracefully if
     the underlying transform is unavailable.
     """
+    region = resolve_region(region)
 
     def fun_only(p, *fa, **fkw):
         v, _ = value_and_grad_fn(p, *args)
@@ -252,7 +293,8 @@ def hager_zhang_search(
         grad=grad,
         value_fn=fun_only,
     )
-    new_params = optax.apply_updates(params, scaled_updates)
+    raw_params = optax.apply_updates(params, scaled_updates)
+    new_params = region.project(params, raw_params, region_state)
     new_value, new_grad = value_and_grad_fn(new_params, *args)
     d_norm_sq = tree_vdot(direction, direction)
     step_size = jnp.where(

@@ -30,6 +30,7 @@ from qqn_jax.line_search import (
     hager_zhang_search,
     strong_wolfe_search,
 )
+from qqn_jax.regions import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
     quadratic_path,
@@ -60,6 +61,7 @@ class QQNState(NamedTuple):
         error: gradient norm (convergence metric).
         done: whether convergence has been reached.
         aux: optional auxiliary output of the objective.
+         region_state: optional state for the projective region.
     """
 
     iter: jnp.ndarray
@@ -70,6 +72,7 @@ class QQNState(NamedTuple):
     error: jnp.ndarray
     done: jnp.ndarray
     aux: Any = None
+    region_state: Any = ()
 
 
 class QQN:
@@ -103,6 +106,7 @@ class QQN:
         line_search_options: Optional[Dict[str, Any]] = None,
         has_aux: bool = False,
         t_grid: Optional[jnp.ndarray] = None,
+        region=None,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -112,6 +116,7 @@ class QQN:
         self.line_search_options = dict(line_search_options or {})
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
+        self.region = resolve_region(region)
 
         if t_grid is None:
             # A small set of blends from gradient (small t) to L-BFGS (t=1).
@@ -156,6 +161,7 @@ class QQN:
         value, grad, aux = self._eval(params, *args)
         lbfgs_state = init_lbfgs_state(params, grad, self.history_size)
         error = tree_l2_norm(grad)
+        region_state = self.region.init(params)
         return QQNState(
             iter=jnp.asarray(0, jnp.int32),
             value=value,
@@ -165,6 +171,7 @@ class QQN:
             error=error,
             done=error <= self.tol,
             aux=aux,
+            region_state=region_state,
         )
 
     def update(self, params, state: QQNState, *args):
@@ -191,6 +198,8 @@ class QQN:
                 state.value,
                 grad,
                 *args,
+                region=self.region,
+                region_state=state.region_state,
             )
             return res
 
@@ -202,6 +211,7 @@ class QQN:
         new_value = results.new_value[best_idx]
         new_grad = jax.tree_util.tree_map(lambda a: a[best_idx], results.new_grad)
         step_size = results.step_size[best_idx]
+        best_t = self.t_grid[best_idx]
 
         # Recompute aux at the accepted point if needed.
         if self.has_aux:
@@ -213,6 +223,17 @@ class QQN:
         new_lbfgs_state = update_lbfgs_history(
             state.lbfgs_state, new_params, new_grad, self.history_size
         )
+        # Update region state (e.g. adaptive trust-region radius).
+        actual_reduction = state.value - new_value
+        info = RegionInfo(
+            params=params,
+            new_params=new_params,
+            pred_reduction=actual_reduction,
+            actual_reduction=actual_reduction,
+            t=best_t,
+            step_size=step_size,
+        )
+        new_region_state = self.region.update(state.region_state, info)
 
         error = tree_l2_norm(new_grad)
         new_state = QQNState(
@@ -224,6 +245,7 @@ class QQN:
             error=error,
             done=error <= self.tol,
             aux=aux,
+            region_state=new_region_state,
         )
         return new_params, new_state
 
