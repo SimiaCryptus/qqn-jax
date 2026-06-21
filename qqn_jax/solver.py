@@ -12,7 +12,7 @@ interface and keeps all state in JIT-compatible NamedTuples.
 """
 
 from functools import partial
-from typing import Any, Callable, NamedTuple, Optional
+from typing import Any, Callable, Dict, NamedTuple, Optional
 
 import jax
 import jax.numpy as jnp
@@ -24,7 +24,10 @@ from qqn_jax.lbfgs import (
     update_lbfgs_history,
 )
 from qqn_jax.line_search import (
+    armijo_search,
     backtracking_search,
+    fixed_step_search,
+    hager_zhang_search,
     strong_wolfe_search,
 )
 from qqn_jax.utils import (
@@ -33,6 +36,16 @@ from qqn_jax.utils import (
     tree_l2_norm,
     tree_negative,
 )
+
+
+# Registry mapping line-search names to their implementations.
+_LINE_SEARCHES = {
+    "strong_wolfe": strong_wolfe_search,
+    "backtracking": backtracking_search,
+    "armijo": armijo_search,
+    "hager_zhang": hager_zhang_search,
+    "fixed": fixed_step_search,
+}
 
 
 class QQNState(NamedTuple):
@@ -68,7 +81,13 @@ class QQN:
         maxiter: maximum number of iterations.
         tol: convergence tolerance on the gradient L2 norm.
         history_size: L-BFGS memory size ``m``.
-        line_search: ``"strong_wolfe"`` (default) or ``"backtracking"``.
+         line_search: name of the line-search strategy. One of
+             ``"strong_wolfe"`` (default), ``"backtracking"``, ``"armijo"``,
+             ``"hager_zhang"`` or ``"fixed"``.
+         line_search_options: optional dict of keyword arguments forwarded to
+             the chosen line-search function (e.g. ``c1``, ``c2``, ``max_iter``,
+             ``init_step``, ``shrink``, ``step_size``). These override the
+             line-search defaults.
         has_aux: whether ``fun`` returns auxiliary data.
         t_grid: candidate interpolation parameters ``t`` to evaluate. The
             best (lowest line-searched value) is chosen each iteration.
@@ -81,6 +100,7 @@ class QQN:
         tol: float = 1e-5,
         history_size: int = 10,
         line_search: str = "strong_wolfe",
+        line_search_options: Optional[Dict[str, Any]] = None,
         has_aux: bool = False,
         t_grid: Optional[jnp.ndarray] = None,
     ):
@@ -89,6 +109,7 @@ class QQN:
         self.tol = tol
         self.history_size = history_size
         self.line_search = line_search
+        self.line_search_options = dict(line_search_options or {})
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
 
@@ -97,15 +118,17 @@ class QQN:
             t_grid = jnp.array([0.25, 0.5, 0.75, 1.0])
         self.t_grid = jnp.asarray(t_grid)
 
-        if line_search == "strong_wolfe":
-            self._ls = strong_wolfe_search
-        elif line_search == "backtracking":
-            self._ls = backtracking_search
-        else:
+        if line_search not in _LINE_SEARCHES:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
-                "Use 'strong_wolfe' or 'backtracking'."
+                f"Available: {sorted(_LINE_SEARCHES)}."
             )
+        base_ls = _LINE_SEARCHES[line_search]
+        opts = self.line_search_options
+        if opts:
+            self._ls = partial(base_ls, **opts)
+        else:
+            self._ls = base_ls
 
     # --- Internal helpers -------------------------------------------------
 

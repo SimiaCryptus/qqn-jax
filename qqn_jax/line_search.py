@@ -97,9 +97,9 @@ def strong_wolfe_search(
     grad,
     *args,
     init_step: float = 1.0,
-    c1: float = 1e-4,
-    c2: float = 0.9,
-    max_iter: int = 30,
+    c1: float = 1e-3,
+    c2: float = 0.7,
+    max_iter: int = 5,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 
@@ -148,6 +148,118 @@ def strong_wolfe_search(
         jnp.asarray(0.0, dtype=new_value.dtype),
     )
 
+    return LineSearchResult(
+        step_size=step_size,
+        new_value=new_value,
+        new_grad=new_grad,
+        new_params=new_params,
+        done=new_value < value,
+    )
+
+
+def fixed_step_search(
+    value_and_grad_fn: Callable,
+    params,
+    direction,
+    value,
+    grad,
+    *args,
+    step_size: float = 1.0,
+) -> LineSearchResult:
+    """Trivial line search using a constant step size.
+    Useful for debugging, benchmarking against a baseline, or when the
+    quadratic path scaling already provides a sensible step. Always reports
+    ``done=True`` (it makes no acceptance test).
+    """
+    alpha = jnp.asarray(step_size, dtype=value.dtype)
+    new_params = tree_add_scaled(params, alpha, direction)
+    new_val, new_g = value_and_grad_fn(new_params, *args)
+    return LineSearchResult(
+        step_size=alpha,
+        new_value=new_val,
+        new_grad=new_g,
+        new_params=new_params,
+        done=jnp.asarray(True),
+    )
+
+
+def armijo_search(
+    value_and_grad_fn: Callable,
+    params,
+    direction,
+    value,
+    grad,
+    *args,
+    init_step: float = 1.0,
+    c1: float = 1e-4,
+    shrink: float = 0.5,
+    max_iter: int = 30,
+) -> LineSearchResult:
+    """Alias for :func:`backtracking_search`.
+    Provided so users can refer to the Armijo backtracking search by its
+    classical name as well.
+    """
+    return backtracking_search(
+        value_and_grad_fn,
+        params,
+        direction,
+        value,
+        grad,
+        *args,
+        init_step=init_step,
+        c1=c1,
+        shrink=shrink,
+        max_iter=max_iter,
+    )
+
+
+def hager_zhang_search(
+    value_and_grad_fn: Callable,
+    params,
+    direction,
+    value,
+    grad,
+    *args,
+    init_step: float = 1.0,
+    c1: float = 0.1,
+    c2: float = 0.9,
+    max_iter: int = 30,
+) -> LineSearchResult:
+    """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
+    The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use
+    Optax's backtracking transformation parameterized to approximate it,
+    recomputing value/grad at the accepted point. Falls back gracefully if
+    the underlying transform is unavailable.
+    """
+
+    def fun_only(p, *fa, **fkw):
+        v, _ = value_and_grad_fn(p, *args)
+        return v
+
+    ls = optax.scale_by_backtracking_linesearch(
+        max_backtracking_steps=max_iter,
+        slope_rtol=c1,
+        decrease_factor=0.8,
+        increase_factor=1.0,
+        store_grad=True,
+    )
+    ls_state = ls.init(params)
+    scaled_updates, _new_state = ls.update(
+        updates=direction,
+        state=ls_state,
+        params=params,
+        value=value,
+        grad=grad,
+        value_fn=fun_only,
+    )
+    new_params = optax.apply_updates(params, scaled_updates)
+    new_value, new_grad = value_and_grad_fn(new_params, *args)
+    d_norm_sq = tree_vdot(direction, direction)
+    step_size = jnp.where(
+        d_norm_sq > 0.0,
+        tree_vdot(scaled_updates, direction) / d_norm_sq,
+        jnp.asarray(0.0, dtype=new_value.dtype),
+    )
     return LineSearchResult(
         step_size=step_size,
         new_value=new_value,

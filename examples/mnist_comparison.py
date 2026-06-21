@@ -31,6 +31,7 @@ from qqn_jax import QQN
 # Data loading
 # --------------------------------------------------------------------------
 
+
 def _load_mnist_numpy(n_train: int, n_test: int, n_classes: int):
     """Try to load a real MNIST subset; fall back to synthetic data.
 
@@ -96,6 +97,7 @@ def _synthetic(n_train, n_test, n_classes, dim):
 # Model: softmax / multinomial logistic regression
 # --------------------------------------------------------------------------
 
+
 def init_params(dim: int, n_classes: int, key) -> jnp.ndarray:
     """Flat parameter vector: W (dim x n_classes) followed by b (n_classes)."""
     w = 0.01 * jax.random.normal(key, (dim * n_classes,))
@@ -105,7 +107,7 @@ def init_params(dim: int, n_classes: int, key) -> jnp.ndarray:
 
 def _unpack(params, dim, n_classes):
     w = params[: dim * n_classes].reshape(dim, n_classes)
-    b = params[dim * n_classes:]
+    b = params[dim * n_classes :]
     return w, b
 
 
@@ -118,7 +120,7 @@ def make_loss(X, y, dim, n_classes, l2: float = 1e-4):
         logits = X @ w + b
         log_probs = jax.nn.log_softmax(logits, axis=-1)
         ce = -jnp.mean(jnp.sum(Y * log_probs, axis=-1))
-        reg = 0.5 * l2 * jnp.sum(params ** 2)
+        reg = 0.5 * l2 * jnp.sum(params**2)
         return ce + reg
 
     return loss
@@ -135,9 +137,10 @@ def accuracy(params, X, y, dim, n_classes):
 # Optimizers
 # --------------------------------------------------------------------------
 
+
 def run_qqn(loss_fn, params0, maxiter):
     """Run QQN and return (final_params, history_of_losses, wall_time)."""
-    solver = QQN(loss_fn, maxiter=maxiter, tol=1e-8)
+    solver = QQN(loss_fn, maxiter=maxiter)
 
     # Run one update at a time to record the loss trajectory.
     state = solver.init_state(params0)
@@ -210,6 +213,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter):
 # Experiment driver
 # --------------------------------------------------------------------------
 
+
 def main():
     # Problem configuration (small by design for fast, full-batch training).
     n_classes = 3
@@ -218,8 +222,10 @@ def main():
     maxiter = 100
 
     print("=== MNIST optimizer comparison: QQN vs SGD vs Adam vs L-BFGS ===")
-    print(f"  classes={n_classes}  n_train={n_train}  n_test={n_test}  "
-          f"maxiter={maxiter}\n")
+    print(
+        f"  classes={n_classes}  n_train={n_train}  n_test={n_test}  "
+        f"maxiter={maxiter}\n"
+    )
 
     xtr, ytr, xte, yte = _load_mnist_numpy(n_train, n_test, n_classes)
     dim = xtr.shape[1]
@@ -260,13 +266,17 @@ def main():
         }
 
     # --- Summary table ---
-    print(f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
-          f"{'train_acc':>12}{'test_acc':>11}{'time(s)':>10}")
+    print(
+        f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
+        f"{'train_acc':>12}{'test_acc':>11}{'time(s)':>10}"
+    )
     print("-" * 65)
     for name, r in results.items():
-        print(f"{name:<10}{r['final_loss']:>14.6e}{r['iters']:>8}"
-              f"{r['train_acc']:>12.4f}{r['test_acc']:>11.4f}"
-              f"{r['wall']:>10.3f}")
+        print(
+            f"{name:<10}{r['final_loss']:>14.6e}{r['iters']:>8}"
+            f"{r['train_acc']:>12.4f}{r['test_acc']:>11.4f}"
+            f"{r['wall']:>10.3f}"
+        )
 
     # --- Loss trajectory (compact ASCII view at log10 scale) ---
     print("\nLoss trajectory (log10, sampled):")
