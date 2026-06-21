@@ -23,11 +23,11 @@ single fixed direction:
 d(t) = t(1 - t)(-∇f) + t²(-H∇f)
 ```
 
-| `t` | Direction | Behavior |
-|-----|-----------|----------|
-| `t = 0` | `-∇f`  | pure steepest descent |
-| `t = 1` | `-H∇f` | pure L-BFGS direction |
-| `0 < t < 1` | blend | adaptive mix of both |
+| `t`         | Direction | Behavior              |
+|-------------|-----------|-----------------------|
+| `t = 0`     | `-∇f`     | pure steepest descent |
+| `t = 1`     | `-H∇f`    | pure L-BFGS direction |
+| `0 < t < 1` | blend     | adaptive mix of both  |
 
 A line search over this single scalar `t` automatically discovers the right
 blend of the **gradient**, the L-BFGS **oracle**, and the resulting **search**
@@ -66,11 +66,14 @@ import jax.numpy as jnp
 import optax
 from qqn_jax import qqn
 
+
 def rosenbrock(x):
-    return jnp.sum(100.0 * (x[1:] - x[:-1]**2)**2 + (1.0 - x[:-1])**2)
+    return jnp.sum(100.0 * (x[1:] - x[:-1] ** 2) ** 2 + (1.0 - x[:-1]) ** 2)
+
 
 opt = qqn(history_size=10, line_search="strong_wolfe")
 value_and_grad = optax.value_and_grad_from_state(rosenbrock)
+
 
 @jax.jit
 def step(params, state):
@@ -80,6 +83,7 @@ def step(params, state):
     )
     params = optax.apply_updates(params, updates)
     return params, state
+
 
 params = jnp.array([-1.2, 1.0])
 state = opt.init(params)
@@ -100,9 +104,9 @@ from qqn_jax import QQN
 solver = QQN(rosenbrock, maxiter=500, tol=1e-6)
 params, state = solver.run(jnp.array([-1.2, 1.0]))
 
-print(params)        # ~ [1.0, 1.0]
-print(state.iter)    # iterations taken
-print(state.value)   # final objective value
+print(params)  # ~ [1.0, 1.0]
+print(state.iter)  # iterations taken
+print(state.value)  # final objective value
 ```
 
 ---
@@ -136,10 +140,10 @@ runs at native speed.
 
 ## Key Components
 
-| Component | Role | Module |
-|-----------|------|--------|
-| **Gradient** | steepest descent `-∇f` | `solver.py` |
-| **Oracle**   | L-BFGS `-H∇f` (Optax `scale_by_lbfgs`) | `lbfgs.py` |
+| Component    | Role                                                                                            | Module           |
+|--------------|-------------------------------------------------------------------------------------------------|------------------|
+| **Gradient** | steepest descent `-∇f`                                                                          | `solver.py`      |
+| **Oracle**   | L-BFGS `-H∇f` (Optax `scale_by_lbfgs`)                                                          | `lbfgs.py`       |
 | **Search**   | line search over `d(t)` (Optax `scale_by_zoom_linesearch` / `scale_by_backtracking_linesearch`) | `line_search.py` |
 
 QQN is assembled from Optax primitives via `optax.chain`, reusing Optax's
@@ -157,19 +161,19 @@ chosen step is always provably productive.
 
 ```python
 qqn(
-    history_size=10,            # L-BFGS memory m
-    line_search="strong_wolfe", # or "backtracking"
-    t_grid=None,                # candidate interpolation params for d(t)
+    history_size=10,  # L-BFGS memory m
+    line_search="strong_wolfe",  # or "backtracking"
+    t_grid=None,  # candidate interpolation params for d(t)
 )
 
 QQN(
-    fun,                        # objective f(params, *args) -> scalar
-    maxiter=100,                # max iterations
-    tol=1e-5,                   # gradient-norm tolerance
-    history_size=10,            # L-BFGS memory m
-    line_search="strong_wolfe", # or "backtracking"
-    has_aux=False,              # fun returns (value, aux)
-    t_grid=None,                # candidate interpolation params for d(t)
+    fun,  # objective f(params, *args) -> scalar
+    maxiter=100,  # max iterations
+    tol=1e-5,  # gradient-norm tolerance
+    history_size=10,  # L-BFGS memory m
+    line_search="strong_wolfe",  # or "backtracking"
+    has_aux=False,  # fun returns (value, aux)
+    t_grid=None,  # candidate interpolation params for d(t)
 )
 ```
 
