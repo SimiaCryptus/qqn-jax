@@ -323,6 +323,13 @@ def main():
             maxiter,
             oracle=MomentumOracle(beta=0.99),
         ),
+        # --- A/B (oracle): lighter momentum damping (completes beta sweep) ---
+        "QQN-Mom50": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=MomentumOracle(beta=0.5),
+        ),
         # --- A/B (oracle): lighter L-BFGS history (size 5) — cheap memory ---
         "QQN-L5": lambda: _run_qqn_configured(
             loss_fn,
@@ -344,6 +351,15 @@ def main():
             maxiter,
             oracle=LBFGSOracle(history_size=50),
         ),
+        # --- A/B (oracle): very deep L-BFGS memory (size 100) — extends the
+        #     monotone history sweep (L5<L10<L20<L50) to probe diminishing
+        #     returns at the extreme end of curvature memory. ---
+        "QQN-L100": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=LBFGSOracle(history_size=100),
+        ),
         # --- QQN with a Shampoo (structure-aware) oracle ---
         "QQN-Shmp": lambda: _run_qqn_configured(
             loss_fn,
@@ -357,6 +373,15 @@ def main():
             params0,
             maxiter,
             oracle=ShampooOracle(update_freq=5),
+        ),
+        # --- A/B (oracle): Shampoo with heavy amortization (freq=20) to test
+        #     whether the 174s cost is dominated by preconditioner updates;
+        #     extends the update_freq sweep (1 -> 5 -> 20). ---
+        "QQN-Shmp20": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=ShampooOracle(update_freq=20),
         ),
         # --- QQN with a Fallback oracle: L-BFGS, else momentum ---
         "QQN-Fall": lambda: _run_qqn_configured(
@@ -392,6 +417,15 @@ def main():
             params0,
             maxiter,
             region=TrustRegion(radius=2.0, adaptive=True),
+        ),
+        # --- A/B (region): very tight adaptive trust-region (radius=0.25),
+        #     extends the radius sweep (0.25 -> 0.5 -> 1.0 -> 2.0) to probe
+        #     whether over-constraining the step harms convergence. ---
+        "QQN-TR025": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            region=TrustRegion(radius=0.25, adaptive=True),
         ),
         # --- A/B (region): fixed (non-adaptive) trust-region control ---
         "QQN-TRfix": lambda: _run_qqn_configured(
@@ -434,6 +468,35 @@ def main():
             maxiter,
             line_search="backtracking",
             oracle=LBFGSOracle(history_size=20),
+        ),
+        # --- Best-of-breed: the strongest oracle (L50: lowest loss 1.025e-01)
+        #     paired with cheap robust backtracking. Probes whether the deepest
+        #     practical history reaches a new pareto point on loss vs. time. ---
+        "QQN-L50BT": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            oracle=LBFGSOracle(history_size=50),
+        ),
+        # --- Best-of-breed: L50 oracle + Hager-Zhang Wolfe line search.
+        #     Combines the lowest-loss oracle with the efficient Wolfe variant
+        #     to push final loss below the current 1.025e-01 frontier. ---
+        "QQN-L50HZ": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="hager_zhang",
+            oracle=LBFGSOracle(history_size=50),
+        ),
+        # --- Best-of-breed: L50 oracle + adaptive trust-region. Tests whether
+        #     curvature-rich steps benefit from the trust-region safeguard. ---
+        "QQN-L50TR": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=1.0, adaptive=True),
         ),
         # --- Combined: deep L-BFGS oracle + box constraint ---
         "QQN-L20Box": lambda: _run_qqn_configured(
@@ -503,16 +566,45 @@ def main():
     # Each pair isolates a single variable (oracle depth, region radius,
     # line search, etc.) against a named baseline so the effect is causal.
     ab_pairs = [
-        ("oracle: L-BFGS history", "QQN", "QQN-L5", "QQN-L20", "QQN-L50"),
-        ("oracle: momentum beta", "QQN-Mom", "QQN-Mom99"),
-        ("oracle: Shampoo update_freq", "QQN-Shmp", "QQN-Shmp5"),
-        ("region: trust radius", "QQN-TR05", "QQN-TR", "QQN-TR20"),
+        (
+            "oracle: L-BFGS history",
+            "QQN-L5",
+            "QQN",
+            "QQN-L20",
+            "QQN-L50",
+            "QQN-L100",
+        ),
+        ("oracle: momentum beta", "QQN-Mom50", "QQN-Mom", "QQN-Mom99"),
+        (
+            "oracle: Shampoo update_freq",
+            "QQN-Shmp",
+            "QQN-Shmp5",
+            "QQN-Shmp20",
+        ),
+        (
+            "region: trust radius",
+            "QQN-TR025",
+            "QQN-TR05",
+            "QQN-TR",
+            "QQN-TR20",
+        ),
         ("region: trust adaptivity", "QQN-TRfix", "QQN-TR"),
         (
             "search: L20 line search",
             "QQN-L20",
             "QQN-L20BT",
             "QQN-L20HZ",
+        ),
+        (
+            "search: L50 line search",
+            "QQN-L50",
+            "QQN-L50BT",
+            "QQN-L50HZ",
+        ),
+        (
+            "best-of-breed: L50 region",
+            "QQN-L50",
+            "QQN-L50TR",
         ),
     ]
 

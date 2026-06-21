@@ -42,7 +42,6 @@ _LINE_SEARCHES = {
     "armijo": armijo_search,
     "hager_zhang": hager_zhang_search,
     "fixed": fixed_step_search,
-    "spline": spline_search,
 }
 
 
@@ -88,6 +87,10 @@ class QQN:
              the chosen line-search function (e.g. ``c1``, ``c2``, ``max_iter``,
              ``init_step``, ``shrink``, ``step_size``). These override the
              line-search defaults.
+         spline: when ``True``, enable the cubic Hermite spline refinement. This
+             is orthogonal to ``line_search``: every probe along the (consistent)
+             path is reused as a control point and the spline's stationary points
+             guide the search. It composes with any chosen line search.
         has_aux: whether ``fun`` returns auxiliary data.
         t_grid: candidate interpolation parameters ``t`` to evaluate. The
             best (lowest line-searched value) is chosen each iteration.
@@ -101,6 +104,7 @@ class QQN:
         history_size: int = 10,
         line_search: str = "armijo",
         line_search_options: Optional[Dict[str, Any]] = None,
+         spline: bool = False,
         has_aux: bool = False,
         t_grid: Optional[jnp.ndarray] = None,
         region=None,
@@ -112,6 +116,7 @@ class QQN:
         self.history_size = history_size
         self.line_search = line_search
         self.line_search_options = dict(line_search_options or {})
+        self.spline = spline
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
@@ -127,7 +132,10 @@ class QQN:
                 f"Unknown line_search: {line_search!r}. "
                 f"Available: {sorted(_LINE_SEARCHES)}."
             )
-        base_ls = _LINE_SEARCHES[line_search]
+         # The spline refinement is orthogonal to the chosen line search: when
+         # enabled it reuses every probe (with its gradient) as a control point
+             # of a cubic Hermite spline. It composes with any line search.
+        base_ls = spline_search if self.spline else _LINE_SEARCHES[line_search]
         opts = self.line_search_options
         if opts:
             self._ls = partial(base_ls, **opts)

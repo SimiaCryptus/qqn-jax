@@ -167,7 +167,12 @@ The solver registers several interchangeable strategies (all sharing a common
 | `backtracking` / `armijo` | Self-contained backtracking | Armijo sufficient decrease | `lax.while_loop`; robust fallback. |
 | `hager_zhang` | Optax backtracking transform | Approximate Wolfe | Robust approximate-Wolfe scheme. |
 | `fixed` | Constant step | None | Debugging / benchmarking baseline. |
-| `spline` | Cubic Hermite spline | Armijo on best probe | Reuses gradient info as control points. |
+
+The **spline** refinement is *not* a line-search strategy but an orthogonal,
+boolean enhancement (`spline=True`). Because the path `d(t_i)` is consistent
+across all measured points, every probe — regardless of the underlying line
+search — can be reused as a control point. When enabled, the spline refinement
+composes with any chosen line search.
 
 ##### Backtracking / Armijo
 
@@ -334,8 +339,9 @@ QQN(
     tol=1e-5,
     history_size=10,
     line_search="strong_wolfe",   # or "backtracking"/"armijo"/"hager_zhang"/
-                                  #    "fixed"/"spline"
+                                   #    "fixed"
     line_search_options=None,     # dict forwarded to the line search (c1, c2, …)
+     spline=False,                 # orthogonal cubic Hermite refinement (any LS)
     has_aux=False,
     t_grid=None,                  # default [0.25, 0.5, 0.75, 1.0]
     oracle="lbfgs",               # "lbfgs"|"momentum"|"shampoo"|Oracle
