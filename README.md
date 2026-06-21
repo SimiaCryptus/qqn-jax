@@ -1,270 +1,199 @@
 # qqn-jax
 
-**Quasi-Quadratic-Newton (QQN)** optimizer, natively implemented in
-[JAX](https://github.com/google/jax) and packaged as a drop-in
-[Optax](https://github.com/google-deepmind/optax) `GradientTransformation`.
+**Quasi-Quadratic-Newton (QQN)** — a JAX/Optax optimizer that blends steepest
+descent with a quasi-Newton oracle (L-BFGS by default) along a smooth quadratic
+path, navigated by a robust line search.
 
-> **Now fully migrated to Optax.** QQN is exposed as a standard Optax
-> optimizer, so it slots directly into any Optax-based training loop. Under
-> the hood every component — the L-BFGS oracle, the line search, and the
-> outer solver loop — is written as pure, functional JAX code. This means the
-> entire optimizer is end-to-end differentiable and composes seamlessly with
-> `jit`, `vmap`, `pmap`, and `grad`.
+```
+d(t) = t(1 - t)(-∇f) + t²(-H∇f),   t ∈ [0, 1]
+```
+
+At `t = 0` the path is pure gradient descent; at `t = 1` it is the pure oracle
+(L-BFGS) direction. The line search picks the interpolation parameter `t` and
+the step size `α` together, automatically discovering the right blend of
+gradient and oracle at every iteration.
 
 ---
 
-## What is QQN?
+## Why QQN?
 
-QQN combines the **robustness of steepest descent** with the **efficiency of
-L-BFGS** by searching along a quadratic interpolation path rather than a
-single fixed direction:
+QQN is a **combiner** for three classic optimization ingredients:
 
-```
-d(t) = t(1 - t)(-∇f) + t²(-H∇f)
-```
+1. **Gradient** — the reliable steepest-descent signal `-∇f(x)`.
+2. **Oracle** — a curvature-aware direction `-H∇f(x)` (L-BFGS, Momentum,
+   Shampoo, …).
+3. **Search** — the line search that traverses the path and guarantees descent.
 
-| `t`         | Direction | Behavior              |
-|-------------|-----------|-----------------------|
-| `t = 0`     | `-∇f`     | pure steepest descent |
-| `t = 1`     | `-H∇f`    | pure L-BFGS direction |
-| `0 < t < 1` | blend     | adaptive mix of both  |
+The quadratic path makes the search the *glue*: it blends the gradient and the
+oracle coherently while retaining global-convergence guarantees from the
+steepest-descent fallback at `t = 0`.
 
-A line search over this single scalar `t` automatically discovers the right
-blend of the **gradient**, the L-BFGS **oracle**, and the resulting **search**
-step at every iteration — no manual tuning of the trade-off required.
+See [`algorithm.md`](algorithm.md) for the full conceptual treatment.
 
 ---
 
 ## Installation
 
+Always work inside a virtual environment (see [`python.md`](python.md)):
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate          # macOS / Linux
+
 pip install qqn-jax
 ```
 
-Or from source:
+For local development (editable install with dev extras):
 
 ```bash
-git clone https://github.com/example/qqn-jax
-cd qqn-jax
 pip install -e ".[dev]"
 ```
 
-Requires Python ≥ 3.10 and recent
-[JAX](https://github.com/google/jax) (`jax`, `jaxlib`) and
-[Optax](https://github.com/google-deepmind/optax) installations.
+QQN is built directly on **JAX** and **Optax**. The L-BFGS scaling and the
+zoom (Strong Wolfe) line search are delegated to Optax; the rest of the solver
+is pure, functional JAX. If you need GPU support, install the matching CUDA
+wheel of `jaxlib` (see [`libraries.md`](libraries.md)).
 
 ---
 
 ## Quick Start
 
-QQN is a regular Optax `GradientTransformation`. Because line searches need to
-evaluate the objective, use it together with Optax's value-and-grad helpers:
-
 ```python
-import jax
 import jax.numpy as jnp
-import optax
-from qqn_jax import qqn
-
-
-def rosenbrock(x):
-    return jnp.sum(100.0 * (x[1:] - x[:-1] ** 2) ** 2 + (1.0 - x[:-1]) ** 2)
-
-
-opt = qqn(history_size=10, line_search="strong_wolfe")
-value_and_grad = optax.value_and_grad_from_state(rosenbrock)
-
-
-@jax.jit
-def step(params, state):
-    value, grad = value_and_grad(params, state=state)
-    updates, state = opt.update(
-        grad, state, params, value=value, grad=grad, value_fn=rosenbrock
-    )
-    params = optax.apply_updates(params, updates)
-    return params, state
-
-
-params = jnp.array([-1.2, 1.0])
-state = opt.init(params)
-for _ in range(500):
-    params, state = step(params, state)
-
-print(params)  # ~ [1.0, 1.0]
-```
-
-### Convenience solver
-
-For the common "just optimize this function" case, a thin `QQN` wrapper drives
-the Optax transformation through a `lax.while_loop` for you:
-
-```python
 from qqn_jax import QQN
 
-solver = QQN(rosenbrock, maxiter=500, tol=1e-6)
-params, state = solver.run(jnp.array([-1.2, 1.0]))
+# Rosenbrock function
+def fun(x):
+    return (1 - x[0])**2 + 100 * (x[1] - x[0]**2)**2
 
-print(params)  # ~ [1.0, 1.0]
-print(state.iter)  # iterations taken
-print(state.value)  # final objective value
+solver = QQN(fun, maxiter=100, tol=1e-6)
+init = jnp.array([-1.2, 1.0])
+params, state = solver.run(init)
+
+print(params)        # ~ [1.0, 1.0]
+print(state.value)   # ~ 0.0
 ```
 
----
+### JIT, vmap, and grad
 
-## JAX Acceleration
-
-Because the transformation is pure and functional, it is a first-class JAX
-citizen:
+Because QQN is implemented in JAX's functional model, it composes with the
+standard transforms out of the box:
 
 ```python
 import jax
 
-# JIT-compile the whole optimization run
-params, state = jax.jit(solver.run)(x0)
+# JIT-compiled solve (XLA + GPU/TPU dispatch)
+run_jit = jax.jit(QQN(fun).run)
+params, state = run_jit(init)
 
-# Solve from many starting points in parallel (single device)
-params, states = jax.vmap(solver.run)(x0_batch)
-
-# Scale across devices
-params, states = jax.pmap(solver.run)(x0_sharded)
-
-# Differentiate *through* the optimizer (e.g. meta-learning / bilevel)
-grads = jax.grad(lambda x0: solver.run(x0)[1].value)(x0)
+# Batched over many starting points
+batched = jax.vmap(QQN(fun).run, in_axes=(0,))
+params_batch, states = batched(init_batch)
 ```
-
-No host-side Python loops, no in-place mutation — every iteration is
-expressed with `lax.while_loop`/`lax.scan`, so compilation happens once and
-runs at native speed.
-
----
-
-## Key Components
-
-| Component    | Role                                                                                            | Module           |
-|--------------|-------------------------------------------------------------------------------------------------|------------------|
-| **Gradient** | steepest descent `-∇f`                                                                          | `solver.py`      |
-| **Oracle**   | L-BFGS `-H∇f` (Optax `scale_by_lbfgs`)                                                          | `lbfgs.py`       |
-| **Search**   | line search over `d(t)` (Optax `scale_by_zoom_linesearch` / `scale_by_backtracking_linesearch`) | `line_search.py` |
-
-QQN is assembled from Optax primitives via `optax.chain`, reusing Optax's
-battle-tested L-BFGS and line-search implementations rather than reinventing
-them.
-
-The **line search is a first-class component**. It navigates the
-one-dimensional space of direction blends defined by `d(t)` and enforces
-sufficient decrease (Armijo) and curvature (strong Wolfe) conditions, so the
-chosen step is always provably productive.
 
 ---
 
 ## Configuration
 
 ```python
-qqn(
-    history_size=10,  # L-BFGS memory m
-    line_search="strong_wolfe",  # or "backtracking"
-    t_grid=None,  # candidate interpolation params for d(t)
-    region=None,  # optional projective Region (sparsity, bounds, trust)
-)
-
 QQN(
-    fun,  # objective f(params, *args) -> scalar
-    maxiter=100,  # max iterations
-    tol=1e-5,  # gradient-norm tolerance
-    history_size=10,  # L-BFGS memory m
-    line_search="strong_wolfe",  # or "backtracking"
-    has_aux=False,  # fun returns (value, aux)
-    t_grid=None,  # candidate interpolation params for d(t)
-    region=None,  # optional projective Region (sparsity, bounds, trust)
+    fun,
+    maxiter=100,
+    tol=1e-5,
+    history_size=10,
+    line_search="strong_wolfe",   # "strong_wolfe" | "backtracking"
+    has_aux=False,
+    t_grid=None,
+    oracle="lbfgs",               # "lbfgs" | "momentum" | "shampoo" | Oracle
+    region=None,                  # Region | None
 )
 ```
 
-All arguments are static configuration; both `opt.update` and `solver.run`
-are fully traceable and can be transformed by any JAX transformation.
+With all defaults, QQN behaves as a tightly-coupled gradient + L-BFGS optimizer
+with a Strong Wolfe line search.
 
----
+### Swappable Oracles
 
-## Projective Regions
-
-QQN supports optional, composable **projective regions** that remap each
-proposed update onto a feasible or preferred set *inside* the line search,
-so descent/Wolfe guarantees hold on the projected path
-`d_R(t) = project_R(x, d(t)) - x`. When `region=None`, behavior is identical
-to the unconstrained optimizer.
-
-| Region          | Purpose                                      |
-|-----------------|----------------------------------------------|
-| `OrthantRegion` | sparsity via OWL-QN style orthant projection |
-| `TrustRegion`   | bound the step size `‖x_new − x‖ ≤ Δ`        |
-| `BoxRegion`     | elementwise bounds `lo ≤ x_new ≤ hi`         |
-| `Sequential`    | compose multiple regions in order            |
+The `t = 1` endpoint of the path is supplied by an **oracle**. Swap it freely:
 
 ```python
-from qqn_jax import QQN
-from qqn_jax.regions import OrthantRegion, TrustRegion, BoxRegion, Sequential
+from qqn_jax.oracles import (
+    LBFGSOracle, MomentumOracle, ShampooOracle, Fallback,
+)
+
+oracle = Fallback([
+    LBFGSOracle(history_size=10),
+    MomentumOracle(beta=0.9),
+])
+
+solver = QQN(fun, oracle=oracle)
+```
+
+When `oracle="lbfgs"` (the default), the optimizer is byte-for-byte equivalent
+to the reference behavior. See [`oracles.md`](oracles.md) for details.
+
+### Projective Regions
+
+Constrain or remap the search onto a feasible set with a **region**. The line
+search then navigates the *projected* path:
+
+```python
+from qqn_jax.regions import BoxRegion, TrustRegion, Sequential
 
 region = Sequential([
     BoxRegion(lo=0.0, hi=1.0),
     TrustRegion(radius=0.5),
 ])
+
 solver = QQN(fun, region=region)
 ```
 
-Regions are pure, functional JAX and compose seamlessly with `jit`, `vmap`,
-`pmap`, and `grad`. See [`regions.md`](regions.md) for the full specification.
+When `region=None`, behavior is identical to the unconstrained optimizer.
+See [`regions.md`](regions.md) for details.
 
 ---
 
-## Algorithm
+## Documentation
 
-See [`algorithm.md`](algorithm.md) for a detailed description of the method,
-its theoretical guarantees, and the central role of the line search.
+| Document                               | Description |
+|----------------------------------------| --- |
+| [`algorithm.md`](docs/algorithm.md)    | The QQN algorithm: quadratic path, line search, guarantees. |
+| [`oracles.md`](docs/oracles.md)             | The oracle abstraction (L-BFGS, Momentum, Shampoo, combinators). |
+| [`regions.md`](docs/regions.md)             | Projective regions (box, trust-region, orthant, combinators). |
+| [`spline_search.md`](docs/spline_search.md) | Cubic-Hermite spline line search that reuses gradient measurements. |
+| [`python.md`](docs/python.md)               | venv, testing, linting, and publishing workflow. |
+| [`libraries.md`](docs/libraries.md)         | Installing JAX/jaxlib and the MNIST dataset. |
 
 ---
 
-## Results
+## Theoretical Guarantees
 
-Run [`examples/mnist_comparison.py`](examples/mnist_comparison.py) to quickly
-validate the default configuration against common Optax baselines:
+Under standard smoothness assumptions, and contingent on a line search that
+satisfies sufficient-decrease conditions:
 
-```text
-optimizer     final_loss   iters   train_acc   test_acc   time(s)
------------------------------------------------------------------
-QQN         6.342553e-03      66      1.0000     0.9820     0.417
-SGD         4.421039e-02     100      0.9913     0.9860     0.224
-Adam        1.233064e-02     100      0.9993     0.9840     0.211
-L-BFGS      6.342511e-03     100      1.0000     0.9820     1.273
-```
+- **Global convergence** — guaranteed by the steepest-descent fallback at `t = 0`.
+- **Superlinear convergence** — near the optimum, when the oracle direction
+  dominates.
+- **Descent property** — every accepted step decreases the objective (enforced
+  by the line search).
 
-![mnist_comparison.png](mnist_comparison.png)
+---
 
-This is a computational demonstration of QQN's hybrid behavior: it reaches the
-**same final loss as L-BFGS**, but in **fewer iterations and less wall-clock
-time** by leaning on the gradient direction whenever the quasi-Newton oracle
-is less reliable — all while running entirely inside the JAX runtime and using
-the same Optax interface as the baselines it is compared against.
-
-### Sparse MNIST (projective regions)
-
-[`examples/mnist_sparse_benchmark.py`](examples/mnist_sparse_benchmark.py)
-trains a small MLP on MNIST and compares a dense baseline against
-`OrthantRegion` (OWL-QN style sparsity) and `Sequential([Orthant, TrustRegion])`,
-reporting final loss, test accuracy, and weight sparsity:
+## Development
 
 ```bash
-python -m examples.mnist_sparse_benchmark
+pip install -e ".[dev]"
+
+pytest                 # run the test suite
+pytest --cov=qqn_jax   # with coverage
+ruff format .          # auto-format
+ruff check . --fix     # lint + autofix
 ```
 
-This exercises the region machinery through `jit`/`vmap`-compatible code paths
-while remaining lightweight enough to run on CPU.
+See [`python.md`](python.md) for the full developer and publishing workflow.
 
 ---
-
-## Citing
-
-If you use `qqn-jax` in academic work, please cite the project (see
-[`CITATION.cff`](CITATION.cff)).
 
 ## License
 
-Apache 2.0
+See the repository `LICENSE` file.
