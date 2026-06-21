@@ -97,9 +97,9 @@ def strong_wolfe_search(
     grad,
     *args,
     init_step: float = 1.0,
-    c1: float = 1e-3,
-    c2: float = 0.7,
-    max_iter: int = 5,
+    c1: float = 1e-5,
+    c2: float = 0.9,
+    max_iter: int = 20,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 
