@@ -164,6 +164,7 @@ qqn(
     history_size=10,  # L-BFGS memory m
     line_search="strong_wolfe",  # or "backtracking"
     t_grid=None,  # candidate interpolation params for d(t)
+    region=None,  # optional projective Region (sparsity, bounds, trust)
 )
 
 QQN(
@@ -174,11 +175,43 @@ QQN(
     line_search="strong_wolfe",  # or "backtracking"
     has_aux=False,  # fun returns (value, aux)
     t_grid=None,  # candidate interpolation params for d(t)
+    region=None,  # optional projective Region (sparsity, bounds, trust)
 )
 ```
 
 All arguments are static configuration; both `opt.update` and `solver.run`
 are fully traceable and can be transformed by any JAX transformation.
+
+---
+
+## Projective Regions
+
+QQN supports optional, composable **projective regions** that remap each
+proposed update onto a feasible or preferred set *inside* the line search,
+so descent/Wolfe guarantees hold on the projected path
+`d_R(t) = project_R(x, d(t)) - x`. When `region=None`, behavior is identical
+to the unconstrained optimizer.
+
+| Region          | Purpose                                      |
+|-----------------|----------------------------------------------|
+| `OrthantRegion` | sparsity via OWL-QN style orthant projection |
+| `TrustRegion`   | bound the step size `‖x_new − x‖ ≤ Δ`        |
+| `BoxRegion`     | elementwise bounds `lo ≤ x_new ≤ hi`         |
+| `Sequential`    | compose multiple regions in order            |
+
+```python
+from qqn_jax import QQN
+from qqn_jax.regions import OrthantRegion, TrustRegion, BoxRegion, Sequential
+
+region = Sequential([
+    BoxRegion(lo=0.0, hi=1.0),
+    TrustRegion(radius=0.5),
+])
+solver = QQN(fun, region=region)
+```
+
+Regions are pure, functional JAX and compose seamlessly with `jit`, `vmap`,
+`pmap`, and `grad`. See [`regions.md`](regions.md) for the full specification.
 
 ---
 
@@ -210,6 +243,20 @@ This is a computational demonstration of QQN's hybrid behavior: it reaches the
 time** by leaning on the gradient direction whenever the quasi-Newton oracle
 is less reliable — all while running entirely inside the JAX runtime and using
 the same Optax interface as the baselines it is compared against.
+
+### Sparse MNIST (projective regions)
+
+[`examples/mnist_sparse_benchmark.py`](examples/mnist_sparse_benchmark.py)
+trains a small MLP on MNIST and compares a dense baseline against
+`OrthantRegion` (OWL-QN style sparsity) and `Sequential([Orthant, TrustRegion])`,
+reporting final loss, test accuracy, and weight sparsity:
+
+```bash
+python -m examples.mnist_sparse_benchmark
+```
+
+This exercises the region machinery through `jit`/`vmap`-compatible code paths
+while remaining lightweight enough to run on CPU.
 
 ---
 

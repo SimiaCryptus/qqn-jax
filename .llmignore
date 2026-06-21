@@ -1,5 +1,5 @@
 .idea
 .venv
 *.iml
-tests/
 *.png
+tests/

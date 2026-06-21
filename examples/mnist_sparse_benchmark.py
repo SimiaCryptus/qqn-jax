@@ -148,6 +148,38 @@ def sparsity(params, threshold: float = 1e-6) -> float:
 
 
 # --- Benchmark driver -------------------------------------------------
+def plot_convergence(results: List[Dict[str, Any]], fname: str = "convergence.png"):
+    """Plot loss-vs-evaluation convergence curves for all configs.
+    Saves a PNG (and tries to show it interactively). Gracefully degrades
+    if matplotlib is unavailable.
+    """
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")  # safe default for headless environments
+        import matplotlib.pyplot as plt
+    except Exception as exc:  # pragma: no cover - environment dependent
+        print(f"[plot_convergence] matplotlib unavailable ({exc!r}); skipping plot.")
+        return
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for r in results:
+        history = r.get("loss_history", [])
+        if not history:
+            continue
+        ax.plot(range(len(history)), history, label=r["name"], linewidth=1.5)
+    ax.set_xlabel("loss evaluation")
+    ax.set_ylabel("loss")
+    ax.set_yscale("log")
+    ax.set_title("QQN convergence: sparse MNIST")
+    ax.legend()
+    ax.grid(True, which="both", linestyle=":", alpha=0.5)
+    fig.tight_layout()
+    fig.savefig(fname, dpi=120)
+    print(f"\nSaved convergence plot to {fname!r}")
+    try:
+        plt.show()
+    except Exception:
+        pass
 
 
 def run_config(
@@ -158,7 +190,7 @@ def run_config(
     x_test,
     y_test,
     sizes: List[int],
-    maxiter: int = 50,
+    maxiter: int = 100,
     seed: int = 0,
 ) -> Dict[str, Any]:
     """Train one configuration and collect metrics.
@@ -179,8 +211,20 @@ def run_config(
         params = unravel(flat_params)
         return cross_entropy_loss(params, x_train, y_train)
 
+    # Record the loss at each evaluation via a host callback so we can
+    # plot a convergence curve afterwards. This is jit-compatible.
+    loss_history: List[float] = []
+
+    def _record(val):
+        loss_history.append(float(val))
+
+    def loss_fn_recorded(flat_params):
+        val = loss_fn(flat_params)
+        jax.debug.callback(_record, val)
+        return val
+
     solver = QQN(
-        loss_fn,
+        loss_fn_recorded,
         maxiter=maxiter,
         tol=1e-6,
         history_size=10,
@@ -208,23 +252,24 @@ def run_config(
         "test_acc": test_acc,
         "sparsity": spars,
         "time_s": elapsed,
+        "loss_history": loss_history,
     }
 
 
 def main():
     print("Loading MNIST subset...")
-    x_train, y_train, x_test, y_test = load_mnist(n_train=2000, n_test=1000)
+    x_train, y_train, x_test, y_test = load_mnist(n_train=10000, n_test=5000)
     print(f"  train: {x_train.shape}, test: {x_test.shape}")
 
-    sizes = [784, 64, 10]
-    maxiter = 50
+    sizes = [784, 64, 64, 10]
+    maxiter = 5000
 
     configs = [
         ("baseline (dense)", None),
-        ("orthant (sparse)", OrthantRegion(l1=1e-3)),
+        ("orthant (sparse)", OrthantRegion(l1=1e-1)),
         (
             "orthant + trust",
-            Sequential([OrthantRegion(l1=1e-3), TrustRegion(radius=1.0)]),
+            Sequential([OrthantRegion(l1=1e-1), TrustRegion(radius=1.0)]),
         ),
     ]
 
@@ -262,6 +307,8 @@ def main():
             f"{r['test_acc']:>10.4f}{r['sparsity']:>10.3f}{r['time_s']:>10.2f}"
         )
     print("=" * 78)
+    # Plot convergence curves across configurations.
+    plot_convergence(results)
 
 
 if __name__ == "__main__":
