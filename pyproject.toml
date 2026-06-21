@@ -32,6 +32,10 @@ dev = [
     "pytest>=7.0",
     "numpy>=1.22",
 ]
+bench = [
+     "matplotlib>=3.5",
+     "torchvision>=0.13",
+]
 
 [project.urls]
 Homepage = "https://github.com/example/qqn-jax"

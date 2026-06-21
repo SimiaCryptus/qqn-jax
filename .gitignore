@@ -17,3 +17,4 @@ htmlcov/
 
 # OS junk
 .DS_Store
+_mnist_data
