@@ -1,0 +1,44 @@
+[build-system]
+    requires = ["hatchling"]
+    build-backend = "hatchling.build"
+
+    [project]
+    name = "qqn-jax"
+    version = "0.1.0"
+    description = "Quasi-Quadratic-Newton optimizer for JAX"
+    readme = "README.md"
+    requires-python = ">=3.9"
+    license = { text = "MIT" }
+    authors = [
+        { name = "QQN-JAX Contributors" },
+    ]
+    keywords = ["jax", "optimization", "lbfgs", "quasi-newton", "qqn"]
+    classifiers = [
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Topic :: Scientific/Engineering :: Mathematics",
+    ]
+    dependencies = [
+        "jax>=0.4",
+        "jaxopt>=0.8",
+        "chex>=0.1",
+        "jaxtyping>=0.2",
+    ]
+
+    [project.optional-dependencies]
+    dev = [
+        "pytest>=7.0",
+        "numpy>=1.22",
+    ]
+
+    [project.urls]
+    Homepage = "https://github.com/example/qqn-jax"
+    Repository = "https://github.com/example/qqn-jax"
+
+    [tool.hatch.build.targets.wheel]
+    packages = ["qqn_jax"]
+
+    [tool.pytest.ini_options]
+    testpaths = ["tests"]
