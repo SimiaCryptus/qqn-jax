@@ -1,6 +1,6 @@
 """Shared utilities for QQN-JAX."""
 
-from typing import Callable, Tuple
+from typing import Callable
 
 import jax
 import jax.numpy as jnp

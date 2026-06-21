@@ -19,7 +19,6 @@ import jax
 import jax.numpy as jnp
 
 from qqn_jax.lbfgs import (
-    LBFGSState,
     init_lbfgs_state,
     lbfgs_direction,
     update_lbfgs_history,

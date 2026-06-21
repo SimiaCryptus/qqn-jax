@@ -14,7 +14,7 @@ do not mislead the search.
 See ``spline_search.md`` for the full specification.
 """
 
-from typing import Callable, NamedTuple
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -121,9 +121,6 @@ def spline_search(
     value,
     grad,
     *args,
-    grad_dir=None,
-    qn_dir=None,
-    t=None,
     init_step: float = 1.0,
     c1: float = 1e-4,
     max_iter: int = 10,

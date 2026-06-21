@@ -101,10 +101,10 @@ QQN(
     maxiter=100,
     tol=1e-5,
     history_size=10,
-     line_search="armijo",         # "armijo" (default) | "backtracking" |
-                                   # "strong_wolfe" | "hager_zhang" |
-                                   # "fixed" | "spline"
-     line_search_options=None,     # dict of kwargs for the line search
+    line_search="armijo",         # "armijo" (default) | "backtracking" |
+                                  # "strong_wolfe" | "hager_zhang" |
+                                  # "fixed" | "spline"
+    line_search_options=None,     # dict of kwargs for the line search
     has_aux=False,
     t_grid=None,
     oracle="lbfgs",               # "lbfgs" | "momentum" | "shampoo" | Oracle

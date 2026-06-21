@@ -18,7 +18,7 @@ from typing import Any, Callable, NamedTuple, Optional, Sequence
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import tree_l2_norm, tree_vdot
+from qqn_jax.utils import tree_l2_norm
 
 
 class Region(NamedTuple):
