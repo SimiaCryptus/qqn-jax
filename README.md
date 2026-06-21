@@ -89,6 +89,23 @@ QQN(
 See [`algorithm.md`](algorithm.md) for a detailed description of the method,
 its theoretical guarantees, and the central role of the line search.
 
+## Results
+Using [mnist_comparison.py](examples/mnist_comparison.py) a use can quickly validate the default configuration:
+
+```text
+
+optimizer     final_loss   iters   train_acc   test_acc   time(s)
+-----------------------------------------------------------------
+QQN         6.342553e-03      66      1.0000     0.9820     0.417
+SGD         4.421039e-02     100      0.9913     0.9860     0.224
+Adam        1.233064e-02     100      0.9993     0.9840     0.211
+L-BFGS      6.342511e-03     100      1.0000     0.9820     1.273
+```
+
+![mnist_comparison.png](mnist_comparison.png)
+
+This provides a computational demonstration of the hybrid behavior of this optimzation algorithm: it converges to the same final loss as L-BFGS, but does so in fewer iterations and less time by leveraging the gradient direction when the quasi-Newton oracle is less reliable.
+
 ## License
 
-MIT
+Apache 2.0
