@@ -54,24 +54,62 @@ def load_mnist(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Load a subset of MNIST.
 
-    Tries ``tensorflow_datasets`` first; if unavailable, falls back to a
-    small synthetic dataset so the example still runs end-to-end.
+     Tries ``tensorflow.keras``, ``tensorflow_datasets``, and
+     ``torchvision`` in turn; if none are available, falls back to a
+     small synthetic dataset so the example still runs end-to-end.
 
     Returns:
         (x_train, y_train, x_test, y_test) with images flattened to
         ``(n, 784)`` float32 in ``[0, 1]`` and integer labels.
     """
-    try:
-        import tensorflow_datasets as tfds
 
-        ds = tfds.load("mnist", split=["train", "test"], batch_size=-1)
-        train, test = tfds.as_numpy(ds[0]), tfds.as_numpy(ds[1])
-        x_train = train["image"].reshape(-1, 784).astype(np.float32) / 255.0
-        y_train = train["label"].astype(np.int32)
-        x_test = test["image"].reshape(-1, 784).astype(np.float32) / 255.0
-        y_test = test["label"].astype(np.int32)
-    except Exception as exc:  # pragma: no cover - environment dependent
-        print(f"[load_mnist] tfds unavailable ({exc!r}); using synthetic data.")
+    x_train = y_train = x_test = y_test = None
+
+    # --- Attempt 1: tensorflow.keras ---
+    if x_train is None:
+        try:
+            from tensorflow.keras.datasets import mnist  # type: ignore
+            (xtr, ytr), (xte, yte) = mnist.load_data()
+            x_train = xtr.reshape(xtr.shape[0], -1).astype(np.float32) / 255.0
+            y_train = ytr.astype(np.int32)
+            x_test = xte.reshape(xte.shape[0], -1).astype(np.float32) / 255.0
+            y_test = yte.astype(np.int32)
+        except Exception:
+            pass
+
+    # --- Attempt 2: tensorflow_datasets ---
+    if x_train is None:
+        try:
+            import tensorflow_datasets as tfds  # type: ignore
+
+            ds = tfds.load("mnist", split=["train", "test"], batch_size=-1)
+            train, test = tfds.as_numpy(ds[0]), tfds.as_numpy(ds[1])
+            x_train = train["image"].reshape(-1, 784).astype(np.float32) / 255.0
+            y_train = train["label"].astype(np.int32)
+            x_test = test["image"].reshape(-1, 784).astype(np.float32) / 255.0
+            y_test = test["label"].astype(np.int32)
+        except Exception:
+            pass
+
+    # --- Attempt 3: torchvision ---
+    if x_train is None:
+        try:
+            from torchvision import datasets  # type: ignore
+
+            train = datasets.MNIST(root="./_mnist_data", train=True, download=True)
+            test = datasets.MNIST(root="./_mnist_data", train=False, download=True)
+            x_train = (
+                train.data.numpy().reshape(len(train), -1).astype(np.float32) / 255.0
+            )
+            y_train = train.targets.numpy().astype(np.int32)
+            x_test = test.data.numpy().reshape(len(test), -1).astype(np.float32) / 255.0
+            y_test = test.targets.numpy().astype(np.int32)
+        except Exception:
+            pass
+
+    # --- Fallback: synthetic data ---
+    if x_train is None:
+        print("[load_mnist] Real MNIST unavailable; using synthetic data.")
         rng = np.random.default_rng(seed)
         x_train = rng.random((n_train, 784)).astype(np.float32)
         y_train = rng.integers(0, 10, size=n_train).astype(np.int32)
@@ -79,6 +117,7 @@ def load_mnist(
         y_test = rng.integers(0, 10, size=n_test).astype(np.int32)
         return x_train, y_train, x_test, y_test
 
+    # Subsample to the requested sizes.
     rng = np.random.default_rng(seed)
     tr_idx = rng.permutation(len(x_train))[:n_train]
     te_idx = rng.permutation(len(x_test))[:n_test]
