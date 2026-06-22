@@ -18,6 +18,7 @@ from qqn_jax.oracles import (
     MomentumOracle,
     ShampooOracle,
     SecantOracle,
+    AndersonOracle,
     Fallback,
 )
 from qqn_jax.regions import (
@@ -44,6 +45,7 @@ __all__ = [
     "MomentumOracle",
     "ShampooOracle",
     "SecantOracle",
+    "AndersonOracle",
     "Fallback",
     "Region",
     "RegionInfo",

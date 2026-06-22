@@ -127,9 +127,20 @@ def OrthantRegion(l1: float = 0.0) -> Region:
 
     def project(params, candidate, state):
         def proj_leaf(x, c):
-            # Chosen orthant sign ξ.
             step = c - x
-            xi = jnp.where(x != 0.0, jnp.sign(x), jnp.sign(step))
+            # Chosen orthant sign ξ. For nonzero x, the orthant is x's own
+            # sign. For genuinely-zero coordinates, OWL-QN selects the orthant
+            # from the *pseudo-gradient* −(∇f + l1·sign(x)); with x=0 and the
+            # step as our descent proxy, the l1 term biases toward the axis,
+            # so a coordinate only leaves zero when |step| exceeds the l1 pull.
+            l1c = jnp.asarray(l1, dtype=c.dtype)
+            # Effective forcing magnitude after the l1 soft-threshold.
+            forced = jnp.abs(step) > l1c
+            xi = jnp.where(
+                x != 0.0,
+                jnp.sign(x),
+                jnp.where(forced, jnp.sign(step), 0.0),
+            )
             keep = jnp.sign(c) == xi
             return jnp.where(keep, c, 0.0)
 

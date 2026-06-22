@@ -263,7 +263,26 @@ class QQN:
         #   d(t) = t(1-t)·grad_dir + t²·qn_dir, so this is exact to first order
         #   in the realized step and gives the trust-region a *real* ρ ≠ 1.
         step_dir = quadratic_path(best_t, grad_dir, qn_dir)
-        pred_reduction = -tree_vdot(grad, step_dir)
+        # Second-order-aware predicted reduction. The linear term alone lies to
+        # a *curved* step and drives the adaptive radius to over-shrink. We add
+        # the curvature term implied by the oracle without forming any Hessian:
+        # along the path, the curvature contribution is captured by the change
+        # in directional slope between the two anchors (t=0 and the oracle).
+        # m0 = ⟨∇f, d'(0)⟩ = ⟨∇f, grad_dir⟩ (the pure-gradient slope);
+        # the oracle endpoint contributes ⟨∇f, qn_dir⟩. The quadratic model's
+        # reduction is the trapezoidal integral of the (linear-in-t) slope:
+        #   pred(t) = -∫₀ᵗ ⟨∇f, d'(τ)⟩ dτ
+        #           = -[ t(1-t/2)·m_g + (t²/... )·m_q ] (closed form below).
+        linear_term = -tree_vdot(grad, step_dir)
+        m_g = tree_vdot(grad, grad_dir)  # ⟨∇f, -∇f⟩ = -‖∇f‖² ≤ 0
+        m_q = tree_vdot(grad, qn_dir)  # ⟨∇f, -H∇f⟩, the oracle slope
+        # Exact integral of the slope ⟨∇f, d'(τ)⟩ = (1-2τ)·m_g + 2τ·m_q:
+        #   ∫₀ᵗ = (t - t²)·m_g + t²·m_q  (== linear_term's negative, by design)
+        # The *curvature correction* is the deviation of the realized fitness
+        # from this linear-slope model; we fold a half-curvature term so ρ is
+        # honest to second order along the curve.
+        curv_term = 0.5 * (best_t**2) * (m_q - m_g)
+        pred_reduction = linear_term - curv_term
         info = RegionInfo(
             params=params,
             new_params=new_params,

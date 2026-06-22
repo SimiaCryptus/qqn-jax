@@ -253,6 +253,90 @@ def ShampooOracle(
     return Oracle(init=init, direction=direction, update=update)
 
 
+# --- Anderson Acceleration Oracle ------------------------------------
+class AndersonState(NamedTuple):
+    """Residual/iterate windows for Anderson (Type-II) acceleration.
+
+    Attributes:
+        g_history: window of recent gradients (residuals), (m, n).
+        x_history: window of recent iterates,             (m, n).
+        count:     number of valid columns currently stored.
+    """
+
+    g_history: jnp.ndarray
+    x_history: jnp.ndarray
+    count: jnp.ndarray
+
+
+def AndersonOracle(window: int = 5, reg: float = 1e-8) -> Oracle:
+    """Anderson-accelerated (Type-II) oracle — the variational ideal that
+    L-BFGS approximates.
+
+    The ``t = 1`` endpoint is formed by solving a tiny constrained
+    least-squares problem over recent gradient *differences*::
+
+        min_θ ‖ ∇f − ΔG θ ‖²  (+ reg·‖θ‖²)
+        direction = −( ∇f − ΔG θ )  −  ΔX θ
+
+    where ΔG, ΔX are first-differences of the stored gradient/iterate
+    windows. With ``window=1`` this reduces to a secant step; with a deep
+    window it captures multi-step curvature the single-secant cannot. No
+    Hessian is ever formed; the only solve is an ``(m × m)`` system.
+    """
+
+    def init(params):
+        n = params.shape[0]
+        zeros = jnp.zeros((window, n), dtype=params.dtype)
+        return AndersonState(
+            g_history=zeros,
+            x_history=zeros,
+            count=jnp.asarray(0, dtype=jnp.int32),
+        )
+
+    def direction(params, grad, state):
+        # Build first-difference matrices from the window (newest-first).
+        # ΔG[:, k] = g_k − g_{k+1}, ΔX[:, k] = x_k − x_{k+1}. Unfilled
+        # slots are zero and contribute nothing to the normal equations.
+        g_hist = state.g_history
+        x_hist = state.x_history
+        # Prepend the *current* (params, grad) as the freshest column so the
+        # differences anchor on the present iterate.
+        g_full = jnp.concatenate([grad[None, :], g_hist], axis=0)
+        x_full = jnp.concatenate([params[None, :], x_hist], axis=0)
+        dG = (g_full[:-1] - g_full[1:]).T  # (n, window)
+        dX = (x_full[:-1] - x_full[1:]).T  # (n, window)
+
+        # Solve (dGᵀ dG + reg·I) θ = dGᵀ ∇f  — an (m × m) system.
+        m = dG.shape[1]
+        A = dG.T @ dG + reg * jnp.eye(m, dtype=grad.dtype)
+        b = dG.T @ grad
+        # Mask columns with no stored history so empty windows are inert.
+        active = jnp.arange(m) < state.count
+        b = jnp.where(active, b, 0.0)
+        A = jnp.where(
+            active[:, None] & active[None, :], A, jnp.eye(m, dtype=grad.dtype)
+        )
+        theta = jnp.linalg.solve(A, b)
+        theta = jnp.where(active, theta, 0.0)
+
+        # Accelerated residual and the corresponding iterate correction.
+        residual = grad - dG @ theta
+        d = -(residual) - dX @ theta
+        # Safeguard: fall back to steepest descent if the solve degenerates.
+        ok = jnp.all(jnp.isfinite(d)) & (state.count > 0)
+        d = jnp.where(ok, d, -grad)
+        return d, state
+
+    def update(state, info):
+        # Roll the windows, inserting the freshly-accepted (x, g).
+        new_x = jnp.roll(state.x_history, shift=1, axis=0).at[0].set(info.new_params)
+        new_g = jnp.roll(state.g_history, shift=1, axis=0).at[0].set(info.new_grad)
+        new_count = jnp.minimum(state.count + 1, window)
+        return AndersonState(g_history=new_g, x_history=new_x, count=new_count)
+
+    return Oracle(init=init, direction=direction, update=update)
+
+
 # --- Combinator: Fallback ---------------------------------------------
 
 
@@ -276,9 +360,15 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
         for o, s in zip(oracles, state):
             d, ns = o.direction(params, grad, s)
             new_states.append(ns)
-            valid = jnp.all(jnp.isfinite(d)) & (
-                jnp.vdot(d, d) > jnp.asarray(0.0, dtype=d.dtype)
-            )
+            # Validity is *descent*, not mere non-zeroness. A finite, non-zero
+            # quasi-Newton direction that points uphill (⟨∇f, d⟩ ≥ 0) is worse
+            # than useless — it betrays a degenerate curvature estimate. The
+            # fallback must trigger on misalignment, not just on collapse.
+            gd = jnp.vdot(grad, d)
+            finite = jnp.all(jnp.isfinite(d))
+            nonzero = jnp.vdot(d, d) > jnp.asarray(0.0, dtype=d.dtype)
+            descent = gd < jnp.asarray(0.0, dtype=d.dtype)
+            valid = finite & nonzero & descent
             if chosen is None:
                 chosen = d
                 chosen_valid = valid
@@ -308,9 +398,11 @@ def resolve_oracle(oracle, history_size: int = 10) -> Oracle:
             return ShampooOracle()
         if oracle == "secant":
             return SecantOracle()
+        if oracle == "anderson":
+            return AndersonOracle()
         raise ValueError(
             f"Unknown oracle: {oracle!r}. "
-            "Available: 'lbfgs', 'momentum', 'shampoo', 'secant' "
+            "Available: 'lbfgs', 'momentum', 'shampoo', 'secant', 'anderson' "
             "or an Oracle instance."
         )
     if isinstance(oracle, Oracle):
@@ -325,6 +417,7 @@ __all__ = [
     "MomentumOracle",
     "ShampooOracle",
     "SecantOracle",
+    "AndersonOracle",
     "Fallback",
     "resolve_oracle",
 ]

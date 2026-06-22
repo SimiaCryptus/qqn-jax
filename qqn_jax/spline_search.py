@@ -228,9 +228,23 @@ def spline_wrap(inner_search: Callable) -> Callable:
         # gated on strict improvement, so it is monotone-safe and free when
         # the inner step already overshot (m1 >= 0 leaves the bracket intact).
         still_descending = m1 < 0.0
+        # Adaptive superlinear extension. A constant cap throttles the very
+        # stretch we intend. The minimizer of a descending quadratic lies at
+        # α* = a1 · m0 / (m0 - m1) (linear-slope model along the curve). When
+        # the downstream slope m1 is still close to the initial slope m0, the
+        # path is barely bending and the minimum is far ahead; when m1 → 0 it
+        # is nearly upon us. We project toward that estimated stationary point,
+        # clamped to a generous multiple of the inner step for safety.
+        eps_ext = jnp.asarray(1e-12, dtype=dtype)
+        denom = jnp.where(jnp.abs(m0 - m1) > eps_ext, m0 - m1, eps_ext)
+        alpha_star = a1 * (m0 / denom)
         a_ext = jnp.where(
             still_descending,
-            jnp.minimum(spline_extrapolate * jnp.maximum(a1, 1e-3), spline_extrapolate),
+            jnp.clip(
+                alpha_star,
+                jnp.maximum(a1, 1e-3),
+                spline_extrapolate * jnp.maximum(a1, 1e-3),
+            ),
             a1,
         )
         ep, ef, eg, em = eval_at(a_ext)
