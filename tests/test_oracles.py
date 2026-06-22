@@ -99,6 +99,102 @@ def test_shampoo_oracle_direction_is_finite():
     assert int(new_state.step) == 1
 
 
+def test_lbfgs_oracle_is_descent_after_update():
+    oracle = LBFGSOracle(history_size=5)
+    params = jnp.array([1.0, 1.0])
+    grad = jnp.array([1.0, 10.0])
+    state = oracle.init(params)
+    new_params = jnp.array([0.5, 0.5])
+    new_grad = jnp.array([0.5, 5.0])
+    info = OracleInfo(
+        params=params, new_params=new_params, grad=grad, new_grad=new_grad
+    )
+    state = oracle.update(state, info)
+    d, _ = oracle.direction(new_params, new_grad, state)
+    assert float(jnp.vdot(d, new_grad)) < 0.0
+
+
+def test_momentum_oracle_direction_is_descent_on_first_step():
+    oracle = MomentumOracle(beta=0.9)
+    params = jnp.array([0.0, 0.0])
+    grad = jnp.array([1.0, 2.0])
+    state = oracle.init(params)
+    d, _ = oracle.direction(params, grad, state)
+    assert float(jnp.vdot(d, grad)) < 0.0
+
+
+def test_secant_oracle_rejects_negative_curvature():
+    oracle = SecantOracle(alpha0=1.0)
+    params = jnp.array([1.0, 1.0])
+    grad = jnp.array([1.0, 1.0])
+    state = oracle.init(params)
+    # Construct a pair with sy <= 0 (non-positive curvature).
+    new_params = jnp.array([2.0, 1.0])  # s = (1, 0)
+    new_grad = jnp.array([-2.0, 1.0])  # y = (-3, 0), sy = -3 < 0
+    info = OracleInfo(
+        params=params, new_params=new_params, grad=grad, new_grad=new_grad
+    )
+    new_state = oracle.update(state, info)
+    # Alpha should be retained (unchanged) on non-positive curvature.
+    np.testing.assert_allclose(float(new_state.alpha), 1.0, atol=1e-6)
+
+
+def test_anderson_oracle_descent_after_history():
+    oracle = AndersonOracle(window=5)
+    params = jnp.array([1.0, 2.0, 3.0])
+    grad = jnp.array([0.1, 0.2, 0.3])
+    state = oracle.init(params)
+    # Seed some history.
+    for _ in range(3):
+        new_params = params * 0.9
+        new_grad = grad * 0.9
+        info = OracleInfo(
+            params=params, new_params=new_params, grad=grad, new_grad=new_grad
+        )
+        state = oracle.update(state, info)
+        params, grad = new_params, new_grad
+    d, _ = oracle.direction(params, grad, state)
+    assert jnp.all(jnp.isfinite(d))
+
+
+def test_shampoo_oracle_keep_branch_uses_gradient():
+    # On a non-refresh step the direction falls back to -grad.
+    oracle = ShampooOracle(update_freq=5, epsilon=1e-6)
+    params = jnp.array([1.0, 2.0, 3.0])
+    grad = jnp.array([0.5, -0.5, 1.0])
+    state = oracle.init(params)
+    # Step 0 refreshes; advance to a non-refresh step.
+    _, state = oracle.direction(params, grad, state)
+    d, _ = oracle.direction(params, grad, state)
+    np.testing.assert_allclose(d, -grad, atol=1e-6)
+
+
+def test_fallback_update_fans_out():
+    oracle = Fallback([LBFGSOracle(history_size=5), SecantOracle()])
+    params = jnp.array([1.0, 1.0])
+    grad = jnp.array([1.0, 10.0])
+    state = oracle.init(params)
+    new_params = jnp.array([0.5, 0.5])
+    new_grad = jnp.array([0.5, 5.0])
+    info = OracleInfo(
+        params=params, new_params=new_params, grad=grad, new_grad=new_grad
+    )
+    new_state = oracle.update(state, info)
+    # State remains a tuple of the two child states.
+    assert isinstance(new_state, tuple)
+    assert len(new_state) == 2
+
+
+def test_oracle_direction_is_jittable():
+    oracle = AndersonOracle(window=5)
+    params = jnp.array([1.0, 2.0, 3.0])
+    grad = jnp.array([0.1, 0.2, 0.3])
+    state = oracle.init(params)
+    fn = jax.jit(lambda p, g, s: oracle.direction(p, g, s)[0])
+    d = fn(params, grad, state)
+    assert jnp.all(jnp.isfinite(d))
+
+
 # --- Fallback combinator ----------------------------------------------
 
 
@@ -225,6 +321,28 @@ def test_solver_with_momentum_oracle_decreases():
     x0 = jnp.array([5.0, -3.0, 2.0])
     _, state = solver.run(x0)
     assert float(state.value) < float(quadratic(x0))
+
+
+def test_solver_with_anderson_secant_converges():
+    solver = QQN(quadratic, maxiter=200, tol=1e-6, oracle="anderson+secant")
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.value) < 1e-2
+
+
+def test_solver_with_shampoo_decreases():
+    solver = QQN(quadratic, maxiter=100, tol=1e-6, oracle="shampoo")
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.value) < float(quadratic(x0))
+
+
+def test_oracle_run_is_vmappable():
+    solver = QQN(quadratic, maxiter=100, tol=1e-6, oracle="lbfgs+secant")
+    x0_batch = jnp.array([[5.0, -3.0, 2.0], [1.0, 1.0, 1.0], [-2.0, 4.0, -1.0]])
+    params, states = jax.vmap(solver.run)(x0_batch)
+    assert params.shape == (3, 3)
+    assert jnp.all(jnp.isfinite(states.value))
 
 
 def test_oracle_is_jittable():

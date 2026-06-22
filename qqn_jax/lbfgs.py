@@ -16,7 +16,6 @@ from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
-from functools import partial
 
 
 def jnp_select_buf(flag, a, b):

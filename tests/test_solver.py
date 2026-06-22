@@ -157,3 +157,86 @@ def test_feed_probes_to_oracle_runs():
     x0 = jnp.array([5.0, -3.0, 2.0])
     _, state = solver.run(x0)
     assert float(state.error) < 1e-2
+
+
+def test_feed_probes_without_descent_gate_runs():
+    solver = QQN(
+        quadratic,
+        maxiter=200,
+        tol=1e-5,
+        line_search="backtracking",
+        feed_probes_to_oracle=True,
+        probe_descent_gate=False,
+        max_probes=8,
+    )
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert np.isfinite(float(state.value))
+
+
+def test_update_increments_iteration_count():
+    solver = QQN(quadratic, maxiter=50)
+    x0 = jnp.array([1.0, 1.0, 1.0])
+    state = solver.init_state(x0)
+    for i in range(3):
+        x0, state = solver.update(x0, state)
+        assert int(state.iter) == i + 1
+
+
+def test_run_respects_maxiter_when_not_converged():
+    solver = QQN(rosenbrock, maxiter=3, tol=1e-12, history_size=5)
+    x0 = jnp.array([-1.2, 1.0])
+    _, state = solver.run(x0)
+    assert int(state.iter) <= 3
+
+
+def test_spline_in_solver_converges_quadratic():
+    solver = QQN(quadratic, maxiter=100, tol=1e-6, line_search="spline")
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.error) < 1e-3
+
+
+def test_spline_flag_with_strong_wolfe_composes():
+    solver = QQN(
+        quadratic, maxiter=200, tol=1e-5, line_search="strong_wolfe", spline=True
+    )
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.value) <= float(quadratic(x0)) + 1e-6
+
+
+def test_init_state_error_matches_grad_norm():
+    solver = QQN(quadratic, maxiter=50)
+    x0 = jnp.array([3.0, 4.0, 0.0])
+    state = solver.init_state(x0)
+    _, grad = jax.value_and_grad(quadratic)(x0)
+    np.testing.assert_allclose(
+        float(state.error), float(jnp.linalg.norm(grad)), atol=1e-6
+    )
+
+
+def test_value_decreases_monotonically_on_quadratic():
+    solver = QQN(quadratic, maxiter=20, tol=1e-8)
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    state = solver.init_state(x0)
+    prev = float(state.value)
+    for _ in range(10):
+        x0, state = solver.update(x0, state)
+        cur = float(state.value)
+        assert cur <= prev + 1e-6
+        prev = cur
+
+
+@pytest.mark.parametrize("oracle", ["lbfgs", "secant", "anderson"])
+def test_solver_oracle_and_region_compose(oracle):
+    solver = QQN(
+        quadratic,
+        maxiter=200,
+        tol=1e-5,
+        oracle=oracle,
+        region=None,
+    )
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.value) < 1e-1

@@ -90,6 +90,101 @@ def test_hager_zhang_decreases_value():
     assert float(res.new_value) <= float(value) + 1e-6
 
 
+def test_backtracking_no_probes_when_disabled():
+    x = jnp.array([5.0, 5.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = backtracking_search(
+        quad_value_and_grad, x, direction, value, grad, record_probes=False
+    )
+    # With recording disabled, no more than a single scratch slot is filled.
+    assert res.probe_valid is not None
+    assert int(jnp.sum(res.probe_valid)) <= 1
+
+
+def test_fixed_step_search_records_accepted_probe():
+    x = jnp.array([1.0, 2.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = fixed_step_search(
+        quad_value_and_grad, x, direction, value, grad, step_size=0.3
+    )
+    assert res.probe_valid is not None
+    assert bool(res.probe_valid[0])
+
+
+def test_strong_wolfe_step_size_positive():
+    x = jnp.array([3.0, -1.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = strong_wolfe_search(quad_value_and_grad, x, direction, value, grad)
+    assert float(res.step_size) > 0.0
+
+
+def test_backtracking_at_minimum_takes_tiny_step():
+    # Starting essentially at the minimum, the step should not increase value.
+    x = jnp.array([1e-6, 1e-6])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = backtracking_search(quad_value_and_grad, x, direction, value, grad)
+    assert float(res.new_value) <= float(value) + 1e-9
+
+
+def test_backtracking_shrink_reduces_step():
+    # A poorly-scaled direction forces backtracking to shrink the step.
+    x = jnp.array([1.0, 1.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -10.0 * grad  # overshoots; Armijo should shrink it
+    res = backtracking_search(
+        quad_value_and_grad,
+        x,
+        direction,
+        value,
+        grad,
+        init_step=1.0,
+        shrink=0.5,
+        max_iter=10,
+    )
+    assert float(res.step_size) < 1.0
+    assert float(res.new_value) <= float(value)
+
+
+def test_region_restricted_search_stays_feasible():
+    x = jnp.array([2.0, 2.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    region = BoxRegion(lo=1.0, hi=5.0)
+    for search in (backtracking_search, armijo_search, fixed_step_search):
+        res = search(
+            quad_value_and_grad,
+            x,
+            direction,
+            value,
+            grad,
+            region=region,
+            region_state=(),
+        )
+        assert jnp.all(res.new_params >= 1.0 - 1e-6)
+        assert jnp.all(res.new_params <= 5.0 + 1e-6)
+
+
+def test_all_searches_return_finite(quadratic_problem=None):
+    x = jnp.array([2.0, -3.0, 1.5])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    for search in (
+        backtracking_search,
+        armijo_search,
+        fixed_step_search,
+        strong_wolfe_search,
+        hager_zhang_search,
+    ):
+        res = search(quad_value_and_grad, x, direction, value, grad)
+        assert np.isfinite(float(res.new_value))
+        assert jnp.all(jnp.isfinite(res.new_grad))
+        assert jnp.all(jnp.isfinite(res.new_params))
+
+
 def test_backtracking_records_probes():
     x = jnp.array([5.0, 5.0])
     value, grad = quad_value_and_grad(x)

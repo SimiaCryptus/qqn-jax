@@ -72,3 +72,33 @@ def test_accuracy_in_range(problem):
     loss_fn, params0, X, y, dim, n_classes = problem
     acc = float(mc.accuracy(params0, X, y, dim, n_classes))
     assert 0.0 <= acc <= 1.0
+
+
+def test_synthetic_shapes_consistent():
+    xtr, ytr, xte, yte = mc._synthetic(n_train=50, n_test=25, n_classes=4, dim=8)
+    assert xtr.shape == (50, 8)
+    assert xte.shape == (25, 8)
+    assert ytr.shape == (50,)
+    assert yte.shape == (25,)
+    assert int(ytr.min()) >= 0
+    assert int(ytr.max()) <= 3
+
+
+def test_qqn_history_is_non_increasing(problem):
+    loss_fn, params0, *_ = problem
+    _, history, *_ = mc.run_qqn(loss_fn, params0, maxiter=15)
+    # QQN should not increase the loss between the first and last point.
+    assert history[-1] <= history[0] + 1e-6
+
+
+def test_optax_adam_makes_progress(problem):
+    loss_fn, params0, *_ = problem
+    _, history, *_ = mc.run_optax(loss_fn, params0, optax.adam(0.05), maxiter=20)
+    assert history[-1] <= history[0] + 1e-6
+    assert all(np.isfinite(h) for h in history)
+
+
+def test_wall_time_is_nonnegative(problem):
+    loss_fn, params0, *_ = problem
+    _, _, wall, *_ = mc.run_qqn(loss_fn, params0, maxiter=5)
+    assert wall >= 0.0

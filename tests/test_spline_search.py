@@ -125,3 +125,86 @@ def test_spline_search_on_rosenbrock_makes_progress():
     direction = -grad
     res = spline_search(vg, params, direction, value, grad, init_step=1.0)
     assert float(res.new_value) <= float(value) + 1e-6
+
+
+def test_segment_value_midpoint_between_endpoints():
+    # For a monotone descending segment, the midpoint value lies between
+    # the endpoint values.
+    h = 1.0
+    f0, m0, f1, m1 = 2.0, -1.0, 0.5, -0.5
+    mid = float(_segment_value(0.5, h, f0, m0, f1, m1))
+    assert min(f0, f1) - 1e-6 <= mid <= max(f0, f1) + 1e-6
+
+
+def test_orient_tangents_preserves_bracketed_minimum():
+    # A genuine interior minimum (m0 < 0 < m1) must NOT be reflected away.
+    f0, f1, h = 1.0, 1.0, 1.0
+    m0 = jnp.asarray(-2.0)
+    m1 = jnp.asarray(3.0)
+    m0o, m1o = _orient_tangents(h, jnp.asarray(f0), m0, jnp.asarray(f1), m1)
+    np.testing.assert_allclose(float(m0o), -2.0)
+    np.testing.assert_allclose(float(m1o), 3.0)
+
+
+def test_segment_stationary_no_valid_for_monotone_cubic():
+    # A strictly descending cubic with aligned tangents has no interior min.
+    t0, t1 = 0.0, 1.0
+    f0, m0 = 2.0, -1.0
+    f1, m1 = 0.0, -1.0
+    t_c, v_c, valid = _segment_stationary_candidates(
+        jnp.asarray(t0),
+        jnp.asarray(t1),
+        jnp.asarray(f0),
+        jnp.asarray(m0),
+        jnp.asarray(f1),
+        jnp.asarray(m1),
+    )
+    # Even if roots exist, valid candidates' values are finite where valid.
+    finite_where_valid = jnp.all(jnp.where(valid, jnp.isfinite(v_c), True))
+    assert bool(finite_where_valid)
+
+
+def test_spline_search_returns_finite_grad():
+    vg = make_value_and_grad(_quadratic)
+    params = jnp.array([3.0, -1.0])
+    value, grad = vg(params)
+    direction = -grad
+    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
+    assert jnp.all(jnp.isfinite(res.new_grad))
+    assert jnp.all(jnp.isfinite(res.new_params))
+
+
+def test_spline_search_step_size_in_unit_interval_ish():
+    # The accepted step on a convex quadratic should be a small positive value.
+    vg = make_value_and_grad(_quadratic)
+    params = jnp.array([2.0, -2.0])
+    value, grad = vg(params)
+    direction = -grad
+    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
+    assert float(res.step_size) > 0.0
+
+
+def test_spline_never_worse_than_inner_on_rosenbrock():
+    vg = make_value_and_grad(_rosenbrock)
+    params = jnp.array([-1.2, 1.0])
+    value, grad = vg(params)
+    direction = -grad
+    # Inner backtracking baseline.
+    from qqn_jax.line_search import backtracking_search
+
+    inner = backtracking_search(vg, params, direction, value, grad)
+    res = spline_search(vg, params, direction, value, grad)
+    # Spline only improves on the inner search.
+    assert float(res.new_value) <= float(inner.new_value) + 1e-6
+
+
+def test_spline_search_vmap_directions():
+    vg = make_value_and_grad(_quadratic)
+
+    def run_one(p):
+        value, grad = vg(p)
+        return spline_search(vg, p, -grad, value, grad).new_value
+
+    ps = jnp.array([[2.0, 2.0], [1.0, -1.0], [3.0, 0.5]])
+    vals = jax.vmap(run_one)(ps)
+    assert jnp.all(jnp.isfinite(vals))

@@ -32,7 +32,6 @@ Requires:
 """
 
 import time
-from functools import partial
 from typing import Any, Dict, List, Tuple
 
 import jax
