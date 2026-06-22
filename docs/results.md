@@ -20,6 +20,16 @@ components — the **oracle** (curvature source), the **line search** (step
 selection), the **region** (projective constraint), and the orthogonal **spline**
 refinement. The experiment is reproduced by:
 
+> **Note on the swappable component catalogue.** Beyond the variants exercised
+> in this run, the implementation also exposes additional oracles
+> (`SecantOracle`, `AndersonOracle`, and the string shortcuts `"secant"`,
+> `"anderson"`, `"anderson+secant"`, `"lbfgs+secant"`) and regions
+> (`OrthantRegion` for OWL-QN-style sparsity, `NoDecreaseRegion` for
+> multi-objective / continual-learning guards). The solver additionally
+> supports `feed_probes_to_oracle=True`, which forwards every gradient
+> evaluated *during* the line search into the oracle's curvature memory (not
+> just the accepted point) via fixed-size, JIT/vmap-compatible probe buffers.
+
 ```bash
 python examples/fashion_mnist_mlp_comparison.py
 ```
@@ -34,26 +44,46 @@ and is the source of every number quoted below.
 
 | Setting      | Value                                                         |
 |--------------|---------------------------------------------------------------|
-| Problem      | 2-layer ReLU MLP (sigmoid activation) on Fashion-MNIST        |
-| Architecture | `x -> 64 -> 64 -> 10` (55 050 parameters)                    |
+| Problem      | Multi-layer MLP (configurable activation) on Fashion-MNIST    |
+| Architecture | `x -> 64 -> 64 -> 64 -> 10` (default; configurable via env)  |
 | Classes      | 10                                                            |
-| Train / Test | 5000 / 1000 examples                                          |
+| Train / Test | 10000 / 1000 examples                                         |
 | Objective    | Full-batch cross-entropy + `0.5·1e-4·‖θ‖²` L2 (non-convex)   |
 | Regime       | **Deterministic full-batch** (apples-to-apples for 2nd-order) |
-| `maxiter`    | 500                                                           |
+| `maxiter`    | 100000 (effectively unbounded; runs stop on target/budget)   |
 
 The problem is deliberately **deterministic and full-batch** so the comparison is
 fair to the second-order methods (QQN, L-BFGS). Unlike the linear softmax
-classifier, the hidden ReLU layer makes the objective **non-convex** — a sterner
-test for curvature-aware methods. If real Fashion-MNIST is unavailable, the
-script falls back to a synthetic Gaussian-blob dataset so the experiment always
-runs.
+classifier, the hidden nonlinear layers make the objective **non-convex** — a
+sterner test for curvature-aware methods. If real Fashion-MNIST is unavailable,
+the script falls back to a synthetic Gaussian-blob dataset so the experiment
+always runs.
 > **Dataset provenance caveat:** the loader silently falls back to a synthetic
 > Gaussian-blob dataset when neither `torchvision` nor `tensorflow` is
 > installed. Gaussian blobs are more separable and better-conditioned than
 > real Fashion-MNIST and would inflate every second-order result. The numbers
 > below are valid: the log confirms `[data] Loaded fashion_mnist via
 > tensorflow.keras.`
+
+### Configurable Architecture & Activations
+
+The benchmark is highly configurable via environment variables (see the script
+docstring):
+
+| Env var        | Meaning                                            | Default              |
+|----------------|----------------------------------------------------|----------------------|
+| `DATASET`      | `mnist` or `fashion_mnist`                          | `fashion_mnist`      |
+| `HIDDEN_SIZES` | Comma-separated hidden widths (e.g. `128,64`)       | —                    |
+| `HIDDEN`       | Uniform hidden-layer width                          | `64`                 |
+| `DEPTH`        | Number of hidden layers                             | `3`                  |
+| `ACTIVATION`   | Activation name(s); comma-list mixes per layer      | `sigmoid,relu,gaussian` |
+
+Supported activations: `relu`, `sigmoid`, `sine`, `gaussian`, `triangle`,
+`sawtooth`, `logabs`, `tanh`, `gelu`, `swish`, `softplus`, `abs`, `identity`.
+A comma-separated `ACTIVATION` list assigns different activations to different
+hidden layers (cycled if shorter than the layer count); the output layer is
+always linear. Initialization is He-style for ReLU layers and Glorot/Xavier
+otherwise.
 
 ### Shared, Fair Termination Bounds
 
@@ -77,6 +107,15 @@ iteration/time-to-target advantage.
 > target-sensitivity analysis has yet been run; these speedups should be read as
 > target-specific point estimates, not robust effect sizes.
 
+### Target-Sensitivity Profile
+
+To address the selection-bias caveat below, the script additionally reports
+iterations-to-target across a **range** of targets (the `target_profile`
+`(2.0e-1, 1.5e-1, 1.0e-1, 1.05e-1)`), plus a dedicated **vs-LBFGS speedup
+stability** check for `QQN-L50` across those targets. This presents the speedup
+ratios as a *profile* rather than a single (possibly target-specific) point
+estimate.
+
 ### Metrics Reported
 
 - **final_loss / best_loss** — terminal and best objective values.
@@ -85,14 +124,19 @@ iteration/time-to-target advantage.
 - **vs LBFGS** — speedup in iterations-to-target relative to Optax L-BFGS.
 - **ms/it** — mean wall-clock cost per accepted iteration.
 - **AUC** — trajectory area under `log10(loss)` over normalized iterations
+- **evals** — *cost-aware* estimated function/gradient-evaluations-to-target
+   (iterations × per-method evaluation multiplicity). QQN line-search iterations
+   issue several value/grad probes each, so this is a fairer unit than raw
+   iterations. See `_estimate_evals_per_iter` for the per-method heuristics.
   (lower = faster *overall* descent; rewards fast early **and** deep late
   convergence simultaneously).
 - **train_acc / test_acc** — training and test accuracy at termination.
 > **Metric caveats.** (1) *Iterations are not cost-neutral.* QQN's line-search
 > iterations issue several function/gradient evaluations each, so
-> "iterations-to-target" understates true work. A fairer unit —
-> **function/gradient-evaluations-to-target** — is **not yet reported** and
-> should be added. (2) *No variance.* Every number is a single-seed point
+> "iterations-to-target" understates true work. The script now reports a
+> cost-aware **evals-to-target** unit (and a dedicated cost-aware leaderboard),
+> though the per-iteration multiplicities are conservative *analytic estimates*,
+> not measured counts. (2) *No variance.* Every number is a single-seed point
 > estimate with no error bars; small gaps (e.g. 42 vs 45 iters) may be within
 > run-to-run noise and should not be over-interpreted.
 
@@ -175,7 +219,7 @@ realized steps:
 | Variant        | Oracle                             | iters | final_loss   | AUC   |
 |----------------|------------------------------------|-------|--------------|-------|
 | **QQN-Sec**    | Barzilai-Borwein secant (O(n) mem) | 498   | 2.184e-1     | −0.41 |
-| **QQN-And**    | Anderson (window=5, m×m solve)     | 449   | 1.465e-1     | −0.36 |
+| **QQN-And**    | Anderson (window=5, m×m solve, β)  | 449   | 1.465e-1     | −0.36 |
 | **QQN-L50And** | Fallback([L50, Anderson])          | 184   | 9.999e-2     | −0.57 |
 
 - **SecantOracle** (BB1 step `α = ⟨s,s⟩/⟨s,y⟩`) does not reach the target
@@ -184,9 +228,20 @@ realized steps:
 - **AndersonOracle** also fails to reach the target (final loss `1.465e-1`,
    test accuracy 84.1%), exhausting the 10 s budget after 449 iterations.
 - **QQN-L50And** (`Fallback([L50, Anderson])`) **matches QQN-L50** exactly
+   The Anderson oracle exposes a **coupling constant `β`** (the classical
+   mixing parameter): `β = 1` recovers the pure Type-II update, while `β > 1`
+   lets the deep-residual descent stretch. Its `(m × m)` solve uses a
+   scale-aware Tikhonov ridge anchored to the Gram trace plus an absolute
+   diagonal floor to guarantee SPD-ness even on a degenerate window.
    (184 iters, `9.999e-2`): the Anderson residual solve acts as a safety net
    that supplies curvature the instant the L-BFGS history degenerates, without
    slowing convergence when L-BFGS is healthy.
+> **Fallback validity is now descent, not non-zeroness.** The `Fallback`
+> combinator selects the first oracle whose direction is finite, non-zero
+> **and a genuine descent direction** (`⟨∇f, d⟩ < 0`). A finite, non-zero
+> quasi-Newton direction that points uphill triggers the fallback, and a
+> terminal steepest-descent safety net guarantees the `t = 1` endpoint can
+> never be a non-descent or NaN direction.
 
 > **Note:** On the convex softmax-MNIST benchmark, Anderson achieved leading
 > AUC and the lowest final loss. On this non-convex MLP, the Anderson oracle
@@ -268,13 +323,22 @@ with warm start (`init_step=2.0`, `shrink=0.7`), and a fixed trust-region
 
 | Variant  | Config                              | iters | final_loss | test_acc |
 |----------|-------------------------------------|-------|------------|----------|
-| QQN-Fast | L50 + BT(init=2.0, shrink=0.7) + TR | 253   | 9.992e-2 ✓ | 84.2%    |
+| QQN-Fast | L50 + BT(init=2.5, shrink=0.65) + TR(r=2.0) | 253 | 9.992e-2 ✓ | 84.2% |
 
 `QQN-Fast` converges in 253 iterations (1.05× vs L-BFGS) with the **highest
 test accuracy** among all converging variants (84.2%). The warm-started
 backtracking does not provide a large iteration advantage over bare `QQN-L50`
 (184 iters) on this non-convex problem, but the fixed trust-region improves
 generalization.
+### Performance: Maximal Robust Stack (QQN-Max)
+The `QQN-Max` variant stacks **all** the documented winning levers without
+collapsing the diversity of the sweep: a `Fallback([L-BFGS-50, Anderson])`
+oracle (deep curvature with a residual-solve safety net), warm-started
+backtracking (`init_step=2.5`, `shrink=0.65`, `c1=1e-3`, `max_iter=40`), a
+fixed trust-region (`r=2.0`), **and** spline refinement (`spline=True`). The
+aim is to push iteration-efficiency below bare `QQN-L50` by sharpening each
+accepted step, while the Anderson fallback guards against L-BFGS history
+degeneration on the non-convex surface.
 
 ---
 
@@ -358,6 +422,9 @@ These are **first-class experimental findings**, not failures to hide:
 | Regions are low-overhead safeguards                              | ✅ Box improves final loss; adaptive TR converges (405 iters, lowest loss)      |
 | The spline reuses information to sharpen trajectories            | ⚠️ Modest benefit on non-convex (284 vs 300 iters); cubic model less accurate  |
 | Warm-started backtracking + fixed TR (QQN-Fast)                  | ✅ converges in 253 iters with best test accuracy (84.2%)                       |
+| Maximal robust stack (QQN-Max)                                   | ✅ runs (Fallback oracle + warm BT + fixed TR + spline) — combines all levers   |
+| Cost-aware (evals-to-target) metric reported                     | ✅ estimated function/grad-evals leaderboard added alongside iterations         |
+| Target-sensitivity profile reported                              | ✅ iterations-to-target across `(2e-1, 1.5e-1, 1e-1, 1.05e-1)` + L50 stability  |
 
 The best-of-breed **converging** stacks land at **184 iterations** (deep L-BFGS,
 `QQN-L50`/`QQN-L50And`) versus **266** for classical L-BFGS — validating QQN's
