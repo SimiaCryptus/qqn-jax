@@ -44,6 +44,13 @@ class LineSearchResult(NamedTuple):
     probe_params: jnp.ndarray = None
     probe_grads: jnp.ndarray = None
     probe_valid: jnp.ndarray = None
+    # Per-probe objective values (so callers gating on descent need not
+    # recompute f via an extra vmapped forward pass — the line search
+    # already evaluated these points).
+    probe_values: jnp.ndarray = None
+    # Per-probe step size α (lets the oracle replay probes in α-order
+    # rather than slot-order, which matters for secant differences).
+    probe_alphas: jnp.ndarray = None
 
 
 def _empty_probes(params, max_probes):
@@ -53,17 +60,33 @@ def _empty_probes(params, max_probes):
         jnp.zeros((max_probes, n), dtype=params.dtype),
         jnp.zeros((max_probes, n), dtype=params.dtype),
         jnp.zeros((max_probes,), dtype=bool),
+        jnp.full((max_probes,), jnp.inf, dtype=params.dtype),  # values
+        jnp.zeros((max_probes,), dtype=params.dtype),  # alphas
     )
 
 
-def _record_probe(probe_params, probe_grads, probe_valid, slot, p, g, max_probes):
+def _record_probe(
+    probe_params,
+    probe_grads,
+    probe_valid,
+    probe_values,
+    probe_alphas,
+    slot,
+    p,
+    g,
+    v,
+    a,
+    max_probes,
+):
     """Write ``(p, g)`` into ``slot`` of the probe buffers (JIT-safe)."""
     in_range = jnp.logical_and(slot >= 0, slot < max_probes)
     idx = jnp.clip(slot, 0, max_probes - 1)
     new_params = jnp.where(in_range, probe_params.at[idx].set(p), probe_params)
     new_grads = jnp.where(in_range, probe_grads.at[idx].set(g), probe_grads)
     new_valid = jnp.where(in_range, probe_valid.at[idx].set(True), probe_valid)
-    return new_params, new_grads, new_valid
+    new_values = jnp.where(in_range, probe_values.at[idx].set(v), probe_values)
+    new_alphas = jnp.where(in_range, probe_alphas.at[idx].set(a), probe_alphas)
+    return new_params, new_grads, new_valid, new_values, new_alphas
 
 
 def _make_projected_point(region, region_state, params):
@@ -119,26 +142,38 @@ def backtracking_search(
     # single slot so the line-search ``while_loop`` does not allocate and
     # thread a full ``(max_probes, n)`` array through every iteration.
     eff_probes = max_probes if record_probes else 1
-    init_pp, init_pg, init_pv = _empty_probes(params, eff_probes)
+    init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
 
     def cond(carry):
-        alpha, i, val, _g, _p, _pp, _pg, _pv = carry
+        alpha, i, val, _g, _p, _pp, _pg, _pv, _pval, _pa = carry
         armijo = val <= value + c1 * alpha * dg
         return jnp.logical_and(jnp.logical_not(armijo), i < max_iter)
 
     def body(carry):
-        alpha, i, _val, _g, _p, pp, pg, pv = carry
+        alpha, i, _val, _g, _p, pp, pg, pv, pval, pa = carry
         alpha = alpha * shrink
         new_params, new_val, new_g = eval_at(alpha)
         # Record this probe (slot = i, since slot 0 holds the init_step probe).
-        pp, pg, pv = _record_probe(pp, pg, pv, i, new_params, new_g, eff_probes)
-        return alpha, i + 1, new_val, new_g, new_params, pp, pg, pv
+        pp, pg, pv, pval, pa = _record_probe(
+            pp, pg, pv, pval, pa, i, new_params, new_g, new_val, alpha, eff_probes
+        )
+        return alpha, i + 1, new_val, new_g, new_params, pp, pg, pv, pval, pa
 
     # Evaluate at the initial step first.
     init_params, init_val, init_g = eval_at(init_step)
     # Slot 0 records the initial-step probe.
-    init_pp, init_pg, init_pv = _record_probe(
-        init_pp, init_pg, init_pv, 0, init_params, init_g, eff_probes
+    init_pp, init_pg, init_pv, init_pval, init_pa = _record_probe(
+        init_pp,
+        init_pg,
+        init_pv,
+        init_pval,
+        init_pa,
+        0,
+        init_params,
+        init_g,
+        init_val,
+        jnp.asarray(init_step, dtype=params.dtype),
+        eff_probes,
     )
 
     (
@@ -150,6 +185,8 @@ def backtracking_search(
         probe_params,
         probe_grads,
         probe_valid,
+        probe_values,
+        probe_alphas,
     ) = jax.lax.while_loop(
         cond,
         body,
@@ -162,6 +199,8 @@ def backtracking_search(
             init_pp,
             init_pg,
             init_pv,
+            init_pval,
+            init_pa,
         ),
     )
     armijo = final_val <= value + c1 * alpha * dg
@@ -174,6 +213,8 @@ def backtracking_search(
         probe_params=probe_params,
         probe_grads=probe_grads,
         probe_valid=probe_valid,
+        probe_values=probe_values,
+        probe_alphas=probe_alphas,
     )
 
 
@@ -244,9 +285,9 @@ def strong_wolfe_search(
     )
     # Optax's zoom search hides its intermediate probes; expose the single
     # accepted point as a probe so the oracle still benefits.
-    probe_params, probe_grads, probe_valid = _empty_probes(params, max_probes)
-    probe_params, probe_grads, probe_valid = _record_probe(
-        probe_params, probe_grads, probe_valid, 0, new_params, new_grad, max_probes
+    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    pp, pg, pv, pval, pa = _record_probe(
+        pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, max_probes
     )
 
     return LineSearchResult(
@@ -255,9 +296,11 @@ def strong_wolfe_search(
         new_grad=new_grad,
         new_params=new_params,
         done=new_value < value,
-        probe_params=probe_params,
-        probe_grads=probe_grads,
-        probe_valid=probe_valid,
+        probe_params=pp,
+        probe_grads=pg,
+        probe_valid=pv,
+        probe_values=pval,
+        probe_alphas=pa,
     )
 
 
@@ -284,9 +327,9 @@ def fixed_step_search(
     raw_params = tree_add_scaled(params, alpha, direction)
     new_params = region.project(params, raw_params, region_state)
     new_val, new_g = value_and_grad_fn(new_params, *args)
-    probe_params, probe_grads, probe_valid = _empty_probes(params, max_probes)
-    probe_params, probe_grads, probe_valid = _record_probe(
-        probe_params, probe_grads, probe_valid, 0, new_params, new_g, max_probes
+    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    pp, pg, pv, pval, pa = _record_probe(
+        pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, max_probes
     )
     return LineSearchResult(
         step_size=alpha,
@@ -294,9 +337,11 @@ def fixed_step_search(
         new_grad=new_g,
         new_params=new_params,
         done=jnp.asarray(True),
-        probe_params=probe_params,
-        probe_grads=probe_grads,
-        probe_valid=probe_valid,
+        probe_params=pp,
+        probe_grads=pg,
+        probe_valid=pv,
+        probe_values=pval,
+        probe_alphas=pa,
     )
 
 
@@ -389,9 +434,9 @@ def hager_zhang_search(
         tree_vdot(scaled_updates, direction) / d_norm_sq,
         jnp.asarray(0.0, dtype=new_value.dtype),
     )
-    probe_params, probe_grads, probe_valid = _empty_probes(params, max_probes)
-    probe_params, probe_grads, probe_valid = _record_probe(
-        probe_params, probe_grads, probe_valid, 0, new_params, new_grad, max_probes
+    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    pp, pg, pv, pval, pa = _record_probe(
+        pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, max_probes
     )
     return LineSearchResult(
         step_size=step_size,
@@ -399,7 +444,9 @@ def hager_zhang_search(
         new_grad=new_grad,
         new_params=new_params,
         done=new_value < value,
-        probe_params=probe_params,
-        probe_grads=probe_grads,
-        probe_valid=probe_valid,
+        probe_params=pp,
+        probe_grads=pg,
+        probe_valid=pv,
+        probe_values=pval,
+        probe_alphas=pa,
     )

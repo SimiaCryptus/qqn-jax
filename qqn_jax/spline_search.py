@@ -194,7 +194,12 @@ def spline_wrap(inner_search: Callable) -> Callable:
             **inner_kwargs,
         )
 
-        # 2. Control points: alpha=0 (current point) and the inner result.
+        # 2. Establish a genuine 3-point bracket [lo, mid, hi] that straddles
+        #    a minimum along the path. The inner search's accepted point is one
+        #    measured anchor; crucially the true minimum is frequently *beyond*
+        #    it (Armijo accepts the first sufficient-decrease step, which is
+        #    usually short of the minimizer), so we must be willing to probe at
+        #    larger t, not only inside [0, a1].
         a0 = jnp.asarray(0.0, dtype=dtype)
         f0 = value
         m0 = tree_vdot(grad, direction)  # slope at alpha=0 is gᵀd
@@ -203,20 +208,56 @@ def spline_wrap(inner_search: Callable) -> Callable:
         f1 = inner.new_value
         m1 = tree_vdot(inner.new_grad, direction)
 
-        # Best-so-far starts at the inner search's accepted point.
-        InitCarry = (
-            a0,
-            f0,
-            m0,
-            a1,
-            f1,
-            m1,
-            inner.step_size,
-            inner.new_value,
+        # If the path is still descending at the inner point (m1 < 0), the
+        # minimum lies further along; probe an expansion point at 2·a1 (capped
+        # to the unit path if the region prefers that). Otherwise the minimum
+        # is bracketed by [0, a1] already.
+        descending_at_inner = m1 < 0.0
+        a_ext = jnp.where(descending_at_inner, 2.0 * a1, 0.5 * a1)
+        # Guard against a zero-length inner step.
+        a_ext = jnp.where(a1 > 0.0, a_ext, jnp.asarray(1.0, dtype=dtype))
+        p_ext, f_ext, g_ext, m_ext = eval_at(a_ext)
+
+        # Order the three measured points (0, a1, a_ext) by alpha so we have a
+        # left/mid/right structure for cubic bracketing on the two segments.
+        # Build the initial bracket as the pair of adjacent points whose
+        # interior most plausibly contains the minimum: the segment whose left
+        # slope descends. We default to [0, a1] but switch to [a1, a_ext] when
+        # the inner point is still descending and the extension overshot.
+        use_ext_segment = jnp.logical_and(descending_at_inner, f_ext < f1)
+        la = jnp.where(use_ext_segment, a1, a0)
+        lf = jnp.where(use_ext_segment, f1, f0)
+        lm = jnp.where(use_ext_segment, m1, m0)
+        ra = jnp.where(use_ext_segment, a_ext, a1)
+        rf = jnp.where(use_ext_segment, f_ext, f1)
+        rm = jnp.where(use_ext_segment, m_ext, m1)
+
+        # Seed best-so-far with the best of all three measured points.
+        cand_a = jnp.stack([a0, a1, a_ext])
+        cand_f = jnp.stack([f0, f1, f_ext])
+        best_idx = jnp.argmin(cand_f)
+        ba = cand_a[best_idx]
+        bv = cand_f[best_idx]
+
+        # Select the matching params/grad without materializing a stack of
+        # pytrees: branch over the three candidates.
+        def _pick3(x0v, x1v, x2v):
+            return jax.lax.switch(best_idx, [lambda: x0v, lambda: x1v, lambda: x2v])
+
+        bp = jax.tree_util.tree_map(
+            lambda p0, p1, p2: _pick3(p0, p1, p2),
+            params,
             inner.new_params,
-            inner.new_grad,
-            jnp.asarray(0, jnp.int32),
+            p_ext,
         )
+        bg = jax.tree_util.tree_map(
+            lambda g0, g1, g2: _pick3(g0, g1, g2),
+            grad,
+            inner.new_grad,
+            g_ext,
+        )
+
+        InitCarry = (la, lf, lm, ra, rf, rm, ba, bv, bp, bg, jnp.asarray(0, jnp.int32))
 
         def cond(carry):
             (_, _, _, _, _, _, _, _, _, _, i) = carry
@@ -225,28 +266,27 @@ def spline_wrap(inner_search: Callable) -> Callable:
         def body(carry):
             (la, lf, lm, ra, rf, rm, ba, bv, bp, bg, i) = carry
 
-            # Stationary points of the cubic over the bracket [la, ra].
+            # Stationary points of the cubic over the bracket [la, ra]. Both
+            # endpoint slopes here are *measured* (true directional
+            # derivatives), so we do NOT re-orient them — orientation is only a
+            # heuristic for synthetic tangents and would corrupt real curvature.
             t_cands, v_cands, valid = _segment_stationary_candidates(
                 la, ra, lf, lm, rf, rm
             )
 
-            # Midpoint fallback when no stationary point is valid.
             mid = 0.5 * (la + ra)
             any_valid = jnp.any(valid)
             best_c_idx = jnp.argmin(v_cands)
             cand_alpha = jnp.where(any_valid, t_cands[best_c_idx], mid)
 
-            # Keep the proposal strictly inside the bracket for progress.
             lo = jnp.minimum(la, ra)
             hi = jnp.maximum(la, ra)
             span = hi - lo
             margin = 1e-3 * jnp.maximum(span, 1e-12)
             cand_alpha = jnp.clip(cand_alpha, lo + margin, hi - margin)
 
-            # Evaluate the proposed step on the consistent path.
             cp, cf, cg, cm = eval_at(cand_alpha)
 
-            # Keep the spline probe only if it genuinely improves.
             improves = cf < bv
             n_ba = jnp.where(improves, cand_alpha, ba)
             n_bv = jnp.where(improves, cf, bv)
@@ -257,22 +297,18 @@ def spline_wrap(inner_search: Callable) -> Callable:
                 lambda new, old: jnp.where(improves, new, old), cg, bg
             )
 
-            # Tighten the bracket toward the lower-fitness endpoint.
-            # The candidate lies inside [min(la,ra), max(la,ra)]. To keep a
-            # valid bracket that straddles the lowest-fitness point, retain the
-            # candidate and the better of the two existing endpoints, so the new
-            # interval is the half that contains the minimum.
-            #
-            # If the left endpoint is the lower-fitness one, discard the right
-            # endpoint (new bracket = [left, candidate]); otherwise discard the
-            # left endpoint (new bracket = [candidate, right]).
-            keep_left = lf <= rf
-            n_la = jnp.where(keep_left, la, cand_alpha)
-            n_lf = jnp.where(keep_left, lf, cf)
-            n_lm = jnp.where(keep_left, lm, cm)
-            n_ra = jnp.where(keep_left, cand_alpha, ra)
-            n_rf = jnp.where(keep_left, cf, rf)
-            n_rm = jnp.where(keep_left, cm, rm)
+            # Correct bracketing: keep the candidate and the endpoint on the
+            # OPPOSITE side of it from the descent. We use the slope sign at the
+            # candidate to decide which half still contains the minimum: if the
+            # candidate slope is negative the minimum is to its right, so the
+            # new bracket is [cand, ra]; otherwise it is [la, cand].
+            min_to_right = cm < 0.0
+            n_la = jnp.where(min_to_right, cand_alpha, la)
+            n_lf = jnp.where(min_to_right, cf, lf)
+            n_lm = jnp.where(min_to_right, cm, lm)
+            n_ra = jnp.where(min_to_right, ra, cand_alpha)
+            n_rf = jnp.where(min_to_right, rf, cf)
+            n_rm = jnp.where(min_to_right, rm, cm)
 
             return (
                 n_la,
@@ -291,8 +327,8 @@ def spline_wrap(inner_search: Callable) -> Callable:
         final = jax.lax.while_loop(cond, body, InitCarry)
         (_, _, _, _, _, _, fa, fv, fp, fg, _) = final
 
-        # The spline only ever *improves* on the inner result, so the
-        # acceptance status is at least as good as the inner search's.
+        # The spline starts from the best measured point, so it can only match
+        # or improve on the inner result.
         done = jnp.logical_or(inner.done, fv < inner.new_value)
         # Carry the inner search's probes forward so intra-search evaluations
         # still feed the oracle. (The spline's own probes are not threaded

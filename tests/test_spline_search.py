@@ -6,6 +6,7 @@ import numpy as np
 
 from qqn_jax import QQN, spline_search
 from qqn_jax.utils import make_value_and_grad
+from qqn_jax.line_search import backtracking_search
 from qqn_jax.spline_search import (
     _orient_tangents,
     _segment_stationary_candidates,
@@ -196,6 +197,35 @@ def test_spline_never_worse_than_inner_on_rosenbrock():
     res = spline_search(vg, params, direction, value, grad)
     # Spline only improves on the inner search.
     assert float(res.new_value) <= float(inner.new_value) + 1e-6
+
+
+def test_spline_strictly_improves_when_armijo_accepts_short_step():
+    # On a convex quadratic f(x) = sum(x**2), the exact minimizer along the
+    # steepest-descent path lies at alpha = 0.5. If Armijo backtracking is fed
+    # a large initial step and shrinks aggressively, it accepts a step well
+    # short of 0.5 (the first point satisfying sufficient decrease). The spline
+    # refinement, which reuses measured control points and probes the cubic
+    # stationary points, should then *strictly* improve on that short step.
+    #
+    # The existing suite only asserts ``<=``; this test pins down the actual
+    # value-add of the spline by requiring a genuine improvement.
+    vg = make_value_and_grad(_quadratic)
+    params = jnp.array([2.0, -3.0])
+    value, grad = vg(params)
+    direction = -grad  # steepest descent; true minimizer at alpha = 0.5
+    # Large initial step + aggressive shrink => Armijo accepts a short step.
+    inner_kwargs = dict(init_step=8.0, shrink=0.1)
+    inner = backtracking_search(vg, params, direction, value, grad, **inner_kwargs)
+    res = spline_search(vg, params, direction, value, grad, **inner_kwargs)
+    # Sanity: the inner search accepts a step that misses the true minimizer
+    # (alpha = 0.5). With this configuration Armijo stops at alpha = 0.8,
+    # overshooting the minimizer, so the inner-accepted value is well above 0.
+    assert abs(float(inner.step_size) - 0.5) > 0.1
+    assert float(inner.new_value) > 0.0
+    # The spline must *strictly* improve on the inner-accepted point.
+    assert float(res.new_value) < float(inner.new_value) - 1e-9
+    # And it should land close to the analytic minimizer (alpha = 0.5).
+    assert abs(float(res.step_size) - 0.5) < 0.1
 
 
 def test_spline_search_vmap_directions():

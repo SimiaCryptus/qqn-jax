@@ -291,20 +291,12 @@ class QQN:
             probe_valid = res.probe_valid
             if self.probe_descent_gate:
                 # Descent gate: only admit probes whose objective value strictly
-                # improves on the *current* iterate. We recompute the probe
-                # values cheaply from the already-evaluated probe gradients is
-                # not possible (the LineSearchResult stores params+grads, not
-                # values), so we evaluate the gate via the captured probe params.
-                # This is a small fixed-size vmapped pass (max_probes points)
-                # and stays JIT/vmap compatible.
-                def _probe_value(p):
-                    v, _ = self._plain_value_and_grad(p, *args)
-                    return v
-
-                probe_vals = jax.vmap(_probe_value)(res.probe_params)
-                # Admit a probe only if it is (a) a previously-valid slot and
-                # (b) strictly decreases the objective vs. the current iterate.
-                descends = probe_vals < state.value
+                # improves on the *current* iterate. The line search already
+                # evaluated f at every probe (``res.probe_values``), so the gate
+                # is free — no extra forward passes. (The previous code paid an
+                # extra ``vmap`` of ``max_probes`` forward evaluations per
+                # iteration to recover values the line search had thrown away.)
+                descends = res.probe_values < state.value
                 probe_valid = jnp.logical_and(res.probe_valid, descends)
             oracle_info = OracleInfo(
                 params=params,
@@ -316,6 +308,7 @@ class QQN:
                 probe_params=res.probe_params,
                 probe_grads=res.probe_grads,
                 probe_valid=probe_valid,
+                probe_alphas=res.probe_alphas,
             )
         else:
             oracle_info = OracleInfo(

@@ -66,6 +66,7 @@ class OracleInfo(NamedTuple):
     probe_params: Any = None
     probe_grads: Any = None
     probe_valid: Any = None
+    probe_alphas: Any = None
 
 
 # --- L-BFGS Oracle (default) ------------------------------------------
@@ -97,12 +98,27 @@ def LBFGSOracle(history_size: int = 10) -> Oracle:
             return update_lbfgs_history(
                 state, info.new_params, info.new_grad, history_size
             )
+        # Replay probes in INCREASING-α order. The probes are collected by the
+        # line search in slot order (slot 0 = init_step, the *largest* α, then
+        # shrinking) — feeding them in that arbitrary order makes the secant
+        # differences s_k = p_k - p_{k-1} point back-and-forth along the search
+        # ray, producing sign-flipping yᵀs that the curvature guard rejects as
+        # noise. Sorting by α yields monotone-spaced probes whose differences
+        # are consistently oriented, which is the only ordering under which the
+        # replayed pairs carry meaningful (1-D) curvature.
+        #
+        # NOTE: all probes are collinear (they lie on the single ray
+        # x + α·d), so even sorted they only enrich curvature *along d*. This
+        # cannot substitute for genuine cross-iteration curvature; it is a
+        # mild secant refinement of the t=1 endpoint at best.
+        order = jnp.argsort(jnp.where(info.probe_valid, info.probe_alphas, jnp.inf))
+        probe_params = info.probe_params[order]
+        probe_grads = info.probe_grads[order]
+        probe_valid = info.probe_valid[order]
         # Append the accepted point as the final (newest) probe.
-        params_seq = jnp.concatenate(
-            [info.probe_params, info.new_params[None, :]], axis=0
-        )
-        grad_seq = jnp.concatenate([info.probe_grads, info.new_grad[None, :]], axis=0)
-        valid_seq = jnp.concatenate([info.probe_valid, jnp.asarray([True])], axis=0)
+        params_seq = jnp.concatenate([probe_params, info.new_params[None, :]], axis=0)
+        grad_seq = jnp.concatenate([probe_grads, info.new_grad[None, :]], axis=0)
+        valid_seq = jnp.concatenate([probe_valid, jnp.asarray([True])], axis=0)
         return update_lbfgs_history_batch(
             state, params_seq, grad_seq, valid_seq, history_size
         )

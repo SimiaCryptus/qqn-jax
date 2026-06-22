@@ -76,6 +76,16 @@ Run with:  python examples/fashion_mnist_mlp_comparison.py
 
 import os
 import time
+
+# The cuBLAS-Lt autotuner profiles several candidate algorithms *concurrently*,
+# each allocating a multi-GiB workspace for the large full-batch JVP matmuls.
+# On a ~6.5GiB GPU that profiling itself OOMs (RESOURCE_EXHAUSTED) before the
+# solve even starts. Disabling autotuning picks a default algorithm and avoids
+# the speculative parallel allocations. Set these before importing jax.
+os.environ.setdefault("XLA_FLAGS", "--xla_gpu_autotune_level=0")
+# Optionally fall back to host memory instead of hard-failing on OOM:
+os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -485,7 +495,7 @@ def _parse_hidden_sizes():
         # forward/backward pass is even more dominant — making QQN's lower
         # iteration count convert into wall-clock — and the curvature signal
         # the deep-memory oracle exploits is even richer.
-        hidden = int(os.environ.get("HIDDEN", "512"))
+        hidden = int(os.environ.get("HIDDEN", "256"))
         # A deeper default network deepens the conditioning of the full-batch
         # Hessian, widening the gap where second-order curvature (QQN/L-BFGS)
         # pays off over first-order methods. DEPTH=5 keeps the model small
@@ -842,8 +852,12 @@ def main():
     # speedup widens monotonically — we use the *entire* Fashion-MNIST train
     # corpus (60k). A larger, balanced full-batch objective has a richer,
     # better-conditioned-yet-more-anisotropic Hessian, deepening QQN's edge.
-    n_train = int(os.environ.get("N_TRAIN", "60000"))
-    n_test = int(os.environ.get("N_TEST", "10000"))
+    # NOTE: the historical 60k full-batch with width-512x4 + deep L-BFGS
+    # history materializes f32[history, n_train, width] JVP tensors that
+    # exhaust a ~6.5GiB GPU. Default to a memory-safe 15k batch; override
+    # with N_TRAIN if you have more VRAM.
+    n_train = int(os.environ.get("N_TRAIN", "15000"))
+    n_test = int(os.environ.get("N_TEST", "5000"))
     # Hidden-layer topology is configurable via env vars (see module docstring).
     hidden_sizes = _parse_hidden_sizes()
     # Hidden-layer activation(s) configurable via ACTIVATION env var. May be a
