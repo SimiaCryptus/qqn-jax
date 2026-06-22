@@ -308,7 +308,12 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8) -> Oracle:
 
         # Solve (dGᵀ dG + reg·I) θ = dGᵀ ∇f  — an (m × m) system.
         m = dG.shape[1]
-        A = dG.T @ dG + reg * jnp.eye(m, dtype=grad.dtype)
+        gram = dG.T @ dG
+        # Scale-aware Tikhonov: anchor the regularizer to the Gram trace so
+        # conditioning is invariant to the magnitude of the residual window.
+        trace = jnp.trace(gram)
+        scale = jnp.where(trace > 0.0, trace / m, 1.0)
+        A = gram + reg * scale * jnp.eye(m, dtype=grad.dtype)
         b = dG.T @ grad
         # Mask columns with no stored history so empty windows are inert.
         active = jnp.arange(m) < state.count
@@ -400,10 +405,18 @@ def resolve_oracle(oracle, history_size: int = 10) -> Oracle:
             return SecantOracle()
         if oracle == "anderson":
             return AndersonOracle()
+        if oracle == "anderson+secant":
+            # The variational ideal, safeguarded by a featherweight secant —
+            # a strictly-dominant pairing when the residual solve degenerates.
+            return Fallback([AndersonOracle(window=5), SecantOracle()])
+        if oracle == "lbfgs+secant":
+            # Your data's "best zero-storage safety net": deep curvature while
+            # healthy, finite curvature the instant the history collapses.
+            return Fallback([LBFGSOracle(history_size=history_size), SecantOracle()])
         raise ValueError(
             f"Unknown oracle: {oracle!r}. "
-            "Available: 'lbfgs', 'momentum', 'shampoo', 'secant', 'anderson' "
-            "or an Oracle instance."
+            "Available: 'lbfgs', 'momentum', 'shampoo', 'secant', 'anderson', "
+            "'anderson+secant', 'lbfgs+secant' or an Oracle instance."
         )
     if isinstance(oracle, Oracle):
         return oracle

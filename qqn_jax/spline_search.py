@@ -238,12 +238,19 @@ def spline_wrap(inner_search: Callable) -> Callable:
         eps_ext = jnp.asarray(1e-12, dtype=dtype)
         denom = jnp.where(jnp.abs(m0 - m1) > eps_ext, m0 - m1, eps_ext)
         alpha_star = a1 * (m0 / denom)
+        # The minimizer of a descending quadratic can lie far beyond a fixed
+        # multiple of a1 when m1 ≪ m0 (the deep superlinear regime). A linear
+        # leash throttles arrival at precisely the moment of acceleration. We
+        # relax the cap by the log-ratio of the slopes, letting genuinely
+        # superlinear steps stretch while remaining bounded and monotone-gated.
+        slope_ratio = jnp.abs(m0) / (jnp.abs(m1) + eps_ext)
+        relaxed_cap = spline_extrapolate * (1.0 + jnp.log1p(slope_ratio))
         a_ext = jnp.where(
             still_descending,
             jnp.clip(
                 alpha_star,
                 jnp.maximum(a1, 1e-3),
-                spline_extrapolate * jnp.maximum(a1, 1e-3),
+                relaxed_cap * jnp.maximum(a1, 1e-3),
             ),
             a1,
         )

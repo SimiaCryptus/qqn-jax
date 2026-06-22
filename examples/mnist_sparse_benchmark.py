@@ -312,11 +312,22 @@ def main():
         ("orthant (spline)", OrthantRegion(l1=1e-1), "spline"),
         (
             "orthant + trust",
-            Sequential([OrthantRegion(l1=1e-1), TrustRegion(radius=1.0)]),
+            # Per docs/conclusions.md: the *adaptive* trust-region stalls on
+            # this class of smooth problem. Use a fixed radius — the robust
+            # safeguard — so sparsity and step-control compose without stall.
+            Sequential(
+                [
+                    OrthantRegion(l1=1e-1),
+                    TrustRegion(radius=1.0, adaptive=False),
+                ]
+            ),
             "strong_wolfe",
         ),
         (
             "orthant + trust (spline)",
+            # The spline's monotone gating *does* neutralize the adaptive
+            # stall (see results.md), so adaptivity is safe here paired with
+            # the spline refinement.
             Sequential([OrthantRegion(l1=1e-1), TrustRegion(radius=1.0)]),
             "spline",
         ),

@@ -91,8 +91,11 @@ class QQN:
         tol: convergence tolerance on the gradient L2 norm.
         history_size: L-BFGS memory size ``m``.
          line_search: name of the line-search strategy. One of
-             ``"strong_wolfe"`` (default), ``"backtracking"``, ``"armijo"``,
-             ``"hager_zhang"`` or ``"fixed"``.
+             ``"armijo"`` (default), ``"backtracking"``, ``"strong_wolfe"``,
+             ``"hager_zhang"`` or ``"fixed"``. Empirically (see
+             ``docs/results.md``) the backtracking/Armijo family is the robust
+             efficiency winner on smooth full-batch problems; ``"strong_wolfe"``
+             can over-restrict the quadratic-path step and fail to converge.
          line_search_options: optional dict of keyword arguments forwarded to
              the chosen line-search function (e.g. ``c1``, ``c2``, ``max_iter``,
              ``init_step``, ``shrink``, ``step_size``). These override the
@@ -282,7 +285,14 @@ class QQN:
         # from this linear-slope model; we fold a half-curvature term so ρ is
         # honest to second order along the curve.
         curv_term = 0.5 * (best_t**2) * (m_q - m_g)
-        pred_reduction = linear_term - curv_term
+        raw_pred = linear_term - curv_term
+        # Esoteric correction: the trust-region ratio ρ = ared/pred is only
+        # meaningful for a *positive* predicted reduction. Near convergence the
+        # curvature correction can flip raw_pred negative, inverting ρ's sign
+        # and driving the adaptive radius to shrink exactly when it should not.
+        # We floor the predicted reduction at the honest first-order model,
+        # which is non-negative whenever the step descends along the path.
+        pred_reduction = jnp.maximum(raw_pred, jnp.abs(linear_term) * 1e-3)
         info = RegionInfo(
             params=params,
             new_params=new_params,
