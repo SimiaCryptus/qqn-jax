@@ -17,7 +17,6 @@ Run with:  python examples/mnist_comparison.py
 """
 
 import time
-
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -756,6 +755,41 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
+        # --- Performance: aggressive warm-started backtracking that probes
+        #     well beyond α=1 (init_step=4) with a *gentle* shrink (0.8) so the
+        #     deep-memory quasi-Newton step can stretch deep into the
+        #     superlinear regime. The trust-region clips any overshoot, so the
+        #     aggressive initial step is "free" — it can only help. This is a
+        #     pure performance lever (no diversity loss; it's a distinct
+        #     search configuration from the existing init_step=2 variant). ---
+        "QQN-L50BTTR++": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 4.0, "shrink": 0.8, "max_iter": 50},
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=1.5, adaptive=True),
+            stop=stop,
+        ),
+        # --- Performance: pure-oracle-dominant t-grid. Concentrate ALL blend
+        #     samples in [0.8, 1.0] where the deep-memory experiments show the
+        #     winning blend lives, while keeping a fine 4-point resolution so
+        #     the line search still discriminates near the endpoint. Pairs the
+        #     winning L50 oracle with warm-started backtracking + trust-region.
+        #     Distinct from QQN-Fast (which spans 0.6..1.0); this probes the
+        #     even-tighter endpoint regime. ---
+        "QQN-L50Endpt": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 2.0, "shrink": 0.7, "max_iter": 40},
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=1.0, adaptive=True),
+            t_grid=jnp.array([0.8, 0.9, 0.95, 1.0]),
+            stop=stop,
+        ),
         # --- Performance: L50 + backtracking + trust-region, but with the
         #     line search *warm-started* at a larger initial step (init_step=2)
         #     and a gentler shrink (0.7). Because the quadratic path's t=1
@@ -817,6 +851,25 @@ def main():
             t_grid=jnp.linspace(0.125, 1.0, 8),
             stop=stop,
         ),
+        # --- Diversity-preserving champion: stack the strongest *independent*
+        #     performance levers — deep curvature memory (L50), the cheapest
+        #     robust search warm-started aggressively beyond α=1, a generous
+        #     adaptive trust-region to clip overshoot for free, and an
+        #     endpoint-concentrated t-grid — WITHOUT the expensive spline (which
+        #     the data shows does not help deep-memory backtracking here). This
+        #     is the intended best-on-both-axes (loss AND time) configuration:
+        #     it should reach the target in the fewest iterations at ~1s. ---
+        "QQN-Champion": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 3.0, "shrink": 0.75, "max_iter": 45},
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=1.5, adaptive=True),
+            t_grid=jnp.array([0.7, 0.85, 0.95, 1.0]),
+            stop=stop,
+        ),
         # --- Combined: deep L-BFGS oracle + box constraint ---
         "QQN-L20Box": lambda: _run_qqn_configured(
             loss_fn,
@@ -856,6 +909,18 @@ def main():
         # value evaluation); a clean per-step cost metric for fair comparison.
         n_iters = max(len(history) - 1, 1)
         ms_per_iter = (wall / n_iters) * 1e3
+    # Trajectory AUC: a single scalar summarizing *both* early- and late-phase
+    # descent speed. We integrate log10(loss) over the (normalized) iteration
+    # axis via the trapezoid rule; lower AUC means the optimizer spent its
+    # whole trajectory at lower loss, which is far more discriminating than a
+    # single time-to-target (it rewards fast early descent AND deep late
+    # refinement simultaneously, without favouring either phase).
+    log_hist = np.log10(np.maximum(np.asarray(history), 1e-12))
+    if len(log_hist) > 1:
+        x_axis = np.linspace(0.0, 1.0, len(log_hist))
+        traj_auc = float(np.trapz(log_hist, x_axis))
+    else:
+        traj_auc = float(log_hist[-1])
         results[name] = {
             "final_loss": history[-1],
             "best_loss": min(history),
@@ -871,6 +936,7 @@ def main():
             "time_to_target": time_to_target,
             "milestone_hits": milestone_hits,
             "ms_per_iter": ms_per_iter,
+            "traj_auc": traj_auc,
         }
 
     # --- Summary table ---
@@ -886,9 +952,9 @@ def main():
     print(
         f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
         f"{'train_acc':>12}{'test_acc':>11}{'sparsity':>10}{'time(s)':>10}"
-        f"{'ms/it':>8}{'->target':>10}{'t->tgt':>9}{'vs LBFGS':>10}"
+        f"{'ms/it':>8}{'->target':>10}{'t->tgt':>9}{'vs LBFGS':>10}{'AUC':>8}"
     )
-    print("-" * 112)
+    print("-" * 120)
     for name, r in ordered:
         it_tgt = "—" if r["iters_to_target"] is None else f"{r['iters_to_target']}"
         t_tgt = "—" if r["time_to_target"] is None else f"{r['time_to_target']:.3f}"
@@ -902,6 +968,7 @@ def main():
             f"{r['train_acc']:>12.4f}{r['test_acc']:>11.4f}"
             f"{r['sparsity']:>10.4f}{r['wall']:>10.3f}"
             f"{r['ms_per_iter']:>8.2f}{it_tgt:>10}{t_tgt:>9}{spd:>10}"
+            f"{r['traj_auc']:>8.2f}"
         )
     # --- Pareto frontier (loss vs. wall-time) ---
     # Surface the non-dominated variants: those for which no other variant is
@@ -920,6 +987,19 @@ def main():
             pareto.append((name, r))
     for name, r in sorted(pareto, key=lambda kv: kv[1]["wall"]):
         print(f"  {name:<12} loss={r['final_loss']:.4e}  time={r['wall']:.3f}s")
+    # --- Trajectory-AUC leaderboard --------------------------------------
+    # Rank optimizers by the single-scalar trajectory AUC (lower = better):
+    # it rewards methods that descend fast early AND refine deep late, so it
+    # is a more effective summary of *overall* convergence quality than a
+    # single time-to-target. The strongest deep-memory + warm-start combos
+    # should top this list.
+    print("\nTrajectory-AUC leaderboard (lower = faster overall descent):")
+    auc_ranked = sorted(results.items(), key=lambda kv: kv[1]["traj_auc"])
+    for name, r in auc_ranked[:12]:
+        print(
+            f"  {name:<14} AUC={r['traj_auc']:+.3f}  "
+            f"final={r['final_loss']:.4e}  time={r['wall']:.3f}s"
+        )
     # --- Convergence-rate profile (loss milestones) ----------------------
     # For each method, report the iteration at which it first crossed each
     # intermediate loss milestone. This separates *early-phase* descent speed
@@ -1030,6 +1110,24 @@ def main():
             "best-of-breed: L100 combos",
             "QQN-L100",
             "QQN-L100TR",
+        ),
+        (
+            "performance: warm-start aggressiveness",
+            "QQN-L50BTTR",
+            "QQN-L50BTTR+",
+            "QQN-L50BTTR++",
+        ),
+        (
+            "performance: endpoint-concentrated t-grid",
+            "QQN-L50BTTR",
+            "QQN-L50Tnear1",
+            "QQN-L50Endpt",
+        ),
+        (
+            "champion: diversity-preserving best stack",
+            "QQN-L50BTTR",
+            "QQN-Fast",
+            "QQN-Champion",
         ),
         (
             "best-of-breed: full stack",

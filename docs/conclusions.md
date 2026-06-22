@@ -29,8 +29,9 @@ target was first reached. The headline results are:
   fraction of the cost.** On the softmax MNIST benchmark, QQN reached the
   shared `f_target = 1.1e-1` in **65 iterations** (final loss `1.098e-01`) —
   fewer than Optax's L-BFGS (70 iterations) — while running roughly **1.3×
-  faster** in wall-clock time (1.642s vs. 2.174s).
 - **QQN clearly beats first-order baselines on convergence speed.** It reached
+   faster** in wall-clock time (1.603s vs. 2.107s), a **1.08×** iteration
+   speedup.
   the target in ~4× fewer iterations than Adam (which needed 263), and SGD
   **never reached** the target within 500 iterations (plateauing at
   `2.266e-01`), confirming the benefit of quasi-Newton acceleration on smooth
@@ -70,7 +71,7 @@ regardless of oracle quality, leaving the oracle free to be aggressive.
 
 - **L-BFGS history depth** is the single most important convergence-speed
   lever, with a monotone reduction in iterations-to-target `L5 > L10 > L20 >
- L50` (73 → 65 → 60 → 46), clear diminishing returns past size 50, and a hard
+L50` (72 → 65 → 59 → 46), clear diminishing returns past size 50, and a hard
   plateau at 100 (`L50 == L100` at **46 iterations**). The converged final
   loss is essentially flat across depths (every variant hits the shared
   target), so the lever here is *speed of convergence*, not final loss. Very
@@ -90,8 +91,8 @@ regardless of oracle quality, leaving the oracle free to be aggressive.
 On this smooth convex objective, the line search choice had negligible effect
 on the iterations-to-target (or converged loss) but a large effect on
 wall-time. Armijo backtracking was the clear efficiency winner (`QQN-BT`,
-1.369s, target at iteration 65); strong-Wolfe (3.155s), Hager-Zhang, and the
-spline refinement (2.889s) matched its iterations-to-target at ~2× the cost.
+1.333s, target at iteration 65); strong-Wolfe (3.198s), Hager-Zhang, and the
+spline refinement (2.874s) matched its iterations-to-target at ~2× the cost.
 This confirms that the more expensive searches do **not** degrade quality —
 they simply do not pay off on a well-conditioned objective where curvature
 information is easy to exploit.
@@ -117,8 +118,8 @@ safeguards rather than performance drivers on a well-conditioned problem. When
 stacked atop a deep oracle, the adaptive trust-region did *accelerate*
 convergence (e.g. L50 → L50TR: 46 → 41 iterations-to-target) at negligible
 cost. An adaptive radius performed marginally better than a fixed one (`TR`
-reached target at 68 vs `TRfix` at 69). The orthant region was the only
-configuration to induce measurable weight sparsity (`0.0037`), exactly as its
+reached target at 67 vs `TRfix` at 69). The orthant region was the only
+configuration to induce measurable weight sparsity (`0.0027`), exactly as its
 sign-preserving projection predicts. Box and stacked (`Sequential`) constraints
 added negligible cost.
 
