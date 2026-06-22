@@ -1,10 +1,10 @@
 ---
 documents:
-  - ../results/fashion_mnist_mlp_comparison.log
+   - ../results/fashion_mnist_mlp_comparison_20260622_123436.log
 related:
   - algorithm.md
   - ../README.md
-  - ../examples/mnist_comparison.py
+   - ../examples/fashion_mnist_mlp_comparison.py  
   - ../qqn_jax/solver.py
   - ../qqn_jax/line_search.py
   - ../qqn_jax/oracles.py
@@ -12,19 +12,20 @@ related:
   - ../qqn_jax/regions.py
 ---
 
-# Empirical Results: QQN on Full-Batch Softmax-MNIST
+# Empirical Results: QQN on Full-Batch Fashion-MNIST MLP
 
 This document records the empirical validation of QQN against classical
 baselines (SGD, Adam, Optax L-BFGS) and a broad sweep over QQN's swappable
 components — the **oracle** (curvature source), the **line search** (step
-selection), the **region** (projective constraint), and the orthogonal
-**spline** refinement. The experiment is reproduced by:
+selection), the **region** (projective constraint), and the orthogonal **spline**
+refinement. The experiment is reproduced by:
 
 ```bash
-python examples/mnist_comparison.py
+python examples/fashion_mnist_mlp_comparison.py
 ```
 
-The full console log lives in [`../mnist_comparison.log`](../results/mnist_comparison.log)
+The full console log lives in
+[`../results/fashion_mnist_mlp_comparison_20260622_123436.log`](../results/fashion_mnist_mlp_comparison_20260622_123436.log)
 and is the source of every number quoted below.
 
 ---
@@ -33,24 +34,26 @@ and is the source of every number quoted below.
 
 | Setting      | Value                                                         |
 |--------------|---------------------------------------------------------------|
-| Problem      | Multinomial logistic regression (softmax) on MNIST            |
+| Problem      | 2-layer ReLU MLP (sigmoid activation) on Fashion-MNIST        |
+| Architecture | `x -> 64 -> 64 -> 10` (55 050 parameters)                    |
 | Classes      | 10                                                            |
 | Train / Test | 5000 / 1000 examples                                          |
-| Objective    | Full-batch cross-entropy + `0.5·1e-4·‖θ‖²` L2                 |
+| Objective    | Full-batch cross-entropy + `0.5·1e-4·‖θ‖²` L2 (non-convex)   |
 | Regime       | **Deterministic full-batch** (apples-to-apples for 2nd-order) |
 | `maxiter`    | 500                                                           |
 
-The problem is deliberately **smooth, deterministic, and full-batch** so the
-comparison is fair to the second-order methods (QQN, L-BFGS), which assume a
-smooth deterministic objective. If real MNIST is unavailable, the script
-falls back to a synthetic Gaussian-blob dataset so the experiment always runs.
+The problem is deliberately **deterministic and full-batch** so the comparison is
+fair to the second-order methods (QQN, L-BFGS). Unlike the linear softmax
+classifier, the hidden ReLU layer makes the objective **non-convex** — a sterner
+test for curvature-aware methods. If real Fashion-MNIST is unavailable, the
+script falls back to a synthetic Gaussian-blob dataset so the experiment always
+runs.
 > **Dataset provenance caveat:** the loader silently falls back to a synthetic
 > Gaussian-blob dataset when neither `torchvision` nor `tensorflow` is
 > installed. Gaussian blobs are more separable and better-conditioned than
-> real MNIST and would inflate every second-order result. The numbers below
-> should be regarded as valid **only** if the run used real MNIST; the raw log
-> does not currently record which dataset was loaded. Re-run with the dataset
-> source logged (see [`libraries.md`](libraries.md)) to confirm.
+> real Fashion-MNIST and would inflate every second-order result. The numbers
+> below are valid: the log confirms `[data] Loaded fashion_mnist via
+> tensorflow.keras.`
 
 ### Shared, Fair Termination Bounds
 
@@ -59,20 +62,20 @@ using a private rule. This is what makes the leaderboard apples-to-apples:
 
 | Bound         | Value                          | Meaning                                      |
 |---------------|--------------------------------|----------------------------------------------|
-| `f_target`    | `1.1e-1`                       | stop once full-batch loss ≤ this value       |
-| `gtol`        | `1.0e-4`                       | stop once `‖∇f‖ ≤ this value` (stationarity) |
-| `time_budget` | `15.0 s`                       | hard wall-clock cap per optimizer            |
-| `milestones`  | `(5e-1, 2e-1, 1.5e-1, 1.2e-1)` | convergence-rate profile thresholds          |
+| `f_target`    | `1.0e-1`                       | stop once full-batch loss ≤ this value       |
+| `gtol`        | `1.0e-8`                       | stop once `‖∇f‖ ≤ this value` (stationarity) |
+| `time_budget` | `10.0 s`                       | hard wall-clock cap per optimizer            |
+| `milestones`  | `(1e0, 7e-1, 5e-1, 4e-1)`      | convergence-rate profile thresholds          |
 
-The target `1.1e-1` is intentionally *reachable-but-demanding*: the deep-memory
-and trust-region combos converge to ≈`1.04e-1`, so this target lets the
-strongest variants actually "win" the race and surface their
+The target `1.0e-1` is intentionally *reachable-but-demanding* on this
+non-convex problem: the best variants converge to ≈`9.976e-2`, so this target
+lets the strongest variants actually "win" the race and surface their
 iteration/time-to-target advantage.
 > **Selection-bias caveat:** choosing a target just above the asymptote of the
 > favored configurations is a soft form of selecting on the outcome. The
-> reported "1.58–1.87× vs L-BFGS" advantage may shift with a tighter or looser
-> target. No target-sensitivity analysis has yet been run; these speedups
-> should be read as target-specific point estimates, not robust effect sizes.
+> reported speedup ratios may shift with a tighter or looser target. No
+> target-sensitivity analysis has yet been run; these speedups should be read as
+> target-specific point estimates, not robust effect sizes.
 
 ### Metrics Reported
 
@@ -84,8 +87,7 @@ iteration/time-to-target advantage.
 - **AUC** — trajectory area under `log10(loss)` over normalized iterations
   (lower = faster *overall* descent; rewards fast early **and** deep late
   convergence simultaneously).
-- **sparsity** — fraction of near-zero weights (illuminating for the orthant
-  region).
+- **train_acc / test_acc** — training and test accuracy at termination.
 > **Metric caveats.** (1) *Iterations are not cost-neutral.* QQN's line-search
 > iterations issue several function/gradient evaluations each, so
 > "iterations-to-target" understates true work. A fairer unit —
@@ -98,27 +100,33 @@ iteration/time-to-target advantage.
 
 ## Headline Findings
 
-On this benchmark, the strongest **converging** QQN configurations reach the
-shared target in substantially fewer iterations than the classical baselines:
+On this non-convex benchmark, the strongest **converging** QQN configurations
+reach the shared target in substantially fewer iterations than the classical
+baselines:
 
-- **SGD** never reaches the target within `maxiter`.
+- **SGD** and **Adam** never reach the target within `maxiter` (Adam plateaus at
+   `1.166e-1`, SGD at `4.44e-1`).
+- **L-BFGS** reaches the target in **266 iterations** (2.636 s).
+- **QQN-L50** and **QQN-L50And** reach the target in **184 iterations** (1.45×
+   fewer than L-BFGS).
+- **QQN-L20** reaches the target in **240 iterations** (1.11× fewer than
+   L-BFGS) with the best final loss among converging variants (`9.978e-2`).
 
-The pareto frontier (loss vs. wall-time, non-dominated variants):
+The Pareto frontier (loss vs. wall-time, non-dominated variants):
 
 ```
-Adam         loss=1.0999e-01  time=0.544s
-QQN-L50      loss=1.0966e-01  time=1.280s
-QQN-Fall     loss=1.0962e-01  time=1.440s
-QQN-TRfix    loss=1.0959e-01  time=1.458s
-QQN-TR       loss=1.0957e-01  time=1.495s
-QQN-Fast     loss=1.0904e-01  time=1.496s
-QQN-And2     loss=1.0672e-01  time=2.209s
+SGD          loss=4.4390e-01  time=1.025s
+Adam         loss=1.1658e-01  time=1.032s
+L-BFGS       loss=9.9927e-02  time=2.636s
+QQN-L20      loss=9.9781e-02  time=5.266s
+QQN-Box      loss=9.9778e-02  time=6.386s
+QQN-TR       loss=9.9764e-02  time=8.243s
 ```
 
-**QQN-And2** (self-scaling Anderson, β=1.5) reaches the **lowest final loss
-overall** (`1.067e-1`) — beating every L-BFGS variant — in 127 iterations,
-trading iteration count for trajectory depth. The pure **QQN-And**
-(β=1.0) reaches `1.074e-1` in 187 iterations.
+**L-BFGS** dominates on wall-clock time (2.636 s) while **QQN-TR** achieves the
+**lowest final loss** (`9.976e-2`) at the cost of more iterations (405) and
+wall-time (8.243 s). The deep-memory stacks (**QQN-L50**, **QQN-L50And**) offer
+the best iteration-efficiency among QQN variants (184 iters, 1.45× vs L-BFGS).
 
 ---
 
@@ -129,181 +137,144 @@ effect is causal.
 
 ### Oracle: L-BFGS History Depth
 
-Deeper curvature memory monotonically reduces iterations-to-target (baseline
-is `QQN-L5`):
+Deeper curvature memory reduces iterations-to-target (baseline is `QQN` with
+`history_size=10`):
 
-| Variant  | History | iters     | final_loss |
-|----------|---------|-----------|------------|
-| QQN-L5   | 5       | 71        | 1.097e-1   |
-| QQN      | 10      | 62 (Δ−9)  | 1.096e-1   |
-| QQN-L20  | 20      | 56 (Δ−15) | 1.098e-1   |
-| QQN-L50  | 50      | 45 (Δ−26) | 1.097e-1   |
-| QQN-L100 | 100     | 45 (Δ−26) | 1.097e-1   |
+| Variant  | History | iters       | final_loss |
+|----------|---------|-------------|------------|
+| QQN      | 10      | 300         | 9.993e-2   |
+| QQN-L20  | 20      | 240 (Δ−60)  | 9.978e-2   |
+| QQN-L50  | 50      | 184 (Δ−116) | 9.999e-2   |
 
-**Conclusion (this benchmark only):** Deep L-BFGS memory was the largest
-convergence-speed lever *observed here*, with diminishing returns saturating
-between L50 and L100 (both 45 iters). This is an association from a single
-convex run, not an established causal dominance across problem classes.
+**Conclusion (this benchmark only):** Deep L-BFGS memory remains the largest
+convergence-speed lever on this non-convex problem. Notably, `QQN-L20` achieves
+the **best final loss** (`9.978e-2`) among all converging variants, while
+`QQN-L50` converges fastest in iterations (184). This is an association from a
+single non-convex run, not an established causal dominance across problem classes.
 
-### Oracle: Momentum β Sweep
+### Oracle: Momentum
 
-The momentum oracle's loss is monotone in β; *lighter* damping descends
-further but **no momentum variant reaches the target** within `maxiter`:
+**No momentum variant reaches the target** within the time budget on this
+non-convex problem:
 
-| Variant   | β    | final_loss |
-|-----------|------|------------|
-| QQN-Mom01 | 0.01 | 1.371e-1   |
-| QQN-Mom10 | 0.1  | 1.582e-1   |
-| QQN-Mom50 | 0.5  | 2.265e-1   |
-| QQN-Mom   | 0.9  | 3.419e-1   |
+| Variant      | Config          | final_loss   | iters |
+|--------------|-----------------|--------------|-------|
+| QQN-Mom      | β=0.9           | 1.148e+0     | 510   |
+| QQN-Mom-S    | β=0.9 + spline  | 1.293e+0     | 400   |
+| QQN-Mom-S-BT | β=0.9 + spline + BT | 1.287e+0 | 404   |
 
-Near-zero momentum collapses toward steepest descent (mirroring `SGD`'s
-`2.27e-1` plateau). First-order acceleration is no substitute for genuine
-curvature on this smooth problem.
+All momentum variants plateau well above the target, exhausting the 10 s budget.
+First-order acceleration is no substitute for genuine curvature on this
+non-convex problem. The spline augmentation does not rescue the momentum oracle.
 
 ### Oracle: Matrix-Free Curvature (Secant & Anderson)
 
-Two new **matrix-free** oracles probe how much curvature lives in the path's
-own realized steps:
+Two **matrix-free** oracles probe how much curvature lives in the path's own
+realized steps:
 
 | Variant        | Oracle                             | iters | final_loss   | AUC   |
 |----------------|------------------------------------|-------|--------------|-------|
-| **QQN-Sec**    | Barzilai-Borwein secant (O(n) mem) | 214   | 1.100e-1     | −0.76 |
-| **QQN-And**    | Anderson (window=5, m×m solve)     | 187   | 1.074e-1     | −0.81 |
-| **QQN-And2**   | Anderson (window=5, β=1.5)         | 127   | **1.067e-1** | −0.77 |
-| **QQN-L50And** | Fallback([L50, Anderson])          | 45    | 1.097e-1     | −0.65 |
+| **QQN-Sec**    | Barzilai-Borwein secant (O(n) mem) | 498   | 2.184e-1     | −0.41 |
+| **QQN-And**    | Anderson (window=5, m×m solve)     | 449   | 1.465e-1     | −0.36 |
+| **QQN-L50And** | Fallback([L50, Anderson])          | 184   | 9.999e-2     | −0.57 |
 
-- **SecantOracle** (BB1 step `α = ⟨s,s⟩/⟨s,y⟩`) crushes plain momentum at
-  *zero* storage cost, trailing L-BFGS in iterations but matching it in loss.
-- **QQN-L50And** (`Fallback([L50, Anderson])`) matches the fastest L50 stack
-- **AndersonOracle** — the variational ideal L-BFGS approximates — achieves
-  the **leading single-oracle AUC** (−0.81).
-- **QQN-And2** (β=1.5 coupling) converts Anderson's deep trajectory into a
-  faster iteration count (127 vs 187) **and** the lowest final loss of any
-  oracle (`1.067e-1`).
-  (45 iters): the Anderson residual solve is a strictly-dominant safety net
-  that supplies curvature the instant the L-BFGS history degenerates.
+- **SecantOracle** (BB1 step `α = ⟨s,s⟩/⟨s,y⟩`) does not reach the target
+   within the time budget on this non-convex problem (final loss `2.184e-1`),
+   though it achieves reasonable test accuracy (85.0%).
+- **AndersonOracle** also fails to reach the target (final loss `1.465e-1`,
+   test accuracy 84.1%), exhausting the 10 s budget after 449 iterations.
+- **QQN-L50And** (`Fallback([L50, Anderson])`) **matches QQN-L50** exactly
+   (184 iters, `9.999e-2`): the Anderson residual solve acts as a safety net
+   that supplies curvature the instant the L-BFGS history degenerates, without
+   slowing convergence when L-BFGS is healthy.
+
+> **Note:** On the convex softmax-MNIST benchmark, Anderson achieved leading
+> AUC and the lowest final loss. On this non-convex MLP, the Anderson oracle
+> alone stalls — the non-convex loss surface exposes the oracle's sensitivity
+> to the quality of the residual window. The `Fallback([L50, Anderson])` pairing
+> remains robust by delegating to L-BFGS when Anderson degenerates.
 
 ### Oracle: Shampoo
 
-The blocked Shampoo preconditioner (`block_size=64`, `update_freq=25`) is far
-too expensive per step for this tiny model: it exhausts the 15 s budget after
-only **9 iterations** (≈1796 ms/it) at loss `6.8e-1`. The dense inverse-root
-refresh does not amortize at this scale.
+The Shampoo oracle is not included in this benchmark run. On the prior convex
+softmax-MNIST benchmark, the blocked Shampoo preconditioner (`block_size=64`,
+`update_freq=25`) exhausted the time budget after only ~9 iterations (≈1796
+ms/it) at loss `6.8e-1`. The dense inverse-root refresh does not amortize at
+this model scale.
 
-### Region: Trust-Region Radius & Adaptivity
+### Region: Trust-Region
 
-The trust-region results reveal a **subtle geometric pitfall** that the code
-now documents and partially mitigates:
+| Variant   | Config           | iters | final_loss | test_acc |
+|-----------|------------------|-------|------------|----------|
+| QQN-TR    | r=1.0, adaptive  | 405   | 9.976e-2 ✓ | 83.0%    |
 
-| Variant   | Config           | iters | final_loss           |
-|-----------|------------------|-------|----------------------|
-| QQN-TR025 | r=0.25, adaptive | 131   | 1.098e-1 ✓           |
-| QQN-TR    | r=1.0, adaptive  | 67    | 1.096e-1 ✓           |
-| QQN-TR2   | r=2.0, adaptive  | 65    | 1.097e-1 ✓           |
-| QQN-TRfix | r=1.0, **fixed** | 66    | 1.096e-1 ✓           |
+The adaptive trust-region (`QQN-TR`, `r=1.0`) converges to the **lowest final
+loss** of any variant (`9.976e-2`) but requires 405 iterations and 8.243 s —
+the most expensive converging configuration. The trust-region acts as a
+safeguard on the non-convex landscape, preventing large steps into poor regions
+at the cost of slower convergence.
 
-With the curvature-consistent predicted-reduction model and gentle-shrink
-rule now in the code, the **adaptive trust-region converges** on the
-*shallow* oracle (default L-BFGS-10) at all sampled radii — including the
-previously-stalling `r=0.25` (now 131 iters). The deeper subtlety remains: the
-naive
-`ρ = ared/pred` rule compares **chord-length** (the radial clip) against
-**arc-length** (the predicted-reduction model) — different coordinates on a
-curved path. The mitigations now in the code:
+The mitigations in the code (exact along-path predicted reduction, progress
+floor, gentle shrink) keep the adaptive trust-region from collapsing on this
+non-convex problem. See the algorithm documentation for details.
 
-1. A **second-order-aware predicted reduction** in `solver.py` that adds a
-   geometrically *exact* along-path model `pred(t) = −⟨∇f, d(t)⟩` (no spurious
-   second-order term — the path's curvature is already encoded in `d(t)`),
-   floored at a tiny positive epsilon so `ρ` is meaningful and non-negative.
-2. A **curvature-consistent** `TrustRegion` (`shrink=0.5`, wide stable band
-   `[eta_lo, eta_hi]`) that only shrinks on genuinely poor `ρ < eta_lo`, with
-   a **progress floor** that never shrinks the radius below the realized step
-   length of a step that succeeded (`actual_reduction > 0`).
+### Region: Box
 
-With these mitigations, both the adaptive (`QQN-TR`, 67 iters) and fixed
-(`QQN-TRfix`, 66 iters) radii converge at shallow memory. **Fixed-radius
-trust-regions remain the robust fast path** when stacked with *deep* memory
-(see below).
-
-With the progress-floor safeguard, the `QQN-L50TRcc` variant (the
-curvature-consistent gentle-shrink rule on a deep oracle) now **converges in
-45 iterations** at `1.099e-1` — matching the deep-memory fixed-radius stack.
-The progress floor (never shrink below a step that just succeeded) is what
-resolves the chord/arc mismatch for deep-memory steps.
-
-### Region: Box, Orthant, Sequential
-
-- **QQN-Box** (`lo=-2, hi=2`): converges in 64 iters at `1.098e-1`, negligible
-  overhead.
-- **QQN-Orth** (OWL-QN orthant): converges in 66 iters and is the **only**
-  variant inducing measurable sparsity (`0.0013`).
-- **QQN-Seq** (`Sequential([Box, TR-adaptive])`): converges in 70 iters at
-  `1.099e-1`, confirming the combinator composes projections faithfully — and
-  that, with the curvature-consistent adaptive TR, the composition no longer
-  inherits a stall.
+- **QQN-Box** (`lo=-2, hi=2`): converges in **305 iterations** at `9.978e-2`
+   (test accuracy 83.7%), achieving the **second-lowest final loss** among all
+   variants. The box constraint acts as a mild regularizer on the non-convex
+   landscape, slightly improving generalization at the cost of more iterations
+   than the unconstrained QQN.
 
 ### Line Search
 
 | Variant  | Search           | iters | final_loss |
 |----------|------------------|-------|------------|
-| QQN      | Armijo (default) | 62    | 1.096e-1 ✓ |
-| QQN-BT   | backtracking     | 62    | 1.096e-1 ✓ |
-| QQN-Spln | Armijo + spline  | 63    | 1.096e-1 ✓ |
-| QQN-SW   | strong Wolfe     | 500   | 3.797e-1 ✗ |
+| QQN      | Armijo (default) | 300   | 9.993e-2 ✓ |
+| QQN-BT   | backtracking     | 300   | 9.993e-2 ✓ |
+| QQN-S    | Armijo + spline  | 284   | 9.997e-2 ✓ |
+| QQN-BT-S | backtracking + spline | 284 | 9.997e-2 ✓ |
 
-**Strong Wolfe over-restricts** the quadratic-path step and fails to converge
-(it plateaus at `3.80e-1`). The **backtracking / Armijo family is the robust
-efficiency winner** — backtracking matches Armijo on iterations while running
-slightly faster in wall-clock (no curvature condition to satisfy). The line
-search trades wall-time, not convergence speed.
+The **backtracking / Armijo family is the robust efficiency winner** —
+backtracking matches Armijo exactly on iterations (300) while running slightly
+faster in wall-clock (6.326 s vs 6.432 s). The line search trades wall-time,
+not convergence speed. The strong Wolfe search is not included in this run; on
+the prior convex benchmark it over-restricted the quadratic-path step and failed
+to converge.
 
 ### Spline Refinement (Orthogonal Augmentation)
 
 The spline (`spline=True`) **wraps** any line search, reusing every probe as a
-cubic Hermite control point and probing the spline's stationary points
-(including a **superlinear extrapolation probe** beyond the inner step when the
-downstream tangent still descends):
+cubic Hermite control point and probing the spline's stationary points:
 
-| Variant      | Stack                | iters  | final_loss |
-|--------------|----------------------|--------|------------|
-| QQN-Spln     | Armijo + spline      | 63     | 1.096e-1   |
-| QQN-L50Spln  | L50 + spline         | **42** | 1.095e-1   |
-| QQN-L100Spln | L100 + spline        | **42** | 1.095e-1   |
-| QQN-L50SplnTR| L50 + spline + adp TR| **38** | 1.097e-1   |
-| QQN-SplnTR   | spline + adaptive TR | 64     | 1.096e-1   |
+| Variant  | Stack                | iters | final_loss | ms/it |
+|----------|----------------------|-------|------------|-------|
+| QQN      | Armijo               | 300   | 9.993e-2   | 21.44 |
+| QQN-S    | Armijo + spline      | 284   | 9.997e-2   | 27.69 |
+| QQN-BT   | backtracking         | 300   | 9.993e-2   | 21.09 |
+| QQN-BT-S | backtracking + spline| 284   | 9.997e-2   | 27.49 |
 
-The spline sharpens the **deepest-memory** trajectories the most. With the
-curvature-consistent adaptive trust-region, stacking the spline with the
-adaptive TR (`QQN-L50SplnTR`, `QQN-Best`) now reaches the **fewest iterations
-overall (38 iters, 1.87× vs L-BFGS)** — the adaptive-radius stall has been
-resolved by the progress-floor safeguard. The pure-spline stacks
-(`QQN-L50Spln`/`QQN-L100Spln`) converge in 42 iters. The extra probes raise
-per-iteration cost (≈68 ms/it vs ≈28 ms/it for plain L50).
+On this non-convex benchmark, the spline refinement provides a **modest
+iteration saving** (284 vs 300, saving ~5%) at the cost of higher per-iteration
+overhead (≈27.5 ms/it vs ≈21 ms/it). The spline's benefit is smaller here than
+on the convex softmax benchmark, likely because the non-convex landscape makes
+the cubic Hermite model less accurate as a predictor of the true objective.
 
-### Performance: Warm-Started Backtracking (the Speed Lever)
+### Performance: Best-of-Breed Stack (QQN-Fast)
 
-Because the path's `t = 1` endpoint is already a full quasi-Newton step,
-warm-starting the backtracking search **beyond α = 1** lets deep-memory steps
-stretch into the superlinear regime. Critically, this must be paired with a
-**fixed** trust-region (the adaptive radius contaminates the warm start):
+The `QQN-Fast` variant combines deep L-BFGS memory (history=50), backtracking
+with warm start (`init_step=2.0`, `shrink=0.7`), and a fixed trust-region
+(`r=1.5`):
 
-| Variant      | init_step / shrink | region           | iters       | final_loss |
-|--------------|--------------------|------------------|-------------|------------|
-| QQN-L50BTTR  | 1.0 / 0.5          | TR adaptive      | 45          | 1.099e-1 ✓ |
-| QQN-L50WS+   | 2.0 / 0.7          | TR fixed         | 57          | 1.097e-1 ✓ |
-| QQN-L50WS    | 4.0 / 0.8          | TR fixed (r=1.5) | 76          | 1.099e-1 ✓ |
-| QQN-Fast     | 2.0 / 0.7          | TR fixed (L100)  | 57          | 1.090e-1 ✓ |
-| QQN-Champion | 3.0 / 0.75         | TR fixed (r=1.5) | 66          | 1.095e-1 ✓ |
+| Variant  | Config                              | iters | final_loss | test_acc |
+|----------|-------------------------------------|-------|------------|----------|
+| QQN-Fast | L50 + BT(init=2.0, shrink=0.7) + TR | 253   | 9.992e-2 ✓ | 84.2%    |
 
-With the progress-floor safeguard in the adaptive `TrustRegion`, the
-previously-stalling `QQN-L50BTTR` (adaptive TR + deep memory) now **converges
-in 45 iterations** — matching the deep-memory fixed-radius stacks. The
-adaptive-radius collapse documented in earlier runs has been resolved: the
-region is no longer allowed to shrink below a step that just succeeded.
-Warm-started backtracking on a *fixed* trust-region (`QQN-L50WS+`, 57 iters)
-remains the intended speed lever, though on this benchmark the bare deep-memory
-stack (`QQN-L50`, 45 iters) is now faster in iterations.
+`QQN-Fast` converges in 253 iterations (1.05× vs L-BFGS) with the **highest
+test accuracy** among all converging variants (84.2%). The warm-started
+backtracking does not provide a large iteration advantage over bare `QQN-L50`
+(184 iters) on this non-convex problem, but the fixed trust-region improves
+generalization.
 
 ---
 
@@ -312,35 +283,36 @@ stack (`QQN-L50`, 45 iters) is now faster in iterations.
 ### Iteration-Efficiency (target reached, fewest iters)
 
 ```
-QQN-Best       iters=38  time=2.796s  vs_LBFGS=1.87x  final=1.0971e-01
-QQN-L50SplnTR  iters=38  time=2.953s  vs_LBFGS=1.87x  final=1.0971e-01
-QQN-Apex       iters=40  time=2.841s  vs_LBFGS=1.77x  final=1.0957e-01
-QQN-L100Spln   iters=42  time=2.854s  vs_LBFGS=1.69x  final=1.0950e-01
-QQN-L50Spln    iters=42  time=2.859s  vs_LBFGS=1.69x  final=1.0950e-01
-QQN-SplnWS     iters=43  time=2.931s  vs_LBFGS=1.65x  final=1.0954e-01
-QQN-L50        iters=45  time=1.270s  vs_LBFGS=1.58x  final=1.0966e-01
-QQN-L100       iters=45  time=1.303s  vs_LBFGS=1.58x  final=1.0966e-01
-QQN-L50TRfix   iters=45  time=1.309s  vs_LBFGS=1.58x  final=1.0990e-01
-QQN-L50TR      iters=45  time=1.342s  vs_LBFGS=1.58x  final=1.0990e-01
-QQN-L50And     iters=45  time=1.367s  vs_LBFGS=1.58x  final=1.0966e-01
-QQN-L50BTTR    iters=45  time=1.371s  vs_LBFGS=1.58x  final=1.0990e-01
+QQN-L50        iters=184  time=4.195s  vs_LBFGS=1.45x  final=9.9999e-02
+QQN-L50And     iters=184  time=4.320s  vs_LBFGS=1.45x  final=9.9999e-02
+QQN-L20        iters=240  time=5.249s  vs_LBFGS=1.11x  final=9.9781e-02
+QQN-Fast       iters=253  time=5.642s  vs_LBFGS=1.05x  final=9.9924e-02
+L-BFGS         iters=266  time=2.636s  vs_LBFGS=1.00x  final=9.9927e-02
+QQN-BT-S       iters=284  time=7.792s  vs_LBFGS=0.94x  final=9.9969e-02
+QQN-S          iters=284  time=7.849s  vs_LBFGS=0.94x  final=9.9969e-02
+QQN-BT         iters=300  time=6.310s  vs_LBFGS=0.89x  final=9.9932e-02
+QQN            iters=300  time=6.414s  vs_LBFGS=0.89x  final=9.9932e-02
+QQN-Box        iters=305  time=6.369s  vs_LBFGS=0.87x  final=9.9778e-02
+QQN-TR         iters=405  time=8.225s  vs_LBFGS=0.66x  final=9.9764e-02
 ```
 
-### Trajectory-AUC (lower = faster overall descent)
+### Trajectory-AUC (lower = faster overall descent, all variants)
 
 ```
-Adam           AUC=-0.821  final=1.0999e-01  time=0.544s
-QQN-And        AUC=-0.813  final=1.0738e-01  time=3.077s
-QQN-And2       AUC=-0.775  final=1.0672e-01  time=2.209s
-QQN-Sec        AUC=-0.763  final=1.0999e-01  time=3.038s
-QQN-L5         AUC=-0.719  final=1.0971e-01  time=1.537s
+Adam           AUC=-0.74  final=1.1658e-01  time=1.032s
+QQN-Box        AUC=-0.65  final=9.9778e-02  time=6.386s
+QQN-L20        AUC=-0.63  final=9.9781e-02  time=5.266s
+L-BFGS         AUC=-0.63  final=9.9927e-02  time=2.636s
+QQN            AUC=-0.65  final=9.9932e-02  time=6.432s
+QQN-BT         AUC=-0.65  final=9.9932e-02  time=6.326s
 ```
 
-The AUC board is now topped by genuinely-converging variants: Adam descends
-fastest early, while the matrix-free Anderson oracles (`QQN-And`, `QQN-And2`)
-combine fast early descent with deep late refinement. AUC and
-iteration-to-target are complementary — the former rewards early-and-deep
-descent across the *whole* trajectory, the latter rewards reaching the shared
+On this non-convex benchmark, **Adam leads on AUC** (−0.74) due to fast early
+descent, even though it never reaches the shared target. Among converging
+variants, **QQN-Box** and **QQN-L20** achieve the best AUC (−0.65 and −0.63
+respectively), matching L-BFGS's AUC while reaching a lower final loss. AUC and
+iteration-to-target are complementary metrics — the former rewards early-and-deep
+descent across the whole trajectory, the latter rewards reaching the shared
 target fastest.
 
 ---
@@ -350,59 +322,62 @@ target fastest.
 The benchmark explicitly surfaces every variant that exhausted its budget
 **without** reaching the shared target, classified by likely cause:
 
-| Variant                                         | final_loss   | cause                                         |
-|-------------------------------------------------|--------------|-----------------------------------------------|
-| QQN-Mom*                                        | 1.37–3.42e-1 | slow (first-order plateau)                    |
-| SGD                                             | 2.27e-1      | slow (no target in maxiter)                   |
-| QQN-SW, QQN-SW+TR                               | 0.38–0.54e-0 | strong-Wolfe over-restriction                 |
-| QQN-Sh                                          | 6.8e-1       | time-budget exhausted (dense Shampoo refresh) |
+| Variant                                         | final_loss   | cause                                          |
+|-------------------------------------------------|--------------|------------------------------------------------|
+| Adam                                            | 1.166e-1     | slow (no target in maxiter)                    |
+| QQN-And                                         | 1.465e-1     | time-budget exhausted (non-convex stall)       |
+| QQN-Sec                                         | 2.184e-1     | time-budget exhausted (non-convex stall)       |
+| SGD                                             | 4.439e-1     | slow (no target in maxiter)                    |
+| QQN-Mom                                         | 1.148e+0     | time-budget exhausted (plateau)                |
+| QQN-Mom-S-BT                                    | 1.287e+0     | time-budget exhausted (plateau)                |
+| QQN-Mom-S                                       | 1.293e+0     | time-budget exhausted (plateau)                |
 
 These are **first-class experimental findings**, not failures to hide:
 
-1. The **strong-Wolfe** curvature condition over-restricts the quadratic-path
-   step on this problem.
-2. **Dense Shampoo** does not amortize at small model scale.
-3. **First-order momentum** plateaus on this smooth problem (no curvature).
-
-**Resolved stalls.** Earlier runs reported the *adaptive trust-region*
-over-shrinking (`QQN-TR`, `QQN-Seq`, `QQN-L50TR`, `QQN-L50BTTR`, `QQN-TR025`).
-With the exact along-path predicted-reduction model and the **progress-floor**
-safeguard now in `TrustRegion.update` (never shrink below a step that just
-succeeded), every one of these variants now **converges** — the adaptive-radius
-collapse has been engineered out.
+1. **First-order momentum** plateaus on this non-convex problem — even worse
+    than on the convex benchmark. The non-convex landscape amplifies the
+    oracle's inability to capture curvature.
+2. **Anderson and Secant oracles** stall on the non-convex landscape. Both
+    achieve reasonable test accuracy (84–85%) but cannot descend below the
+    target within the time budget. The non-convex loss surface exposes these
+    oracles' sensitivity to the quality of the residual/secant window.
+3. **Adam** never reaches the target (`1.166e-1` final loss) despite fast early
+    descent — the adaptive learning rate is insufficient for the final
+    refinement phase on this problem.
 
 ---
 
 ## Summary of Design-Claim Validation
 
-| QQN Design Claim                                                 | Empirical Verdict                                                              |
-|------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| Gradient + oracle blending via the quadratic path converges fast | ✅ 1.58–1.87× fewer iters than L-BFGS                                           |
-| The oracle is freely swappable                                   | ✅ L-BFGS, Momentum, Secant, Anderson, Shampoo, Fallback all run                |
-| Deep curvature memory accelerates convergence                    | ✅ monotone L5→L50, saturating at L50–L100                                      |
-| The line search trades wall-time, not convergence speed          | ✅ BT ≈ Armijo in iters; SW over-restricts                                      |
-| Regions are low-overhead safeguards                              | ✅ Box/Orthant negligible overhead; both **fixed** and (progress-floored) **adaptive** TR converge |
-| The spline reuses information to sharpen trajectories            | ✅ L50SplnTR/Best are the fewest-iteration converging variants (38)             |
-| Warm-started backtracking unlocks the superlinear regime         | ✅ converges robustly on fixed TR (57 iters)                                    |
+| QQN Design Claim                                                 | Empirical Verdict (non-convex MLP)                                              |
+|------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| Gradient + oracle blending via the quadratic path converges fast | ✅ 1.45× fewer iters than L-BFGS (QQN-L50/L50And, 184 vs 266)                  |
+| The oracle is freely swappable                                   | ✅ L-BFGS, Momentum, Secant, Anderson, Fallback all run                         |
+| Deep curvature memory accelerates convergence                    | ✅ L10→L20→L50 monotone improvement (300→240→184 iters)                         |
+| The line search trades wall-time, not convergence speed          | ✅ BT ≈ Armijo in iters (both 300); spline saves ~5% iters at higher cost       |
+| Regions are low-overhead safeguards                              | ✅ Box improves final loss; adaptive TR converges (405 iters, lowest loss)      |
+| The spline reuses information to sharpen trajectories            | ⚠️ Modest benefit on non-convex (284 vs 300 iters); cubic model less accurate  |
+| Warm-started backtracking + fixed TR (QQN-Fast)                  | ✅ converges in 253 iters with best test accuracy (84.2%)                       |
 
-The best-of-breed **converging** stacks land at **38 iterations** (deep L-BFGS
-+ spline + progress-floored adaptive TR, `QQN-Best`/`QQN-L50SplnTR`), **42
-iterations** (pure spline, `QQN-L50Spln`), or **45 iterations** (bare deep
-L-BFGS, `QQN-L50`/`L100`), versus **71** for classical L-BFGS and **263** for
-Adam — validating QQN's
+The best-of-breed **converging** stacks land at **184 iterations** (deep L-BFGS,
+`QQN-L50`/`QQN-L50And`) versus **266** for classical L-BFGS — validating QQN's
 central thesis that coherently blending gradient and oracle along the quadratic
-path, navigated by a robust line search, yields a fast, modular optimizer.
+path, navigated by a robust line search, yields a fast, modular optimizer even
+on non-convex objectives.
+
+Key findings on the non-convex MLP benchmark:
+- **QQN-L50 / QQN-L50And** reach the target in **184 iterations** (1.45× fewer
+   than L-BFGS's 266).
+- **QQN-L20** reaches it in **240 iterations** (1.11× fewer) with the **best
+   final loss** (`9.978e-2`) and second-best test accuracy (83.5%).
+- **QQN-Fast** reaches it in **253 iterations** with the **best test accuracy**
+   (84.2%).
+- **L-BFGS** (Optax baseline) needs **266 iterations** / 2.636 s.
+- **Adam** never reaches the target (final `1.166e-1`) but leads on AUC (−0.74)
+   and wall-clock (1.032 s) due to cheap per-step cost (≈1 ms/it).
+- **QQN-TR** achieves the **lowest final loss** (`9.976e-2`) at the cost of 405
+   iterations and 8.243 s.
 
 See [`algorithm.md`](algorithm.md) for the conceptual treatment and
-[`../mnist_comparison.log`](../results/mnist_comparison.log) for the full raw output.
-- **QQN-Best / QQN-L50SplnTR** reach the target in just **38 iterations**
-  (1.87× fewer than L-BFGS's 71) — the fewest-iteration converging variants.
-- **QQN-Apex** reaches it in **40 iterations** (1.77× fewer than L-BFGS).
-- **QQN-L50Spln / QQN-L100Spln** reach it in **42 iterations** (1.69× fewer
-  than L-BFGS).
-- **QQN-L50 / QQN-L100 / QQN-L50And** reach the target in **45 iterations**
-  (1.58× fewer than L-BFGS) at ≈1.28 s.
-- **L-BFGS** (Optax baseline) needs **71 iterations** / 2.14 s.
-- **Adam** needs **263 iterations** (≈4–6× more than the fast QQN stacks)
-  but is the cheapest per step (≈2 ms/it) and so wins on raw wall-clock
-  (0.54 s) under this tiny model.
+[`../results/fashion_mnist_mlp_comparison_20260622_123436.log`](../results/fashion_mnist_mlp_comparison_20260622_123436.log)
+for the full raw output.

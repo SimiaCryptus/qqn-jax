@@ -169,30 +169,32 @@ See [`regions.md`](docs/regions.md) for details.
 | [`results.md`](docs/results.md)             | Empirical MNIST benchmark: QQN vs. baselines and component sweeps.  |
 | [`conclusions.md`](docs/conclusions.md)     | Synthesis of the experimental findings and design-claim validation. |
 ## Empirical Results
-On a smooth, deterministic, full-batch softmax-MNIST benchmark, QQN reaches a
-shared loss target in **fewer iterations than L-BFGS** (45 vs. 70) while
-taking ~4× fewer iterations than Adam (263). Deep L-BFGS memory is the
-largest convergence-speed lever observed, the line search trades wall-time
-(not convergence speed), and regions act as low-overhead safeguards.
 
-Note the cost trade-off: although QQN reaches the target in fewer
-*iterations*, its line-search iterations are more expensive per step, so on
-this tiny model Adam wins on raw *wall-clock* (0.53 s). The fewest-iteration
-converging variant is `QQN-L50Spln` (deep L-BFGS memory + spline refinement)
-at **42 iterations** (1.67× fewer than L-BFGS); the fastest non-spline
-stacks (`QQN-L50`/`QQN-L100`) converge in **45 iterations**.
 
-**Caveat:** these are point estimates from a *single convex* benchmark
-(one seed, one scale). They have not been validated on non-convex models or
-at larger scale. Treat the rankings as indicative, not definitive.
 
-**Caution:** the *adaptive* trust-region (e.g. `QQN-L50BTTR`) **stalls** when
-stacked with deep L-BFGS memory on this curved path — use a **fixed-radius**
-trust-region instead. See [`results.md`](docs/results.md) for details.
+On a deterministic, full-batch **Fashion-MNIST MLP** benchmark (2-layer sigmoid
+network, 55 050 parameters, non-convex objective), QQN reaches a shared loss
+target in **fewer iterations than L-BFGS** (184 vs. 266, 1.45×) using deep
+L-BFGS memory (`QQN-L50`). Deep L-BFGS memory is the largest convergence-speed
+lever observed; the line search trades wall-time (not convergence speed); and
+regions act as low-overhead safeguards (the box region improves final loss, the
+adaptive trust-region achieves the lowest final loss at higher iteration cost).
+
+Note the cost trade-off: although QQN reaches the target in fewer *iterations*,
+its line-search iterations are more expensive per step (≈21 ms/it vs ≈10 ms/it
+for L-BFGS), so L-BFGS wins on raw *wall-clock* (2.6 s vs 4.2 s for QQN-L50).
+Adam never reaches the target on this non-convex problem but leads on AUC and
+wall-clock (1.0 s) due to cheap per-step cost.
+
+**Caveat:** these are point estimates from a *single non-convex* benchmark
+(one seed, one scale, one architecture). They have not been validated across
+multiple seeds or at larger scale. Treat the rankings as indicative, not
+definitive.
+
 See [`results.md`](docs/results.md) for the full benchmark and
 [`conclusions.md`](docs/conclusions.md) for the analysis. Reproduce with:
 ```bash
-python examples/mnist_comparison.py
+python examples/fashion_mnist_mlp_comparison.py
 ```
 ---
 

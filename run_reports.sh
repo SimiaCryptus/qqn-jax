@@ -5,7 +5,7 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 # List of reports to run.
 # Comment out (prefix with #) any line to disable that report.
 REPORTS=(
-    "mnist_comparison"
+#    "mnist_comparison"
     "fashion_mnist_mlp_comparison"
 #    "mnist_sparse_benchmark"
 )
