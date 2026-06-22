@@ -132,7 +132,8 @@ solver = QQN(fun, oracle=oracle)
 ```
 
 When `oracle="lbfgs"` (the default), the optimizer is byte-for-byte equivalent
-to the reference behavior. See [`oracles.md`](docs/oracles.md) for details.
+to the reference behavior (numerically equivalent up to floating-point
+reordering). See [`oracles.md`](docs/oracles.md) for details.
 
 ### Projective Regions
 
@@ -169,13 +170,25 @@ See [`regions.md`](docs/regions.md) for details.
 | [`conclusions.md`](docs/conclusions.md)     | Synthesis of the experimental findings and design-claim validation. |
 ## Empirical Results
 On a smooth, deterministic, full-batch softmax-MNIST benchmark, QQN reaches a
-shared loss target in **fewer iterations than L-BFGS** (65 vs. 70) while
-running ~1.3× faster in wall-clock time, and in ~4× fewer iterations than
-Adam. Deep L-BFGS memory is the dominant convergence-speed lever, the line
-search trades wall-time (not convergence speed), and regions act as
-low-overhead safeguards. The best-of-breed stack (deep L-BFGS memory +
-backtracking + adaptive trust-region, `QQN-L50BTTR`) reaches the target in
-just **41 iterations**.
+shared loss target in **fewer iterations than L-BFGS** (45 vs. 70) while
+taking ~4× fewer iterations than Adam (263). Deep L-BFGS memory is the
+largest convergence-speed lever observed, the line search trades wall-time
+(not convergence speed), and regions act as low-overhead safeguards.
+
+Note the cost trade-off: although QQN reaches the target in fewer
+*iterations*, its line-search iterations are more expensive per step, so on
+this tiny model Adam wins on raw *wall-clock* (0.53 s). The fewest-iteration
+converging variant is `QQN-L50Spln` (deep L-BFGS memory + spline refinement)
+at **42 iterations** (1.67× fewer than L-BFGS); the fastest non-spline
+stacks (`QQN-L50`/`QQN-L100`) converge in **45 iterations**.
+
+**Caveat:** these are point estimates from a *single convex* benchmark
+(one seed, one scale). They have not been validated on non-convex models or
+at larger scale. Treat the rankings as indicative, not definitive.
+
+**Caution:** the *adaptive* trust-region (e.g. `QQN-L50BTTR`) **stalls** when
+stacked with deep L-BFGS memory on this curved path — use a **fixed-radius**
+trust-region instead. See [`results.md`](docs/results.md) for details.
 See [`results.md`](docs/results.md) for the full benchmark and
 [`conclusions.md`](docs/conclusions.md) for the analysis. Reproduce with:
 ```bash

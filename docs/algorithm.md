@@ -169,7 +169,7 @@ The solver registers several interchangeable strategies (all sharing a common
 
 | Name | Method | Conditions | Notes |
 | --- | --- | --- | --- |
-| `strong_wolfe` | Optax zoom line search | Armijo + strong curvature | Keeps L-BFGS updates well-conditioned. |
+| `strong_wolfe` | Optax zoom line search | Armijo + strong curvature | Keeps L-BFGS updates well-conditioned, but **over-restricts** the quadratic-path step on the MNIST benchmark (fails to converge); not the default. |
 | `backtracking` / `armijo` | Self-contained backtracking | Armijo sufficient decrease | `lax.while_loop`; robust fallback. |
 | `hager_zhang` | Optax backtracking transform | Approximate Wolfe | Robust approximate-Wolfe scheme. |
 | `fixed` | Constant step | None | Debugging / benchmarking baseline. |
@@ -352,8 +352,9 @@ QQN(
     maxiter=100,
     tol=1e-5,
     history_size=10,
-    line_search="strong_wolfe",   # or "backtracking"/"armijo"/"hager_zhang"/
-                                   #    "fixed"
+     line_search="armijo",         # DEFAULT. Also: "backtracking"/"strong_wolfe"/
+                                    #    "hager_zhang"/"fixed". Note: "strong_wolfe"
+                                    #    over-restricts the path step here.
     line_search_options=None,     # dict forwarded to the line search (c1, c2, …)
      spline=False,                 # orthogonal cubic Hermite refinement (any LS)
     has_aux=False,

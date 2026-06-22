@@ -146,6 +146,17 @@ spurious feature into the model.
 > **Note**: When `Δ = 0` (a flat secant, e.g., near a bracketed minimum), no
 > reflection is applied; the raw tangents define the local curvature directly and
 > are essential for locating the minimum precisely.
+> **Open soundness caveat.** Reflecting a *measured* directional derivative is a
+> heuristic, not a proven-safe operation: it discards the sign information of a
+> true gradient measurement and could, in principle, introduce a spurious
+> stationary point rather than remove one. No formal monotonicity- or
+> descent-preserving guarantee is given here. Safety in practice rests entirely
+> on the outer line search: the spline only ever *proposes* candidates, and a
+> candidate is accepted **only if it strictly improves fitness** (see
+> `spline_wrap`'s `improves = cf < bv` gate). The descent guarantee of QQN is
+> therefore inherited from the inner search's sufficient-decrease test, not from
+> the reflection rule. Treat the reflection as an unproven refinement pending a
+> rigorous justification.
 
 ### Why This Preserves Information
 

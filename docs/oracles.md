@@ -44,7 +44,8 @@ free to be aggressive. This makes the oracle a natural extension point.
 `QQN(...)`.
 * Keep every oracle a pure function with no host-side control flow.
 * Preserve QQN's convergence behavior: when `oracle="lbfgs"` (the default),
-behavior is identical to the current implementation.
+behavior matches the current implementation (numerically equivalent up to
+floating-point reordering).
 * Make oracles independent of the gradient/search/region components so they
 can be combined and substituted freely.
 
@@ -175,8 +176,9 @@ the quadratic path already measured rather than storing a history.
 * **Notes**: Zero matrix storage. Excellent as the second member of a
    `Fallback([LBFGSOracle(...), SecantOracle()])`: it is dormant while the
    L-BFGS history is valid, yet supplies a finite, curvature-aware direction
-   the instant that history degenerates — strictly dominating a momentum
-   fallback, which carries no curvature at all.
+    the instant that history degenerates — carrying curvature a momentum
+    fallback lacks (a plausible advantage observed on the single convex
+    benchmark, not a proven strict ordering).
 
 
 ### 4. Combinator Oracles
@@ -200,7 +202,7 @@ structure so they remain `jit`-friendly.
 ```python
 qqn(
   history_size=10,
-  line_search="strong_wolfe",
+   line_search="armijo",       # default; see results.md (strong_wolfe over-restricts)
   oracle="lbfgs",             # "lbfgs" | "momentum" | "shampoo" | Oracle
   region=None,
 )
@@ -210,7 +212,7 @@ QQN(
   maxiter=100,
   tol=1e-5,
   history_size=10,
-  line_search="strong_wolfe",
+   line_search="armijo",       # default; see results.md (strong_wolfe over-restricts)
   has_aux=False,
   oracle="lbfgs",             # "lbfgs" | "momentum" | "shampoo" | Oracle
   region=None,
@@ -236,7 +238,8 @@ solver = QQN(fun, oracle=oracle)
 ```
 
 When `oracle="lbfgs"` (the default), the optimizer is byte-for-byte
-equivalent to the current behavior.
+equivalent to the current behavior (numerically equivalent up to
+floating-point operation reordering).
 
 ---
 
@@ -271,7 +274,7 @@ existing state layout, so nothing changes when the default is selected.
 * Shampoo: preconditioner shapes match parameter shapes; inverse roots
 refresh on schedule.
 * **Default equivalence**: `oracle="lbfgs"` reproduces baseline trajectories
-bit-for-bit on Rosenbrock.
+on Rosenbrock (numerically equivalent up to floating-point reordering).
 * **Descent preservation**: regardless of oracle, the line search still
 returns a step with `f(x_new) ≤ f(x)` (or rejects), since `t = 0` recovers
 steepest descent. Verified on convex quadratics.

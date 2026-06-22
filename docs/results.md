@@ -44,6 +44,13 @@ The problem is deliberately **smooth, deterministic, and full-batch** so the
 comparison is fair to the second-order methods (QQN, L-BFGS), which assume a
 smooth deterministic objective. If real MNIST is unavailable, the script
 falls back to a synthetic Gaussian-blob dataset so the experiment always runs.
+> **Dataset provenance caveat:** the loader silently falls back to a synthetic
+> Gaussian-blob dataset when neither `torchvision` nor `tensorflow` is
+> installed. Gaussian blobs are more separable and better-conditioned than
+> real MNIST and would inflate every second-order result. The numbers below
+> should be regarded as valid **only** if the run used real MNIST; the raw log
+> does not currently record which dataset was loaded. Re-run with the dataset
+> source logged (see [`libraries.md`](libraries.md)) to confirm.
 
 ### Shared, Fair Termination Bounds
 
@@ -61,6 +68,11 @@ The target `1.1e-1` is intentionally *reachable-but-demanding*: the deep-memory
 and trust-region combos converge to ≈`1.04e-1`, so this target lets the
 strongest variants actually "win" the race and surface their
 iteration/time-to-target advantage.
+> **Selection-bias caveat:** choosing a target just above the asymptote of the
+> favored configurations is a soft form of selecting on the outcome. The
+> reported "1.56–1.67× vs L-BFGS" advantage may shift with a tighter or looser
+> target. No target-sensitivity analysis has yet been run; these speedups
+> should be read as target-specific point estimates, not robust effect sizes.
 
 ### Metrics Reported
 
@@ -74,6 +86,13 @@ iteration/time-to-target advantage.
   convergence simultaneously).
 - **sparsity** — fraction of near-zero weights (illuminating for the orthant
   region).
+> **Metric caveats.** (1) *Iterations are not cost-neutral.* QQN's line-search
+> iterations issue several function/gradient evaluations each, so
+> "iterations-to-target" understates true work. A fairer unit —
+> **function/gradient-evaluations-to-target** — is **not yet reported** and
+> should be added. (2) *No variance.* Every number is a single-seed point
+> estimate with no error bars; small gaps (e.g. 42 vs 45 iters) may be within
+> run-to-run noise and should not be over-interpreted.
 
 ---
 
@@ -126,8 +145,10 @@ is `QQN-L5`):
 | QQN-L50  | 50      | 45 (Δ−27) | 1.091e-1   |
 | QQN-L100 | 100     | 45 (Δ−27) | 1.091e-1   |
 
-**Conclusion:** Deep L-BFGS memory is the dominant convergence-speed lever,
-with diminishing returns saturating between L50 and L100 (both 45 iters).
+**Conclusion (this benchmark only):** Deep L-BFGS memory was the largest
+convergence-speed lever *observed here*, with diminishing returns saturating
+between L50 and L100 (both 45 iters). This is an association from a single
+convex run, not an established causal dominance across problem classes.
 
 ### Oracle: Momentum β Sweep
 
@@ -271,6 +292,12 @@ The contrast between `QQN-L50BTTR` (adaptive TR, stalls at 500 iters) and
 variable** — the trust-region adaptivity. This is the clearest evidence that
 the adaptive radius is the destabilizing factor, and that **fixed-radius +
 warm-started backtracking is the intended robust fast stack.**
+> **Statistical caveat on the Δ−443 figure.** The `QQN-L50BTTR` arm does not
+> *converge in 500 iterations* — it hits the `maxiter=500` ceiling without
+> reaching the target. 500 is therefore a **censoring bound**, not a measured
+> convergence time; the true gap is "≥443," unbounded above. The number is
+> best read qualitatively (adaptive-TR + deep memory stalls; fixed-TR does
+> not), not as a precise effect size.
 
 ---
 

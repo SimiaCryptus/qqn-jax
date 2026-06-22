@@ -188,8 +188,9 @@ while fine-tuning on a specialized one.
   ```
   step = candidate − x
   c    = ⟨∇g, step⟩
-  proj = step − minimum(0, c / (‖∇g‖² + eps)) · ∇g · 0   # see note
-  y    = x + step − relu(c) / (‖∇g‖² + eps) · ∇g
+   # Remove only the g-increasing (positive) component of the step.
+   # relu(c) gates on c > 0, so descent on g passes through untouched.
+   y    = x + step − (relu(c) / (‖∇g‖² + eps)) · ∇g
   ```
 
   i.e. remove only the component of the step that would increase `g`.
@@ -204,7 +205,7 @@ while fine-tuning on a specialized one.
 ```python
 qqn(
     history_size=10,
-    line_search="strong_wolfe",
+     line_search="armijo",        # default; see results.md
     region=None,                 # Region | None
 )
 
@@ -213,7 +214,7 @@ QQN(
     maxiter=100,
     tol=1e-5,
     history_size=10,
-    line_search="strong_wolfe",
+     line_search="armijo",        # default; see results.md
     has_aux=False,
     region=None,                 # Region | None
 )
@@ -235,7 +236,8 @@ solver = QQN(fun, region=region)
 ```
 
 When `region=None`, the optimizer is byte-for-byte equivalent to the current
-behavior (identity projection, no extra state).
+behavior — numerically equivalent up to floating-point reordering — using the
+identity projection with no extra state.
 
 ---
 
@@ -271,7 +273,7 @@ a no-op update, so existing state layouts are unaffected when regions are off.
   * Trust: `‖y − x‖ ≤ radius + eps`; no-op when step already inside.
   * Orthant: sign preservation; zeros where sign flips.
 * **Identity equivalence**: `region=None` reproduces baseline trajectories
-  bit-for-bit on Rosenbrock.
+   on Rosenbrock (numerically equivalent up to floating-point reordering).
 * **Descent preservation**: with a region, the line search still returns a
   step with `f(y) ≤ f(x)` (or rejects), verified on convex quadratics.
 * **Trust-region adaptation**: radius grows/shrinks with `ρ` on a known
