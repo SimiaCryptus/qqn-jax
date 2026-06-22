@@ -868,6 +868,44 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=False),
             stop=stop,
         ),
+        # --- Performance: warm-started backtracking on the *Anderson-fallback*
+        #     oracle. Fuses the two strongest independent levers in the data:
+        #     deep L50 curvature (fastest converging oracle, 45 iters) WITH the
+        #     Anderson residual solve as a strictly-dominant safety net (lowest
+        #     loss of any oracle), warm-started beyond α=1 and clipped by a
+        #     *fixed* trust-region. Probes whether the Anderson backstop lets
+        #     the warm-started deep step push past the 45-iter frontier without
+        #     the adaptive-radius stall. ---
+        "QQN-AndWS": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 2.5, "shrink": 0.7, "max_iter": 45},
+            oracle=Fallback(
+                [LBFGSOracle(history_size=50), AndersonOracle(window=5, beta=1.5)]
+            ),
+            region=TrustRegion(radius=1.5, adaptive=False),
+            stop=stop,
+        ),
+        # --- Performance: spline refinement on the warm-started deep stack.
+        #     The plain L50Spln is the fewest-iteration converging variant (42)
+        #     but pays ~66 ms/it. Warm-starting the inner backtracking beyond
+        #     α=1 (so the spline's stationary-point probes anchor on a longer
+        #     bracket) + a *fixed* trust-region tests whether we can push below
+        #     42 iters while keeping the per-step cost bounded. This is the
+        #     intended iteration-frontier champion. ---
+        "QQN-SplnWS": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 2.0, "shrink": 0.7, "max_iter": 40},
+            oracle=LBFGSOracle(history_size=50),
+            spline=True,
+            region=TrustRegion(radius=1.5, adaptive=False),
+            stop=stop,
+        ),
         # --- Performance (t-grid): concentrate the blend samples *near t=1*
         #     A/B (region): deep L50 memory paired with a *fixed* trust-region
         #     (radius=1.0). Directly contrasts the converging fixed radius
@@ -927,6 +965,26 @@ def main():
             line_search_options={"init_step": 3.0, "shrink": 0.75, "max_iter": 45},
             oracle=LBFGSOracle(history_size=50),
             region=TrustRegion(radius=1.5, adaptive=False),
+            stop=stop,
+        ),
+        # --- Apex champion: the data-driven optimum. The convergence-rate
+        #     profile shows L50Spln crosses every milestone fastest (7/20/27/36)
+        #     yet L50WS+ pays the cheapest per-step cost. This variant fuses the
+        #     deepest *robust* memory (L100) with a moderate warm start (so the
+        #     bracket extends without over-probing) AND the spline (to reuse
+        #     every probe as a control point), clipped by a generous *fixed*
+        #     trust-region. It targets the absolute fewest-iteration frontier
+        #     (<42) while remaining a distinct config from the warm-start and
+        #     pure-spline champions above. ---
+        "QQN-Apex": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 1.5, "shrink": 0.75, "max_iter": 40},
+            oracle=LBFGSOracle(history_size=100),
+            spline=True,
+            region=TrustRegion(radius=2.0, adaptive=False),
             stop=stop,
         ),
         # --- Combined: deep L-BFGS oracle + box constraint ---
@@ -1046,6 +1104,35 @@ def main():
             pareto.append((name, r))
     for name, r in sorted(pareto, key=lambda kv: kv[1]["wall"]):
         print(f"  {name:<12} loss={r['final_loss']:.4e}  time={r['wall']:.3f}s")
+    # --- Composite efficiency score (converging variants only) -----------
+    # A single ranked metric fusing the three axes that matter: iterations to
+    # target, wall-time to target, and final loss. Each is normalized to its
+    # best-in-class value (lower = better) and combined geometrically so no
+    # single axis dominates. This surfaces the genuine best-on-ALL-axes stacks
+    # rather than the per-axis leaders, making the experiment more decisive.
+    print("\nComposite efficiency score (lower = better; converging only):")
+    conv = [
+        (name, r) for name, r in results.items() if r["iters_to_target"] is not None
+    ]
+    if conv:
+        best_iters = min(r["iters_to_target"] for _, r in conv)
+        best_time = min(r["time_to_target"] for _, r in conv)
+        best_loss = min(r["final_loss"] for _, r in conv)
+        scored = []
+        for name, r in conv:
+            ni = r["iters_to_target"] / best_iters
+            nt = r["time_to_target"] / best_time
+            nl = r["final_loss"] / best_loss
+            # Geometric mean: penalizes being weak on any single axis.
+            score = float((ni * nt * nl) ** (1.0 / 3.0))
+            scored.append((name, r, score))
+        scored.sort(key=lambda x: x[2])
+        for name, r, score in scored[:12]:
+            print(
+                f"  {name:<14} score={score:.3f}  "
+                f"iters={r['iters_to_target']:>3}  time={r['time_to_target']:.3f}s  "
+                f"final={r['final_loss']:.4e}"
+            )
     # --- Iteration-efficiency leaderboard (converging variants only) -----
     # The single most actionable metric: of the variants that actually reach
     # the shared target, which do so in the fewest iterations (and at what
@@ -1144,6 +1231,31 @@ def main():
     # --- A/B comparison report -------------------------------------------
     # Each pair isolates a single variable (oracle depth, region radius,
     # line search, etc.) against a named baseline so the effect is causal.
+    # --- Per-step cost decomposition -------------------------------------
+    # Make the spline / warm-start trade-offs causal by isolating ms/it for
+    # the controlled pairs. The spline raises ms/it (extra probes) but lowers
+    # iters; warm-start raises iters slightly but lowers ms/it (cheaper inner
+    # search). This table shows the time/iter lever each component pulls.
+    cost_pairs = [
+        ("spline cost", "QQN-L50", "QQN-L50Spln"),
+        ("warm-start cost", "QQN-L50TRfix", "QQN-L50WS+"),
+        ("fusion cost", "QQN-L50WS+", "QQN-AndWS", "QQN-SplnWS", "QQN-Apex"),
+    ]
+    print("\nPer-step cost decomposition (ms/it vs iters trade-off):")
+    for title, *variants in cost_pairs:
+        present = [v for v in variants if v in results]
+        if len(present) < 2:
+            continue
+        print(f"  [{title}]")
+        for v in present:
+            r = results[v]
+            it_tgt = r["iters_to_target"]
+            it_str = "—" if it_tgt is None else f"{it_tgt}"
+            print(
+                f"    {v:<13} ms/it={r['ms_per_iter']:>7.2f}  "
+                f"->target={it_str:>4}  total={r['wall']:.3f}s"
+            )
+
     ab_pairs = [
         (
             "oracle: L-BFGS history",
@@ -1224,6 +1336,14 @@ def main():
             "QQN-L50TRfix",
             "QQN-Fast",
             "QQN-Champion",
+            "QQN-Apex",
+        ),
+        (
+            "performance: warm-start fusion (oracle + spline levers)",
+            "QQN-L50WS+",
+            "QQN-AndWS",
+            "QQN-SplnWS",
+            "QQN-Apex",
         ),
         (
             "best-of-breed: full stack",
