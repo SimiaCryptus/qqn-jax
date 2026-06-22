@@ -101,9 +101,16 @@ def update_lbfgs_history(
         shifted = jnp.concatenate([row[None], buf[:-1]], axis=0)
         return shifted
 
-    new_s = jnp.where(valid, _shift_insert(state.s_history, s), state.s_history)
-    new_y = jnp.where(valid, _shift_insert(state.y_history, y), state.y_history)
-    new_rho = jnp.where(valid, _shift_insert(state.rho_history, rho), state.rho_history)
+    # ``jnp.where`` materializes BOTH the shifted buffer and the original and
+    # then selects element-wise over the full (history_size, n) array. The
+    # shift itself is unavoidable, but the select can be a single cheap
+    # scalar-flag ``lax.cond`` (see ``jnp_select_buf``) that picks one buffer
+    # whole rather than blending element-by-element.
+    new_s = jnp_select_buf(valid, _shift_insert(state.s_history, s), state.s_history)
+    new_y = jnp_select_buf(valid, _shift_insert(state.y_history, y), state.y_history)
+    new_rho = jnp_select_buf(
+        valid, _shift_insert(state.rho_history, rho), state.rho_history
+    )
     new_count = jnp.where(
         valid,
         jnp.minimum(state.count + 1, history_size),

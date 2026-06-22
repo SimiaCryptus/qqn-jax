@@ -256,7 +256,9 @@ def ShampooOracle(
         # The (n,n) outer product ``g gᵀ`` is O(n²) every step; only the L
         # accumulator is rank-meaningful here (R is 1×1). Accumulate R cheaply
         # always, but only pay for the dense L update + eigh on a refresh.
-        R_new = state.R + (grad @ grad)[None, None]
+        # ``grad @ grad`` is a single O(n) dot; keep it scalar to avoid the
+        # extra (1,1) reshape allocation each step.
+        R_new = state.R + jnp.vdot(grad, grad)
 
         def refresh(_):
             L_new = state.L + g @ g.T
@@ -349,18 +351,17 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         # conditioning is invariant to the magnitude of the residual window.
         trace = jnp.trace(gram)
         scale = jnp.where(trace > 0.0, trace / m, 1.0)
-        A = gram + reg * scale * jnp.eye(m, dtype=grad.dtype)
+        eye_m = jnp.eye(m, dtype=grad.dtype)
+        A = gram + reg * scale * eye_m
         b = dG.T @ grad
         # Mask columns with no stored history so empty windows are inert.
         active = jnp.arange(m) < state.count
         b = jnp.where(active, b, 0.0)
-        A = jnp.where(
-            active[:, None] & active[None, :], A, jnp.eye(m, dtype=grad.dtype)
-        )
+        A = jnp.where(active[:, None] & active[None, :], A, eye_m)
         # Always-on diagonal floor: even after masking, a degenerate window can
         # leave A near-singular, making solve() emit NaN that backprops through
         # the downstream safeguard. A small absolute ridge guarantees SPD-ness.
-        A = A + jnp.asarray(1e-12, dtype=grad.dtype) * jnp.eye(m, dtype=grad.dtype)
+        A = A + jnp.asarray(1e-12, dtype=grad.dtype) * eye_m
         theta = jnp.linalg.solve(A, b)
         theta = jnp.where(active, theta, 0.0)
 

@@ -38,7 +38,6 @@ from qqn_jax.oracles import OracleInfo, resolve_oracle
 from qqn_jax.regions import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
-    quadratic_path,
     tree_l2_norm,
     tree_negative,
     tree_vdot,
@@ -161,6 +160,10 @@ class QQN:
         # to ``max_probes`` so they match the oracle's replay capacity.
         if self.feed_probes_to_oracle:
             opts = {**opts, "max_probes": self.max_probes}
+        else:
+            # Probes are unused downstream; disable recording so the inner
+            # line-search ``while_loop`` skips the (max_probes, n) scratch.
+            opts = {**opts, "record_probes": False}
         if opts:
             base_ls = partial(base_ls, **opts)
         self._ls = spline_wrap(base_ls) if self.spline else base_ls
@@ -310,9 +313,16 @@ class QQN:
         # deflating floor, which double-counted curvature and drove ρ negative
         # near convergence — the documented adaptive trust-region stall. We
         # now use the geometrically exact along-path model directly.
-        step_dir = quadratic_path(best_t, grad_dir, qn_dir)
-        # pred(t) = −⟨∇f, d(t)⟩, exact for the quadratic model.
-        pred_reduction = -tree_vdot(grad, step_dir)
+        # pred(t) = −⟨∇f, d(t)⟩ with d(t) = t(1−t)·grad_dir + t²·qn_dir.
+        # Expand analytically to avoid materializing the full path vector:
+        #   −⟨∇f, d(t)⟩ = −[t(1−t)·⟨∇f, grad_dir⟩ + t²·⟨∇f, qn_dir⟩].
+        # Each ⟨∇f, ·⟩ is a single O(n) dot rather than an O(n) tree_map plus
+        # a second O(n) dot over the materialized blend.
+        m_g = tree_vdot(grad, grad_dir)
+        m_q = tree_vdot(grad, qn_dir)
+        a_t = best_t * (1.0 - best_t)
+        b_t = best_t * best_t
+        pred_reduction = -(a_t * m_g + b_t * m_q)
         # The model reduction is non-negative whenever the step descends along
         # the path (which the line search guarantees via sufficient decrease).
         # A tiny positive epsilon avoids a 0/0 ρ when the step is degenerate.

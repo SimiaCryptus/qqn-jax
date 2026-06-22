@@ -93,6 +93,7 @@ def backtracking_search(
     region=None,
     region_state=None,
     max_probes: int = 32,
+    record_probes: bool = True,
 ) -> LineSearchResult:
     """Backtracking line search (Armijo), self-contained for Optax.
 
@@ -114,7 +115,11 @@ def backtracking_search(
         val, g = value_and_grad_fn(projected, *args)
         return projected, val, g
 
-    init_pp, init_pg, init_pv = _empty_probes(params, max_probes)
+    # When the caller does not consume probes, shrink the scratch buffers to a
+    # single slot so the line-search ``while_loop`` does not allocate and
+    # thread a full ``(max_probes, n)`` array through every iteration.
+    eff_probes = max_probes if record_probes else 1
+    init_pp, init_pg, init_pv = _empty_probes(params, eff_probes)
 
     def cond(carry):
         alpha, i, val, _g, _p, _pp, _pg, _pv = carry
@@ -126,14 +131,14 @@ def backtracking_search(
         alpha = alpha * shrink
         new_params, new_val, new_g = eval_at(alpha)
         # Record this probe (slot = i, since slot 0 holds the init_step probe).
-        pp, pg, pv = _record_probe(pp, pg, pv, i, new_params, new_g, max_probes)
+        pp, pg, pv = _record_probe(pp, pg, pv, i, new_params, new_g, eff_probes)
         return alpha, i + 1, new_val, new_g, new_params, pp, pg, pv
 
     # Evaluate at the initial step first.
     init_params, init_val, init_g = eval_at(init_step)
     # Slot 0 records the initial-step probe.
     init_pp, init_pg, init_pv = _record_probe(
-        init_pp, init_pg, init_pv, 0, init_params, init_g, max_probes
+        init_pp, init_pg, init_pv, 0, init_params, init_g, eff_probes
     )
 
     (
@@ -185,6 +190,7 @@ def strong_wolfe_search(
     region=None,
     region_state=None,
     max_probes: int = 32,
+    record_probes: bool = True,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 
@@ -266,6 +272,7 @@ def fixed_step_search(
     region=None,
     region_state=None,
     max_probes: int = 32,
+    record_probes: bool = True,
 ) -> LineSearchResult:
     """Trivial line search using a constant step size.
     Useful for debugging, benchmarking against a baseline, or when the
@@ -307,6 +314,7 @@ def armijo_search(
     region=None,
     region_state=None,
     max_probes: int = 32,
+    record_probes: bool = True,
 ) -> LineSearchResult:
     """Alias for :func:`backtracking_search`.
     Provided so users can refer to the Armijo backtracking search by its
@@ -326,6 +334,7 @@ def armijo_search(
         region=region,
         region_state=region_state,
         max_probes=max_probes,
+        record_probes=record_probes,
     )
 
 
@@ -341,6 +350,7 @@ def hager_zhang_search(
     region=None,
     region_state=None,
     max_probes: int = 32,
+    record_probes: bool = True,
 ) -> LineSearchResult:
     """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
     The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use
