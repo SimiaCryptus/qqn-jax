@@ -164,6 +164,21 @@ def _converged(value, gnorm, f_target, gtol):
     return False
 
 
+def _update_milestones(milestones, hit, value, it, now):
+    """Record the first iteration/time each loss milestone is crossed.
+    ``milestones`` is a tuple of descending loss thresholds; ``hit`` is a
+    mutable dict mapping each threshold to ``(iter, time)`` (or ``None``).
+    This lets us report a full *convergence-rate profile* per optimizer
+    rather than a single time-to-target, which is far more discriminating
+    for separating early- from late-phase convergence behaviour.
+    """
+    if not milestones:
+        return
+    for m in milestones:
+        if hit.get(m) is None and value <= m:
+            hit[m] = (it, now)
+
+
 def run_qqn(loss_fn, params0, maxiter, stop=None):
     """Run QQN and return (final_params, history_of_losses, wall_time)."""
     return _run_qqn_configured(loss_fn, params0, maxiter, stop=stop)
@@ -195,6 +210,7 @@ def _run_qqn_configured(
     f_target = stop.get("f_target")
     gtol = stop.get("gtol")
     time_budget = stop.get("time_budget")
+    milestones = stop.get("milestones", ())
 
     solver = QQN(
         loss_fn,
@@ -215,6 +231,9 @@ def _run_qqn_configured(
     # Record iteration / time at which the shared target was first hit.
     iters_to_target = None
     time_to_target = None
+    # Convergence-rate profile: first iteration/time per loss milestone.
+    milestone_hits = {m: None for m in milestones}
+    _update_milestones(milestones, milestone_hits, history[-1], 0, 0.0)
     t0 = time.perf_counter()
     update = jax.jit(solver.update)
     for it in range(maxiter):
@@ -224,6 +243,7 @@ def _run_qqn_configured(
         times.append(now)
         # --- Shared termination criteria (uniform across all methods) ---
         gnorm = _grad_norm(loss_fn, params)
+        _update_milestones(milestones, milestone_hits, history[-1], it + 1, now)
         if iters_to_target is None and _converged(history[-1], gnorm, f_target, gtol):
             iters_to_target = it + 1
             time_to_target = now
@@ -233,7 +253,15 @@ def _run_qqn_configured(
         if bool(state.done):
             break
     wall = time.perf_counter() - t0
-    return params, history, wall, times, iters_to_target, time_to_target
+    return (
+        params,
+        history,
+        wall,
+        times,
+        iters_to_target,
+        time_to_target,
+        milestone_hits,
+    )
 
 
 def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
@@ -242,6 +270,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     f_target = stop.get("f_target")
     gtol = stop.get("gtol")
     time_budget = stop.get("time_budget")
+    milestones = stop.get("milestones", ())
 
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     opt_state = optimizer.init(params0)
@@ -258,6 +287,8 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     times = [0.0]
     iters_to_target = None
     time_to_target = None
+    milestone_hits = {m: None for m in milestones}
+    _update_milestones(milestones, milestone_hits, history[-1], 0, 0.0)
     t0 = time.perf_counter()
     for it in range(maxiter):
         params, opt_state, value, gnorm = step(params, opt_state)
@@ -265,6 +296,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         now = time.perf_counter() - t0
         times.append(now)
         # --- Shared termination criteria (uniform across all methods) ---
+        _update_milestones(milestones, milestone_hits, history[-1], it + 1, now)
         if iters_to_target is None and _converged(
             history[-1], float(gnorm), f_target, gtol
         ):
@@ -274,7 +306,15 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         if time_budget is not None and now >= time_budget:
             break
     wall = time.perf_counter() - t0
-    return params, history, wall, times, iters_to_target, time_to_target
+    return (
+        params,
+        history,
+        wall,
+        times,
+        iters_to_target,
+        time_to_target,
+        milestone_hits,
+    )
 
 
 def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
@@ -283,6 +323,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     f_target = stop.get("f_target")
     gtol = stop.get("gtol")
     time_budget = stop.get("time_budget")
+    milestones = stop.get("milestones", ())
 
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     optimizer = optax.lbfgs()
@@ -307,6 +348,8 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     times = [0.0]
     iters_to_target = None
     time_to_target = None
+    milestone_hits = {m: None for m in milestones}
+    _update_milestones(milestones, milestone_hits, history[-1], 0, 0.0)
     t0 = time.perf_counter()
     for it in range(maxiter):
         params, opt_state, value, gnorm = step(params, opt_state)
@@ -314,6 +357,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
         now = time.perf_counter() - t0
         times.append(now)
         # --- Shared termination criteria (uniform across all methods) ---
+        _update_milestones(milestones, milestone_hits, history[-1], it + 1, now)
         if iters_to_target is None and _converged(
             history[-1], float(gnorm), f_target, gtol
         ):
@@ -323,7 +367,15 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
         if time_budget is not None and now >= time_budget:
             break
     wall = time.perf_counter() - t0
-    return params, history, wall, times, iters_to_target, time_to_target
+    return (
+        params,
+        history,
+        wall,
+        times,
+        iters_to_target,
+        time_to_target,
+        milestone_hits,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -336,7 +388,7 @@ def main():
     n_classes = 10
     n_train = 5000
     n_test = 1000
-    maxiter = 50
+    maxiter = 500
     # --- Shared, fair termination bounds applied to EVERY optimizer ---
     #   f_target:     stop once full-batch loss <= this value
     #   gtol:         stop once ||grad|| <= this value (stationarity)
@@ -357,6 +409,11 @@ def main():
         # after 6 iters; a modestly larger budget plus a *blocked* Shampoo
         # (below) keeps the comparison meaningful while still capping runaways.
         "time_budget": 15.0,
+        # Intermediate milestones for measuring *convergence rate* (not just
+        # the final target). Recording the iteration/time at which each method
+        # first crosses these loss thresholds gives a far more discriminating
+        # picture of early- vs late-phase convergence than a single target.
+        "milestones": (5.0e-1, 2.0e-1, 1.5e-1, 1.2e-1),
     }
 
     print("=== MNIST optimizer comparison: QQN vs SGD vs Adam vs L-BFGS ===")
@@ -699,6 +756,52 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
+        # --- Performance: L50 + backtracking + trust-region, but with the
+        #     line search *warm-started* at a larger initial step (init_step=2)
+        #     and a gentler shrink (0.7). Because the quadratic path's t=1
+        #     endpoint is already a full quasi-Newton step, allowing the search
+        #     to probe beyond α=1 lets deep-memory steps stretch into the
+        #     superlinear regime, accelerating convergence for free. ---
+        "QQN-L50BTTR+": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 2.0, "shrink": 0.7, "max_iter": 40},
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
+        ),
+        # --- Performance (t-grid): concentrate the blend samples *near t=1*
+        #     where the quasi-Newton oracle dominates, since the deep-memory
+        #     experiments show the winning blend sits close to the pure-oracle
+        #     endpoint. A geometric grid clustered near 1.0 spends the line
+        #     searches where they matter most without raising the grid size. ---
+        "QQN-L50Tnear1": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=1.0, adaptive=True),
+            t_grid=jnp.array([0.6, 0.8, 0.9, 1.0]),
+            stop=stop,
+        ),
+        # --- Performance: the strongest stack — deep L100 memory + warm-started
+        #     backtracking + adaptive trust-region + near-1 t-grid. Stacks every
+        #     speed lever (curvature depth, aggressive step, oracle-focused
+        #     blend) to probe the fewest-iterations frontier. ---
+        "QQN-Fast": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            line_search_options={"init_step": 2.0, "shrink": 0.7, "max_iter": 40},
+            oracle=LBFGSOracle(history_size=100),
+            region=TrustRegion(radius=1.0, adaptive=True),
+            t_grid=jnp.array([0.6, 0.8, 0.9, 1.0]),
+            stop=stop,
+        ),
         # --- Best-of-breed full stack: deep L-BFGS (L50) + backtracking +
         #     spline refinement + adaptive trust-region + finer t-grid. Stacks
         #     every pareto-winning component to probe the joint loss/time
@@ -734,13 +837,25 @@ def main():
 
     results = {}
     for name, runner in runners.items():
-        params, history, wall, times, iters_to_target, time_to_target = runner()
+        (
+            params,
+            history,
+            wall,
+            times,
+            iters_to_target,
+            time_to_target,
+            milestone_hits,
+        ) = runner()
         train_acc = float(accuracy(params, X_train, y_train, dim, n_classes))
         test_acc = float(accuracy(params, X_test, y_test, dim, n_classes))
         # Fraction of (near-)zero weights — illuminating for the orthant region.
         sparsity = float(jnp.mean((jnp.abs(params) < 1e-6).astype(jnp.float32)))
         # Did this optimizer reach the shared loss/gradient target at all?
         reached = iters_to_target is not None
+        # Mean wall-clock cost per accepted iteration (excludes the initial
+        # value evaluation); a clean per-step cost metric for fair comparison.
+        n_iters = max(len(history) - 1, 1)
+        ms_per_iter = (wall / n_iters) * 1e3
         results[name] = {
             "final_loss": history[-1],
             "best_loss": min(history),
@@ -754,6 +869,8 @@ def main():
             "reached": reached,
             "iters_to_target": iters_to_target,
             "time_to_target": time_to_target,
+            "milestone_hits": milestone_hits,
+            "ms_per_iter": ms_per_iter,
         }
 
     # --- Summary table ---
@@ -761,20 +878,30 @@ def main():
     # top, making the leaderboard immediately readable. Baselines are kept in
     # the same sort so QQN's standing relative to SGD/Adam/L-BFGS is explicit.
     ordered = sorted(results.items(), key=lambda kv: kv[1]["final_loss"])
+    # Reference iteration count for a "speedup vs L-BFGS" column: how many
+    # fewer iterations each method needs to reach the shared target relative
+    # to the classical L-BFGS baseline. This makes QQN's iteration advantage
+    # explicit and directly comparable across the whole leaderboard.
+    lbfgs_ref = results.get("L-BFGS", {}).get("iters_to_target")
     print(
         f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
         f"{'train_acc':>12}{'test_acc':>11}{'sparsity':>10}{'time(s)':>10}"
-        f"{'->target':>10}{'t->tgt':>9}"
+        f"{'ms/it':>8}{'->target':>10}{'t->tgt':>9}{'vs LBFGS':>10}"
     )
-    print("-" * 94)
+    print("-" * 112)
     for name, r in ordered:
         it_tgt = "—" if r["iters_to_target"] is None else f"{r['iters_to_target']}"
         t_tgt = "—" if r["time_to_target"] is None else f"{r['time_to_target']:.3f}"
+        # Speedup vs L-BFGS in iterations-to-target (positive = faster).
+        if lbfgs_ref is not None and r["iters_to_target"] is not None:
+            spd = f"{lbfgs_ref / r['iters_to_target']:.2f}x"
+        else:
+            spd = "—"
         print(
             f"{name:<10}{r['final_loss']:>14.6e}{r['iters']:>8}"
             f"{r['train_acc']:>12.4f}{r['test_acc']:>11.4f}"
             f"{r['sparsity']:>10.4f}{r['wall']:>10.3f}"
-            f"{it_tgt:>10}{t_tgt:>9}"
+            f"{r['ms_per_iter']:>8.2f}{it_tgt:>10}{t_tgt:>9}{spd:>10}"
         )
     # --- Pareto frontier (loss vs. wall-time) ---
     # Surface the non-dominated variants: those for which no other variant is
@@ -793,6 +920,36 @@ def main():
             pareto.append((name, r))
     for name, r in sorted(pareto, key=lambda kv: kv[1]["wall"]):
         print(f"  {name:<12} loss={r['final_loss']:.4e}  time={r['wall']:.3f}s")
+    # --- Convergence-rate profile (loss milestones) ----------------------
+    # For each method, report the iteration at which it first crossed each
+    # intermediate loss milestone. This separates *early-phase* descent speed
+    # (large-loss milestones) from *late-phase* refinement (small-loss
+    # milestones) far more sharply than a single time-to-target, surfacing
+    # methods that descend fast early but stall late (e.g. momentum) vs. those
+    # that accelerate near the optimum (e.g. deep-memory QQN).
+    milestones = stop.get("milestones", ())
+    if milestones:
+        print("\nConvergence-rate profile (iteration first reaching each loss):")
+        header = (
+            "  "
+            + f"{'optimizer':<12}"
+            + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
+        )
+        print(header)
+        # Sort by the iteration that reached the tightest milestone (those that
+        # never reach it sort last), so the fastest late-phase methods surface.
+        tightest = milestones[-1]
+
+        def _sort_key(kv):
+            hit = kv[1]["milestone_hits"].get(tightest)
+            return hit[0] if hit is not None else 10**9
+
+        for name, r in sorted(results.items(), key=_sort_key):
+            cells = []
+            for m in milestones:
+                hit = r["milestone_hits"].get(m)
+                cells.append("—" if hit is None else f"{hit[0]}")
+            print("  " + f"{name:<12}" + "".join(f"{c:>12}" for c in cells))
 
     # --- Loss trajectory (compact ASCII view at log10 scale) ---
     print("\nLoss trajectory (log10, sampled):")
