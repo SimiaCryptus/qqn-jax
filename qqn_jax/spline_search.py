@@ -250,13 +250,21 @@ def spline_wrap(inner_search: Callable) -> Callable:
             )
 
             # Tighten the bracket toward the lower-fitness endpoint.
-            replace_right = lf <= rf
-            n_la = jnp.where(replace_right, la, cand_alpha)
-            n_lf = jnp.where(replace_right, lf, cf)
-            n_lm = jnp.where(replace_right, lm, cm)
-            n_ra = jnp.where(replace_right, cand_alpha, ra)
-            n_rf = jnp.where(replace_right, cf, rf)
-            n_rm = jnp.where(replace_right, cm, rm)
+            # The candidate lies inside [min(la,ra), max(la,ra)]. To keep a
+            # valid bracket that straddles the lowest-fitness point, retain the
+            # candidate and the better of the two existing endpoints, so the new
+            # interval is the half that contains the minimum.
+            #
+            # If the left endpoint is the lower-fitness one, discard the right
+            # endpoint (new bracket = [left, candidate]); otherwise discard the
+            # left endpoint (new bracket = [candidate, right]).
+            keep_left = lf <= rf
+            n_la = jnp.where(keep_left, la, cand_alpha)
+            n_lf = jnp.where(keep_left, lf, cf)
+            n_lm = jnp.where(keep_left, lm, cm)
+            n_ra = jnp.where(keep_left, cand_alpha, ra)
+            n_rf = jnp.where(keep_left, cf, rf)
+            n_rm = jnp.where(keep_left, cm, rm)
 
             return (
                 n_la,
