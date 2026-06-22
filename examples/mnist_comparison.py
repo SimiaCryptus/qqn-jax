@@ -17,7 +17,6 @@ Run with:  python examples/mnist_comparison.py
 """
 
 import time
-from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -149,9 +148,24 @@ def accuracy(params, X, y, dim, n_classes):
 # --------------------------------------------------------------------------
 
 
-def run_qqn(loss_fn, params0, maxiter):
+def _grad_norm(loss_fn, params):
+    """Compute the L2 norm of the gradient at ``params``."""
+    g = jax.grad(loss_fn)(params)
+    return float(jnp.linalg.norm(g))
+
+
+def _converged(value, gnorm, f_target, gtol):
+    """Shared convergence test: target loss reached OR gradient ~ 0."""
+    if f_target is not None and value <= f_target:
+        return True
+    if gtol is not None and gnorm <= gtol:
+        return True
+    return False
+
+
+def run_qqn(loss_fn, params0, maxiter, stop=None):
     """Run QQN and return (final_params, history_of_losses, wall_time)."""
-    return _run_qqn_configured(loss_fn, params0, maxiter)
+    return _run_qqn_configured(loss_fn, params0, maxiter, stop=stop)
 
 
 def _run_qqn_configured(
@@ -163,13 +177,22 @@ def _run_qqn_configured(
     oracle="lbfgs",
     region=None,
     spline: bool = False,
+    stop=None,
 ):
     """Run a configurable QQN variant.
 
     Exposes QQN's swappable components — the *oracle* (curvature source),
     the *line search* (step-size selection), and the *region* (projective
     constraint) — so we can benchmark several QQN flavours side-by-side.
+     ``stop`` is a dict with shared termination bounds applied uniformly to
+     every optimizer: ``f_target`` (loss threshold), ``gtol`` (gradient-norm
+     tolerance), and ``time_budget`` (wall-clock seconds).
     """
+    stop = stop or {}
+    f_target = stop.get("f_target")
+    gtol = stop.get("gtol")
+    time_budget = stop.get("time_budget")
+
     solver = QQN(
         loss_fn,
         maxiter=maxiter,
@@ -185,20 +208,37 @@ def _run_qqn_configured(
     params = params0
     history = [float(state.value)]
     times = [0.0]
+    # Record iteration / time at which the shared target was first hit.
+    iters_to_target = None
+    time_to_target = None
     t0 = time.perf_counter()
     update = jax.jit(solver.update)
-    for _ in range(maxiter):
+    for it in range(maxiter):
         params, state = update(params, state)
         history.append(float(state.value))
-        times.append(time.perf_counter() - t0)
+        now = time.perf_counter() - t0
+        times.append(now)
+        # --- Shared termination criteria (uniform across all methods) ---
+        gnorm = _grad_norm(loss_fn, params)
+        if iters_to_target is None and _converged(history[-1], gnorm, f_target, gtol):
+            iters_to_target = it + 1
+            time_to_target = now
+            break
+        if time_budget is not None and now >= time_budget:
+            break
         if bool(state.done):
             break
     wall = time.perf_counter() - t0
-    return params, history, wall, times
+    return params, history, wall, times, iters_to_target, time_to_target
 
 
-def run_optax(loss_fn, params0, optimizer, maxiter):
-    """Run a generic Optax optimizer; returns (params, history, wall)."""
+def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
+    """Run a generic Optax optimizer; returns (params, history, wall, times)."""
+    stop = stop or {}
+    f_target = stop.get("f_target")
+    gtol = stop.get("gtol")
+    time_budget = stop.get("time_budget")
+
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     opt_state = optimizer.init(params0)
 
@@ -207,20 +247,39 @@ def run_optax(loss_fn, params0, optimizer, maxiter):
         value, grad = value_and_grad(params)
         updates, opt_state = optimizer.update(grad, opt_state, params)
         params = optax.apply_updates(params, updates)
-        return params, opt_state, value
+        return params, opt_state, value, jnp.linalg.norm(grad)
 
     params = params0
     history = [float(loss_fn(params))]
+    times = [0.0]
+    iters_to_target = None
+    time_to_target = None
     t0 = time.perf_counter()
-    for _ in range(maxiter):
-        params, opt_state, value = step(params, opt_state)
+    for it in range(maxiter):
+        params, opt_state, value, gnorm = step(params, opt_state)
         history.append(float(value))
+        now = time.perf_counter() - t0
+        times.append(now)
+        # --- Shared termination criteria (uniform across all methods) ---
+        if iters_to_target is None and _converged(
+            history[-1], float(gnorm), f_target, gtol
+        ):
+            iters_to_target = it + 1
+            time_to_target = now
+            break
+        if time_budget is not None and now >= time_budget:
+            break
     wall = time.perf_counter() - t0
-    return params, history, wall
+    return params, history, wall, times, iters_to_target, time_to_target
 
 
-def run_optax_lbfgs(loss_fn, params0, maxiter):
+def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     """Run Optax's L-BFGS (with zoom line search) on the full-batch loss."""
+    stop = stop or {}
+    f_target = stop.get("f_target")
+    gtol = stop.get("gtol")
+    time_budget = stop.get("time_budget")
+
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     optimizer = optax.lbfgs()
     opt_state = optimizer.init(params0)
@@ -237,16 +296,30 @@ def run_optax_lbfgs(loss_fn, params0, maxiter):
             value_fn=loss_fn,
         )
         params = optax.apply_updates(params, updates)
-        return params, opt_state, value
+        return params, opt_state, value, jnp.linalg.norm(grad)
 
     params = params0
     history = [float(loss_fn(params))]
+    times = [0.0]
+    iters_to_target = None
+    time_to_target = None
     t0 = time.perf_counter()
-    for _ in range(maxiter):
-        params, opt_state, value = step(params, opt_state)
+    for it in range(maxiter):
+        params, opt_state, value, gnorm = step(params, opt_state)
         history.append(float(value))
+        now = time.perf_counter() - t0
+        times.append(now)
+        # --- Shared termination criteria (uniform across all methods) ---
+        if iters_to_target is None and _converged(
+            history[-1], float(gnorm), f_target, gtol
+        ):
+            iters_to_target = it + 1
+            time_to_target = now
+            break
+        if time_budget is not None and now >= time_budget:
+            break
     wall = time.perf_counter() - t0
-    return params, history, wall
+    return params, history, wall, times, iters_to_target, time_to_target
 
 
 # --------------------------------------------------------------------------
@@ -259,13 +332,29 @@ def main():
     n_classes = 10
     n_train = 5000
     n_test = 1000
-    maxiter = 100
+    maxiter = 50
+    # --- Shared, fair termination bounds applied to EVERY optimizer ---
+    #   f_target:     stop once full-batch loss <= this value
+    #   gtol:         stop once ||grad|| <= this value (stationarity)
+    #   time_budget:  hard wall-clock cap (seconds) per optimizer
+    # These make the comparison apples-to-apples: every method now races to
+    # the same loss threshold under the same time limit and the same
+    # stationarity tolerance, rather than each using its own private rule.
+    stop = {
+        "f_target": 1.0e-1,
+        "gtol": 1.0e-4,
+        "time_budget": 10.0,
+    }
 
     print("=== MNIST optimizer comparison: QQN vs SGD vs Adam vs L-BFGS ===")
     print("    (QQN variants: line search / oracle / region)")
     print(
         f"  classes={n_classes}  n_train={n_train}  n_test={n_test}  "
         f"maxiter={maxiter}\n"
+    )
+    print(
+        f"  shared stop: f_target={stop['f_target']:.1e}  "
+        f"gtol={stop['gtol']:.1e}  time_budget={stop['time_budget']:.1f}s\n"
     )
 
     xtr, ytr, xte, yte = _load_mnist_numpy(n_train, n_test, n_classes)
@@ -283,13 +372,14 @@ def main():
 
     runners = {
         # --- Baseline QQN (L-BFGS oracle, Armijo line search) ---
-        "QQN": lambda: run_qqn(loss_fn, params0, maxiter),
+        "QQN": lambda: run_qqn(loss_fn, params0, maxiter, stop=stop),
         # --- QQN with a strong-Wolfe line search (tighter curvature) ---
         "QQN-SW": lambda: _run_qqn_configured(
             loss_fn,
             params0,
             maxiter,
             line_search="strong_wolfe",
+            stop=stop,
         ),
         # --- QQN with backtracking line search (cheap, robust) ---
         "QQN-BT": lambda: _run_qqn_configured(
@@ -297,6 +387,7 @@ def main():
             params0,
             maxiter,
             line_search="backtracking",
+            stop=stop,
         ),
         # --- QQN with a cubic Hermite spline line search ---
         "QQN-Spln": lambda: _run_qqn_configured(
@@ -505,21 +596,23 @@ def main():
             region=BoxRegion(lo=-2.0, hi=2.0),
         ),
         "SGD": lambda: run_optax(
-            loss_fn, params0, optax.sgd(learning_rate=0.5), maxiter
+            loss_fn, params0, optax.sgd(learning_rate=0.5), maxiter, stop=stop
         ),
         "Adam": lambda: run_optax(
-            loss_fn, params0, optax.adam(learning_rate=0.05), maxiter
+            loss_fn, params0, optax.adam(learning_rate=0.05), maxiter, stop=stop
         ),
-        "L-BFGS": lambda: run_optax_lbfgs(loss_fn, params0, maxiter),
+        "L-BFGS": lambda: run_optax_lbfgs(loss_fn, params0, maxiter, stop=stop),
     }
 
     results = {}
     for name, runner in runners.items():
-        params, history, wall, times = runner()
+        params, history, wall, times, iters_to_target, time_to_target = runner()
         train_acc = float(accuracy(params, X_train, y_train, dim, n_classes))
         test_acc = float(accuracy(params, X_test, y_test, dim, n_classes))
         # Fraction of (near-)zero weights — illuminating for the orthant region.
         sparsity = float(jnp.mean((jnp.abs(params) < 1e-6).astype(jnp.float32)))
+        # Did this optimizer reach the shared loss/gradient target at all?
+        reached = iters_to_target is not None
         results[name] = {
             "final_loss": history[-1],
             "iters": len(history) - 1,
@@ -529,19 +622,26 @@ def main():
             "sparsity": sparsity,
             "history": history,
             "times": times,
+            "reached": reached,
+            "iters_to_target": iters_to_target,
+            "time_to_target": time_to_target,
         }
 
     # --- Summary table ---
     print(
         f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
         f"{'train_acc':>12}{'test_acc':>11}{'sparsity':>10}{'time(s)':>10}"
+        f"{'->target':>10}{'t->tgt':>9}"
     )
-    print("-" * 75)
+    print("-" * 94)
     for name, r in results.items():
+        it_tgt = "—" if r["iters_to_target"] is None else f"{r['iters_to_target']}"
+        t_tgt = "—" if r["time_to_target"] is None else f"{r['time_to_target']:.3f}"
         print(
             f"{name:<10}{r['final_loss']:>14.6e}{r['iters']:>8}"
             f"{r['train_acc']:>12.4f}{r['test_acc']:>11.4f}"
             f"{r['sparsity']:>10.4f}{r['wall']:>10.3f}"
+            f"{it_tgt:>10}{t_tgt:>9}"
         )
 
     # --- Loss trajectory (compact ASCII view at log10 scale) ---

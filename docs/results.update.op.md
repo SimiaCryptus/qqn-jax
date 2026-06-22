@@ -12,5 +12,5 @@ related:
   - ../qqn_jax/oracles.py
 ---
 
-Our collection is getting way too broad. Remove the uninformative redundancies.
-`spline=True` is underexplored in combination with other features. Combine with some other best-of-breeds.
+Improve QQN Performance without reducing diversity.
+Improve the test to perform a more effective experiment.
