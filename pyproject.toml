@@ -30,6 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+     "pytest-cov>=4.0",
     "numpy>=1.22",
 ]
 bench = [
@@ -46,3 +47,4 @@ packages = ["qqn_jax"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=qqn_jax --cov-report=term-missing"

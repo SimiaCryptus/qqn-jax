@@ -59,6 +59,7 @@ pytest tests/test_solver.py::test_jit_compatible
 pytest -x
 
 # With coverage report (how much code your tests hit)
+pip install pytest-cov
 pytest --cov=qqn_jax
 ```
 
