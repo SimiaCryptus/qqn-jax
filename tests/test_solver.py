@@ -3,6 +3,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from qqn_jax import QQN
 
@@ -84,3 +85,75 @@ def test_has_aux():
     params, state = solver.run(x0)
     assert "norm" in state.aux
     assert float(state.error) < 1e-3
+
+
+def test_unknown_line_search_raises():
+    with pytest.raises(ValueError):
+        QQN(quadratic, line_search="does_not_exist")
+
+
+@pytest.mark.parametrize(
+    "ls", ["armijo", "backtracking", "strong_wolfe", "hager_zhang", "fixed"]
+)
+def test_all_line_searches_construct_and_run(ls):
+    solver = QQN(quadratic, maxiter=200, tol=1e-5, line_search=ls)
+    x0 = jnp.array([1.0, 1.0, 1.0])
+    _, state = solver.run(x0)
+    # All should at least not increase the objective.
+    assert float(state.value) <= float(quadratic(x0)) + 1e-6
+
+
+def test_line_search_options_are_forwarded():
+    # A custom shrink/c1 should still converge on the quadratic.
+    solver = QQN(
+        quadratic,
+        maxiter=300,
+        tol=1e-5,
+        line_search="backtracking",
+        line_search_options={"c1": 1e-3, "shrink": 0.7, "max_iter": 20},
+    )
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.error) < 1e-3
+
+
+def test_init_state_done_flag_when_already_converged():
+    solver = QQN(quadratic, maxiter=50, tol=1e-3)
+    # Start essentially at the minimum.
+    x0 = jnp.array([1e-8, 1e-8, 1e-8])
+    state = solver.init_state(x0)
+    assert bool(state.done)
+
+
+def test_run_terminates_on_nonfinite():
+    # A function that explodes; the solver should still terminate (not spin).
+    def explosive(x):
+        return jnp.sum(jnp.exp(50.0 * x))
+
+    solver = QQN(explosive, maxiter=20, tol=1e-6)
+    x0 = jnp.array([1.0, 1.0])
+    _, state = solver.run(x0)
+    # iter must not run away beyond maxiter.
+    assert int(state.iter) <= 20
+
+
+def test_spline_option_composes_with_line_search():
+    solver = QQN(rosenbrock, maxiter=500, tol=1e-5, history_size=15, spline=True)
+    x0 = jnp.array([-1.2, 1.0])
+    _, state = solver.run(x0)
+    assert float(state.value) < 1.0
+
+
+def test_feed_probes_to_oracle_runs():
+    solver = QQN(
+        quadratic,
+        maxiter=200,
+        tol=1e-5,
+        line_search="backtracking",
+        feed_probes_to_oracle=True,
+        probe_descent_gate=True,
+        max_probes=8,
+    )
+    x0 = jnp.array([5.0, -3.0, 2.0])
+    _, state = solver.run(x0)
+    assert float(state.error) < 1e-2

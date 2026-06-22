@@ -2,6 +2,6 @@
 .venv
 *.iml
 *.png
-tests/
+#tests/
 #examples/
 #results/

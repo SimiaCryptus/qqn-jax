@@ -2,11 +2,17 @@
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 
 from qqn_jax.line_search import (
     backtracking_search,
+    armijo_search,
+    fixed_step_search,
+    hager_zhang_search,
     strong_wolfe_search,
 )
+from qqn_jax.regions import BoxRegion
 
 
 def quad_value_and_grad(x):
@@ -52,3 +58,79 @@ def test_line_search_jittable():
     )
     step = fn(x, direction, value, grad)
     assert float(step) > 0.0
+
+
+def test_armijo_alias_matches_backtracking():
+    x = jnp.array([2.0, 2.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    a = armijo_search(quad_value_and_grad, x, direction, value, grad)
+    b = backtracking_search(quad_value_and_grad, x, direction, value, grad)
+    np.testing.assert_allclose(a.step_size, b.step_size)
+    np.testing.assert_allclose(a.new_value, b.new_value)
+
+
+def test_fixed_step_search_uses_constant_step():
+    x = jnp.array([2.0, 2.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = fixed_step_search(
+        quad_value_and_grad, x, direction, value, grad, step_size=0.5
+    )
+    np.testing.assert_allclose(res.step_size, 0.5)
+    np.testing.assert_allclose(res.new_params, x + 0.5 * direction, atol=1e-6)
+    assert bool(res.done)
+
+
+def test_hager_zhang_decreases_value():
+    x = jnp.array([2.0, 2.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = hager_zhang_search(quad_value_and_grad, x, direction, value, grad)
+    assert float(res.new_value) <= float(value) + 1e-6
+
+
+def test_backtracking_records_probes():
+    x = jnp.array([5.0, 5.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    res = backtracking_search(
+        quad_value_and_grad, x, direction, value, grad, record_probes=True
+    )
+    # At least one probe slot should be filled.
+    assert res.probe_valid is not None
+    assert bool(jnp.any(res.probe_valid))
+
+
+def test_backtracking_respects_region():
+    # Box restricts the step so the projected point is clipped.
+    x = jnp.array([2.0, 2.0])
+    value, grad = quad_value_and_grad(x)
+    direction = -grad
+    region = BoxRegion(lo=1.5, hi=5.0)
+    res = backtracking_search(
+        quad_value_and_grad,
+        x,
+        direction,
+        value,
+        grad,
+        region=region,
+        region_state=(),
+    )
+    assert jnp.all(res.new_params >= 1.5 - 1e-6)
+
+
+@pytest.mark.parametrize(
+    "search",
+    [backtracking_search, armijo_search, fixed_step_search],
+)
+def test_line_searches_are_vmappable(search):
+    xs = jnp.array([[2.0, 2.0], [1.0, -1.0], [3.0, 0.5]])
+
+    def run_one(x):
+        value, grad = quad_value_and_grad(x)
+        direction = -grad
+        return search(quad_value_and_grad, x, direction, value, grad).new_value
+
+    vals = jax.vmap(run_one)(xs)
+    assert jnp.all(jnp.isfinite(vals))

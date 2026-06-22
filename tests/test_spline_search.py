@@ -2,9 +2,15 @@
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from qqn_jax import QQN, spline_search
 from qqn_jax.utils import make_value_and_grad
+from qqn_jax.spline_search import (
+    _orient_tangents,
+    _segment_stationary_candidates,
+    _segment_value,
+)
 
 
 def _quadratic(x):
@@ -54,3 +60,68 @@ def test_spline_search_vmap_starting_points():
     params, states = jax.vmap(solver.run)(starts)
     # Each run should converge near the origin.
     assert jnp.all(states.value < 1e-3)
+
+
+def test_segment_value_endpoints():
+    # Cubic Hermite interpolant hits the endpoint values at s=0 and s=1.
+    h = 1.0
+    f0, m0, f1, m1 = 2.0, -1.0, 0.5, 0.3
+    np.testing.assert_allclose(_segment_value(0.0, h, f0, m0, f1, m1), f0, atol=1e-7)
+    np.testing.assert_allclose(_segment_value(1.0, h, f0, m0, f1, m1), f1, atol=1e-7)
+
+
+def test_orient_tangents_reflects_opposing_sign():
+    # Secant slope is negative (f1 < f0); a positive tangent gets reflected.
+    f0, f1, h = 1.0, 0.0, 1.0
+    m0 = jnp.asarray(2.0)  # opposes the descending channel
+    m1 = jnp.asarray(-1.0)  # aligned, kept
+    m0o, m1o = _orient_tangents(h, jnp.asarray(f0), m0, jnp.asarray(f1), m1)
+    assert float(m0o) <= 0.0
+    np.testing.assert_allclose(float(m1o), -1.0)
+
+
+def test_orient_tangents_flat_secant_keeps_raw():
+    f0 = f1 = jnp.asarray(1.0)
+    m0 = jnp.asarray(2.0)
+    m1 = jnp.asarray(-3.0)
+    m0o, m1o = _orient_tangents(1.0, f0, m0, f1, m1)
+    np.testing.assert_allclose(float(m0o), 2.0)
+    np.testing.assert_allclose(float(m1o), -3.0)
+
+
+def test_segment_stationary_finds_min_of_descending_cubic():
+    # A simple convex-ish segment: f0 high, f1 low, slopes bracket a min.
+    t0, t1 = 0.0, 1.0
+    f0, m0 = 1.0, -2.0
+    f1, m1 = 0.0, 1.0
+    t_c, v_c, valid = _segment_stationary_candidates(
+        jnp.asarray(t0),
+        jnp.asarray(t1),
+        jnp.asarray(f0),
+        jnp.asarray(m0),
+        jnp.asarray(f1),
+        jnp.asarray(m1),
+    )
+    # At least one stationary point lies inside [t0, t1].
+    assert bool(jnp.any(valid))
+    inside = jnp.logical_and(t_c >= t0 - 1e-6, t_c <= t1 + 1e-6)
+    assert bool(jnp.any(jnp.logical_and(valid, inside)))
+
+
+def test_spline_improves_or_matches_inner_on_quadratic():
+    # On a quadratic, the spline refinement should not be worse than inner.
+    vg = make_value_and_grad(_quadratic)
+    params = jnp.array([4.0, -2.0])
+    value, grad = vg(params)
+    direction = -grad
+    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
+    assert float(res.new_value) <= float(value) + 1e-6
+
+
+def test_spline_search_on_rosenbrock_makes_progress():
+    vg = make_value_and_grad(_rosenbrock)
+    params = jnp.array([-1.0, 1.0])
+    value, grad = vg(params)
+    direction = -grad
+    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
+    assert float(res.new_value) <= float(value) + 1e-6
