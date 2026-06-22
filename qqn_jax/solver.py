@@ -217,12 +217,6 @@ class QQN:
         #    The "direction" handed to the line search is the path itself,
         #    parameterized so that step size ``t`` traces d(t). The search
         #    walks the curve directly; each probe ``x + d(t)`` is a state.
-        def path_value_and_grad(t, *inner_args):
-            d = quadratic_path(t, grad_dir, qn_dir)
-            return self._plain_value_and_grad(
-                jax.tree_util.tree_map(lambda p, dd: p + dd, params, d),
-                *inner_args,
-            )
 
         res = self._ls(
             self._plain_value_and_grad,
@@ -245,7 +239,10 @@ class QQN:
 
         # Recompute aux at the accepted point if needed.
         if self.has_aux:
-            (_, aux), _ = self._value_and_grad(new_params, *args)
+            # We already have new_value/new_grad from the line search; only the
+            # aux is missing. Call ``fun`` directly (no grad) to avoid a second
+            # backward pass per iteration.
+            _, aux = self.fun(new_params, *args)
         else:
             aux = None
 
@@ -292,6 +289,11 @@ class QQN:
         # and driving the adaptive radius to shrink exactly when it should not.
         # We floor the predicted reduction at the honest first-order model,
         # which is non-negative whenever the step descends along the path.
+        # KNOWN ISSUE: this floor (1e-3·|linear_term|) deflates ρ near
+        # convergence and is a contributing factor to the documented adaptive
+        # trust-region stall on deep-memory stacks (see docs/results.md).
+        # Do not treat the adaptive TR as production-ready until this is
+        # reconciled with the chord/arc-length mismatch in regions.py.
         pred_reduction = jnp.maximum(raw_pred, jnp.abs(linear_term) * 1e-3)
         info = RegionInfo(
             params=params,

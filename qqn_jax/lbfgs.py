@@ -71,8 +71,12 @@ def update_lbfgs_history(
     ys = jnp.vdot(y, s)
     yy = jnp.vdot(y, y)
 
+    # Relative curvature guard: an absolute 1e-10 floor is below float32
+    # resolution once ‖y‖‖s‖ is even moderately scaled, so it spuriously
+    # admits near-zero-curvature pairs. Anchor to the Cauchy-Schwarz scale.
+    ss = jnp.vdot(s, s)
     eps = jnp.asarray(1e-10, dtype=params.dtype)
-    valid = ys > eps
+    valid = ys > eps * jnp.sqrt(yy * ss + eps)
 
     # Roll buffers to make room at index 0 (most recent first).
     new_s = jnp.where(

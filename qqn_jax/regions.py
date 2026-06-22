@@ -185,7 +185,8 @@ def TrustRegion(
     eps = 1e-12
 
     def init(params):
-        return TrustRegionState(radius=jnp.asarray(radius, dtype=jnp.float32))
+        dtype = jax.tree_util.tree_leaves(params)[0].dtype
+        return TrustRegionState(radius=jnp.asarray(radius, dtype=dtype))
 
     def project(params, candidate, state):
         step = _tree_sub(candidate, params)
@@ -292,6 +293,10 @@ def resolve_region(region: Optional[Region]) -> Region:
     return IdentityRegion() if region is None else region
 
 
+# Backwards-compat alias used in docstrings/specs.
+RegionState = Any
+
+
 __all__ = [
     "Region",
     "RegionInfo",
@@ -305,6 +310,3 @@ __all__ = [
     "Sequential",
     "resolve_region",
 ]
-
-# Backwards-compat alias used in docstrings/specs.
-RegionState = Any

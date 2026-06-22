@@ -140,7 +140,6 @@ def backtracking_search(
 
     def ext_cond(carry):
         t, i, val, _g, _p = carry
-        next_t = t * grow
         # Predict whether the larger step is still admissible: we only keep
         # growing while the current point already satisfies Armijo (so the
         # bracket is healthy) and we have extrapolation budget left.

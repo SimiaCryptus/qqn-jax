@@ -383,9 +383,17 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
                 chosen = d
                 chosen_valid = valid
             else:
+                # Order-critical: snapshot chosen_valid BEFORE the OR-update so
+                # we keep the *first* valid direction. Reordering these three
+                # lines silently breaks the fallback priority.
                 take_prev = chosen_valid
                 chosen = jnp.where(take_prev, chosen, d)
                 chosen_valid = chosen_valid | valid
+        # Terminal safety net: if *every* oracle produced an invalid (uphill /
+        # non-finite / zero) direction, fall back to steepest descent so the
+        # path's t=1 endpoint can never be a non-descent or NaN direction.
+        neg_grad = tree_negative(grad)
+        chosen = jnp.where(chosen_valid, chosen, neg_grad)
         return chosen, tuple(new_states)
 
     def update(state, info):
