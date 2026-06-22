@@ -90,17 +90,17 @@ class QQN:
         maxiter: maximum number of iterations.
         tol: convergence tolerance on the gradient L2 norm.
         history_size: L-BFGS memory size ``m``.
-         line_search: name of the line-search strategy. One of
+        line_search: name of the line-search strategy. One of
              ``"armijo"`` (default), ``"backtracking"``, ``"strong_wolfe"``,
              ``"hager_zhang"`` or ``"fixed"``. Empirically (see
              ``docs/results.md``) the backtracking/Armijo family is the robust
              efficiency winner on smooth full-batch problems; ``"strong_wolfe"``
              can over-restrict the quadratic-path step and fail to converge.
-         line_search_options: optional dict of keyword arguments forwarded to
+        line_search_options: optional dict of keyword arguments forwarded to
              the chosen line-search function (e.g. ``c1``, ``c2``, ``max_iter``,
              ``init_step``, ``shrink``, ``step_size``). These override the
              line-search defaults.
-         spline: when ``True``, enable the cubic Hermite spline refinement. This
+        spline: when ``True``, enable the cubic Hermite spline refinement. This
              is orthogonal to ``line_search``: every probe along the (consistent)
              path is reused as a control point and the spline's stationary points
              guide the search. It composes with any chosen line search.
@@ -225,8 +225,6 @@ class QQN:
             state.value,
             grad,
             *args,
-            grad_dir=grad_dir,
-            qn_dir=qn_dir,
             region=self.region,
             region_state=state.region_state,
         )

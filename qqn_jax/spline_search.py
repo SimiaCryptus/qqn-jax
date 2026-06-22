@@ -27,12 +27,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import (
-    tree_add_scaled,
-    tree_vdot,
-    quadratic_path,
-    quadratic_path_derivative,
-)
+from qqn_jax.utils import tree_add_scaled, tree_vdot
 from qqn_jax.regions import resolve_region
 from qqn_jax.line_search import LineSearchResult
 
@@ -160,30 +155,20 @@ def spline_wrap(inner_search: Callable) -> Callable:
         grad,
         *args,
         spline_max_iter: int = 6,
-        spline_extrapolate: float = 2.0,
-        grad_dir=None,
-        qn_dir=None,
         region=None,
         region_state=None,
         **inner_kwargs,
     ) -> LineSearchResult:
         region = resolve_region(region)
-        use_path = grad_dir is not None and qn_dir is not None
 
         def project(candidate):
             return region.project(params, candidate, region_state)
 
         def eval_at(alpha):
-            if use_path:
-                step = quadratic_path(alpha, grad_dir, qn_dir)
-                raw = jax.tree_util.tree_map(lambda p, s: p + s, params, step)
-                tangent = quadratic_path_derivative(alpha, grad_dir, qn_dir)
-            else:
-                raw = tree_add_scaled(params, alpha, direction)
-                tangent = direction
+            raw = tree_add_scaled(params, alpha, direction)
             projected = project(raw)
             val, g = value_and_grad_fn(projected, *args)
-            slope = tree_vdot(g, tangent)
+            slope = tree_vdot(g, direction)
             return projected, val, g, slope
 
         dtype = value.dtype
@@ -196,8 +181,6 @@ def spline_wrap(inner_search: Callable) -> Callable:
             value,
             grad,
             *args,
-            grad_dir=grad_dir,
-            qn_dir=qn_dir,
             region=region,
             region_state=region_state,
             **inner_kwargs,
@@ -206,68 +189,11 @@ def spline_wrap(inner_search: Callable) -> Callable:
         # 2. Control points: alpha=0 (current point) and the inner result.
         a0 = jnp.asarray(0.0, dtype=dtype)
         f0 = value
-        # Slope at alpha=0 along the path tangent d'(0). For the quadratic path
-        # d'(0) = grad_dir = -∇f, so the slope is ⟨∇f, -∇f⟩ = -‖∇f‖².
-        if use_path:
-            m0 = tree_vdot(grad, grad_dir)
-        else:
-            m0 = tree_vdot(grad, direction)
+        m0 = tree_vdot(grad, direction)  # slope at alpha=0 is gᵀd
 
         a1 = inner.step_size
         f1 = inner.new_value
-        if use_path:
-            m1 = tree_vdot(
-                inner.new_grad, quadratic_path_derivative(a1, grad_dir, qn_dir)
-            )
-        else:
-            m1 = tree_vdot(inner.new_grad, direction)
-
-        # --- Superlinear probe (the symmetry your doc promised) ----------
-        # If the downstream tangent still descends (m1 < 0), the minimum is
-        # *beyond* the inner step. Extend the bracket once and let the cubic
-        # locate the stationary point in closed form. Region-projected and
-        # gated on strict improvement, so it is monotone-safe and free when
-        # the inner step already overshot (m1 >= 0 leaves the bracket intact).
-        still_descending = m1 < 0.0
-        # Adaptive superlinear extension. A constant cap throttles the very
-        # stretch we intend. The minimizer of a descending quadratic lies at
-        # α* = a1 · m0 / (m0 - m1) (linear-slope model along the curve). When
-        # the downstream slope m1 is still close to the initial slope m0, the
-        # path is barely bending and the minimum is far ahead; when m1 → 0 it
-        # is nearly upon us. We project toward that estimated stationary point,
-        # clamped to a generous multiple of the inner step for safety.
-        eps_ext = jnp.asarray(1e-12, dtype=dtype)
-        denom = jnp.where(jnp.abs(m0 - m1) > eps_ext, m0 - m1, eps_ext)
-        alpha_star = a1 * (m0 / denom)
-        # The minimizer of a descending quadratic can lie far beyond a fixed
-        # multiple of a1 when m1 ≪ m0 (the deep superlinear regime). A linear
-        # leash throttles arrival at precisely the moment of acceleration. We
-        # relax the cap by the log-ratio of the slopes, letting genuinely
-        # superlinear steps stretch while remaining bounded and monotone-gated.
-        slope_ratio = jnp.abs(m0) / (jnp.abs(m1) + eps_ext)
-        relaxed_cap = spline_extrapolate * (1.0 + jnp.log1p(slope_ratio))
-        a_ext = jnp.where(
-            still_descending,
-            jnp.clip(
-                alpha_star,
-                jnp.maximum(a1, 1e-3),
-                relaxed_cap * jnp.maximum(a1, 1e-3),
-            ),
-            a1,
-        )
-        ep, ef, eg, em = eval_at(a_ext)
-        # Adopt the extended point as the right anchor when it both extends
-        # the bracket and does not worsen fitness; otherwise keep the inner.
-        take_ext = jnp.logical_and(still_descending, ef <= f1)
-        a1 = jnp.where(take_ext, a_ext, a1)
-        f1 = jnp.where(take_ext, ef, f1)
-        m1 = jnp.where(take_ext, em, m1)
-        ext_params = jax.tree_util.tree_map(
-            lambda new, old: jnp.where(take_ext, new, old), ep, inner.new_params
-        )
-        ext_grad = jax.tree_util.tree_map(
-            lambda new, old: jnp.where(take_ext, new, old), eg, inner.new_grad
-        )
+        m1 = tree_vdot(inner.new_grad, direction)
 
         # Best-so-far starts at the inner search's accepted point.
         InitCarry = (
@@ -277,10 +203,10 @@ def spline_wrap(inner_search: Callable) -> Callable:
             a1,
             f1,
             m1,
-            jnp.where(take_ext, a1, inner.step_size),
-            jnp.where(take_ext, f1, inner.new_value),
-            ext_params,
-            ext_grad,
+            inner.step_size,
+            inner.new_value,
+            inner.new_params,
+            inner.new_grad,
             jnp.asarray(0, jnp.int32),
         )
 
@@ -323,17 +249,16 @@ def spline_wrap(inner_search: Callable) -> Callable:
                 lambda new, old: jnp.where(improves, new, old), cg, bg
             )
 
-            # Tighten the bracket so it still ENCLOSES the minimum.
+            # Tighten the bracket toward the lower-fitness endpoint.
+            # The candidate lies inside [min(la,ra), max(la,ra)]. To keep a
+            # valid bracket that straddles the lowest-fitness point, retain the
+            # candidate and the better of the two existing endpoints, so the new
+            # interval is the half that contains the minimum.
             #
-            # The candidate cf lies strictly inside [la, ra]. The minimum of a
-            # well-bracketed unimodal segment is on the side of the candidate
-            # whose endpoint has the *lower* fitness: if f(left) < f(right) the
-            # minimum is in [left, candidate], else in [candidate, right]. This
-            # is the standard golden-section/Brent retention rule and—unlike
-            # the previous "keep the better endpoint + candidate" heuristic—
-            # provably preserves a straddling bracket (it never drops the side
-            # containing the true minimizer).
-            keep_left = lf < rf
+            # If the left endpoint is the lower-fitness one, discard the right
+            # endpoint (new bracket = [left, candidate]); otherwise discard the
+            # left endpoint (new bracket = [candidate, right]).
+            keep_left = lf <= rf
             n_la = jnp.where(keep_left, la, cand_alpha)
             n_lf = jnp.where(keep_left, lf, cf)
             n_lm = jnp.where(keep_left, lm, cm)
