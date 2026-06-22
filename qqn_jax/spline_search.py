@@ -29,7 +29,7 @@ import jax.numpy as jnp
 
 from qqn_jax.utils import tree_add_scaled, tree_vdot
 from qqn_jax.regions import resolve_region
-from qqn_jax.line_search import LineSearchResult
+from qqn_jax.line_search import LineSearchResult, backtracking_search
 
 
 def _orient_tangents(h, f0, m0, f1, m1):
@@ -42,12 +42,20 @@ def _orient_tangents(h, f0, m0, f1, m1):
     """
     delta = (f1 - f0) / h
     flat = delta == 0.0
+    # A genuine interior minimum is bracketed when the left slope descends
+    # and the right slope ascends (m0 < 0 < m1). In that case the raw
+    # tangents already describe a valley; reflecting them would erase the
+    # legitimate stationary point, so we must leave them untouched.
+    bracketed_min = jnp.logical_and(m0 < 0.0, m1 > 0.0)
 
     def reflect(m):
         opposed = jnp.logical_and(jnp.sign(m) != jnp.sign(delta), delta != 0.0)
         m_corr = jnp.where(opposed, -m, m)
         # When the secant is flat, keep the raw tangent untouched.
-        return jnp.where(flat, m, m_corr)
+        m_corr = jnp.where(flat, m, m_corr)
+        # Preserve a legitimately bracketed interior minimum.
+        m_corr = jnp.where(bracketed_min, m, m_corr)
+        return m_corr
 
     return reflect(m0), reflect(m1)
 
@@ -304,4 +312,10 @@ def spline_wrap(inner_search: Callable) -> Callable:
     return wrapped
 
 
-__all__ = ["spline_wrap"]
+# A ready-to-use spline line search: the cubic Hermite refinement wrapped
+# around the default backtracking (Armijo) inner search. This is the
+# callable referenced by ``line_search="spline"`` and by the public API.
+spline_search = spline_wrap(backtracking_search)
+
+
+__all__ = ["spline_wrap", "spline_search"]

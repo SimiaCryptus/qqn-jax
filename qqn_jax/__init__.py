@@ -11,7 +11,7 @@ gradient and quasi-Newton directions.
 
 from qqn_jax.solver import QQN, QQNState
 from qqn_jax.line_search import strong_wolfe_search, backtracking_search
-from qqn_jax.spline_search import spline_wrap
+from qqn_jax.spline_search import spline_wrap, spline_search
 from qqn_jax.oracles import (
     Oracle,
     OracleInfo,
@@ -40,6 +40,7 @@ __all__ = [
     "strong_wolfe_search",
     "backtracking_search",
     "spline_wrap",
+    "spline_search",
     "Oracle",
     "OracleInfo",
     "LBFGSOracle",

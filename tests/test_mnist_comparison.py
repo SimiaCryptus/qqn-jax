@@ -46,7 +46,7 @@ def test_loss_is_finite(problem):
 
 def test_qqn_runs_and_decreases(problem):
     loss_fn, params0, *_ = problem
-    _, history, wall = mc.run_qqn(loss_fn, params0, maxiter=10)
+    _, history, wall, *_ = mc.run_qqn(loss_fn, params0, maxiter=10)
     assert len(history) >= 2
     assert all(np.isfinite(h) for h in history)
     assert history[-1] <= history[0]
@@ -56,14 +56,14 @@ def test_qqn_runs_and_decreases(problem):
 def test_optax_optimizers_run(problem):
     loss_fn, params0, *_ = problem
     for opt in (optax.sgd(0.1), optax.adam(0.05)):
-        _, history, _ = mc.run_optax(loss_fn, params0, opt, maxiter=10)
+        _, history, *_ = mc.run_optax(loss_fn, params0, opt, maxiter=10)
         assert all(np.isfinite(h) for h in history)
         assert history[-1] <= history[0] + 1e-6
 
 
 def test_optax_lbfgs_runs(problem):
     loss_fn, params0, *_ = problem
-    _, history, _ = mc.run_optax_lbfgs(loss_fn, params0, maxiter=10)
+    _, history, *_ = mc.run_optax_lbfgs(loss_fn, params0, maxiter=10)
     assert all(np.isfinite(h) for h in history)
     assert history[-1] <= history[0] + 1e-6
 

@@ -33,7 +33,7 @@ from qqn_jax.line_search import (
     hager_zhang_search,
     strong_wolfe_search,
 )
-from qqn_jax.spline_search import spline_wrap
+from qqn_jax.spline_search import spline_wrap, spline_search
 from qqn_jax.oracles import OracleInfo, resolve_oracle
 from qqn_jax.regions import RegionInfo, resolve_region
 from qqn_jax.utils import (
@@ -51,6 +51,7 @@ _LINE_SEARCHES = {
     "armijo": armijo_search,
     "hager_zhang": hager_zhang_search,
     "fixed": fixed_step_search,
+    "spline": spline_search,
 }
 
 
