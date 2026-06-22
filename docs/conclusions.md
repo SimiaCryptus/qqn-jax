@@ -22,17 +22,20 @@ The MNIST optimizer comparison validated QQN as a practical, competitive
 optimizer on a smooth, deterministic, full-batch problem. The headline
 results are:
 
-- **The four-axis modular design behaves as specified.** Each swappable
 - **QQN matches L-BFGS quality at a fraction of the cost.** On the softmax
-  MNIST benchmark, QQN reached a final training loss of `1.209e-01` —
-  edging out Optax's L-BFGS (`1.231e-01`) — while running roughly **1.4×
-  faster** in wall-clock time (1.479s vs. 2.094s).
+   MNIST benchmark, QQN reached a final training loss of `1.209e-01` —
+   edging out Optax's L-BFGS (`1.231e-01`) — while running roughly **1.4×
+   faster** in wall-clock time (1.467s vs. 2.098s).
 - **QQN clearly beats first-order baselines on training loss.** It drove the
-  loss roughly **3.5× lower than SGD** and clearly below Adam, confirming the
-  benefit of quasi-Newton acceleration on smooth deterministic objectives.
-  component (gradient, oracle, search, region) could be substituted
-  independently, and the defaults (`oracle="lbfgs"`, `region=None`) reproduced
-  the baseline behavior exactly.
+   loss roughly **3.5× lower than SGD** and clearly below Adam, confirming the
+   benefit of quasi-Newton acceleration on smooth deterministic objectives.
+- **The four-axis modular design behaves as specified.** Each swappable
+   component (gradient, oracle, search, region) could be substituted
+   independently, and the defaults (`oracle="lbfgs"`, `region=None`) reproduced
+   the baseline behavior exactly.
+- **No method reached the aggressive shared `f_target = 1.0e-1`** within the
+   50-iteration budget; the best-of-breed deep-memory + trust-region combos
+   came closest (loss `≈ 1.044e-01`).
 
 ## Validation of Core Algorithmic Claims
 
@@ -57,13 +60,16 @@ regardless of oracle quality, leaving the oracle free to be aggressive.
 ### Oracle Choice Is the Dominant Lever
 
 - **L-BFGS history depth** is the single most important accuracy lever, with a
+   monotone improvement `L5 < L10 < L20 < L50`, clear diminishing
+   returns past size 50, and a hard plateau at 100 (`L50 == L100` at
+   `1.061e-01`). Very deep histories (L100) buy *no* accuracy for their extra
+   cost on this problem.
 - **Momentum** behaved as a first-order accelerator and trailed L-BFGS
-  monotone improvement `L5 < L10 < L20 < L50`, clear diminishing
-  returns past size 50, and a hard plateau at 100 (`L50 == L100` at
-  `1.062e-01`). Very deep histories (L100) buy *no* accuracy for their extra
-  cost on this problem.
-  substantially; lighter damping (`beta = 0.1`) — which collapses toward
-  steepest descent — outperformed heavier momentum on this smooth problem.
+   substantially; lighter damping (`beta = 0.1`) — which collapses toward
+   steepest descent — outperformed heavier momentum on this smooth problem.
+- **Shampoo** did not scale to this high-dimensional softmax problem: its
+   dense inverse-root refresh exhausted the 10-second wall-clock budget after
+   only 6 iterations, landing at a much higher loss than even momentum.
 
 ### Line Search Trades Time, Not Final Loss
 
@@ -83,7 +89,9 @@ measurably **sharpened the deep-memory trajectory** — `QQN-L50Spln` reached th
 `-0.98` log10 plateau distinctly earlier than the spline-less baseline (it is
 already at `-0.87` by the seventh sample vs. `-0.81` for the size-10 baseline),
 and the full stack `QQN-L50SplnTR` reached the lowest spline loss observed
-(`1.051e-01`).
+(`1.051e-01`). The extra per-probe spline fitting costs roughly **2×**
+wall-time, which did not pay off for shallow-memory variants on this smooth
+objective.
 
 ### Regions Are Low-Overhead Safeguards
 
@@ -121,13 +129,13 @@ following caveats:
   objectives, the stronger Wolfe/Hager-Zhang searches and the spline
   refinement may pay off where they did not here.
 - **Generalization was not the differentiator.** Test accuracy was similar
+   across the strong optimizers; these results concern optimization speed and
+   final training loss, not generalization (Adam in fact had the highest test
+   accuracy at 0.8960).
 - **Structured parameters change the oracle ranking.** The flat softmax
-  parameter block here favors L-BFGS; on genuinely matrix-shaped models a
-  structure-aware preconditioner (e.g. the Shampoo oracle) may compete
-  differently.
-  across the strong optimizers; these results concern optimization speed and
-  final training loss, not generalization (Adam in fact had the highest test
-  accuracy at 0.8960).
+   parameter block here favors L-BFGS; on genuinely matrix-shaped models a
+   structure-aware preconditioner (e.g. the Shampoo oracle) may compete
+   differently, and its dense inverse-root cost may amortize better.
 
 ## Overall Assessment
 

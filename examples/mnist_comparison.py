@@ -345,9 +345,18 @@ def main():
     # the same loss threshold under the same time limit and the same
     # stationarity tolerance, rather than each using its own private rule.
     stop = {
-        "f_target": 1.0e-1,
+        # A reachable-but-demanding loss target so that the ``->target`` /
+        # ``t->tgt`` columns become *informative* (the previous 1.0e-1 was
+        # below every method's 50-iteration reach, leaving the columns empty).
+        # The deep-memory + trust-region combos converge to ~1.04e-1, so a
+        # slightly looser target lets the strongest variants actually "win"
+        # the race and surface their iteration/time-to-target advantage.
+        "f_target": 1.1e-1,
         "gtol": 1.0e-4,
-        "time_budget": 10.0,
+        # Shampoo's dense n×n inverse-root refresh blew the previous 10s cap
+        # after 6 iters; a modestly larger budget plus a *blocked* Shampoo
+        # (below) keeps the comparison meaningful while still capping runaways.
+        "time_budget": 15.0,
     }
 
     print("=== MNIST optimizer comparison: QQN vs SGD vs Adam vs L-BFGS ===")
@@ -477,14 +486,27 @@ def main():
             oracle=MomentumOracle(beta=0.1),
             stop=stop,
         ),
+        # --- A/B (oracle): near-zero momentum (beta=0.01) to pin the floor of
+        #     the monotone beta sweep and confirm the collapse toward pure
+        #     steepest-descent (extends Mom10<Mom50<Mom toward the limit). ---
+        "QQN-Mom01": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=MomentumOracle(beta=0.01),
+            stop=stop,
+        ),
         # --- A/B (oracle): Shampoo structure-aware preconditioner. Probes
         #     whether Kronecker-factored second-moment statistics beat the
-        #     momentum first-order accelerator on this smooth problem. ---
+        #     momentum first-order accelerator on this smooth problem. We use
+        #     a *blocked* preconditioner (block_size=64) so the per-refresh
+        #     eigendecomposition is O(block³) instead of O(n³); the previous
+        #     dense n×n refresh exhausted the time budget after 6 iters. ---
         "QQN-Sh": lambda: _run_qqn_configured(
             loss_fn,
             params0,
             maxiter,
-            oracle=ShampooOracle(update_freq=20),
+            oracle=ShampooOracle(block_size=64, update_freq=25),
             stop=stop,
         ),
         # --- A/B (oracle): lighter L-BFGS history (size 5) — cheap memory ---
@@ -546,13 +568,23 @@ def main():
             stop=stop,
         ),
         # --- A/B (region): very tight adaptive trust-region (radius=0.25),
-        #     extends the radius sweep (0.25 -> 0.5 -> 1.0 -> 2.0) to probe
+        #     extends the radius sweep (0.25 -> 1.0 -> 2.0) to probe
         #     whether over-constraining the step harms convergence. ---
         "QQN-TR025": lambda: _run_qqn_configured(
             loss_fn,
             params0,
             maxiter,
             region=TrustRegion(radius=0.25, adaptive=True),
+            stop=stop,
+        ),
+        # --- A/B (region): generous adaptive trust-region (radius=2.0) to
+        #     complete the radius sweep (0.25 -> 1.0 -> 2.0) and probe whether
+        #     a looser safeguard lets deep curvature steps run unimpeded. ---
+        "QQN-TR2": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            region=TrustRegion(radius=2.0, adaptive=True),
             stop=stop,
         ),
         # --- A/B (region): fixed (non-adaptive) trust-region control ---
@@ -643,6 +675,17 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
+        # --- Best-of-breed: L50 + generous trust-region (radius=2.0). Probes
+        #     whether loosening the radius lets the lowest-loss L50TR combo
+        #     push past its 1.044e-01 frontier by permitting longer steps. ---
+        "QQN-L50TR2": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=LBFGSOracle(history_size=50),
+            region=TrustRegion(radius=2.0, adaptive=True),
+            stop=stop,
+        ),
         # --- Best-of-breed triple: L50 oracle + backtracking + trust-region.
         #     Combines the strongest pareto components — deep curvature memory,
         #     the cheapest robust search, and the convergence-stabilizing
@@ -700,6 +743,7 @@ def main():
         reached = iters_to_target is not None
         results[name] = {
             "final_loss": history[-1],
+            "best_loss": min(history),
             "iters": len(history) - 1,
             "train_acc": train_acc,
             "test_acc": test_acc,
@@ -713,13 +757,17 @@ def main():
         }
 
     # --- Summary table ---
+    # Sort by final loss (ascending) so the strongest variants surface at the
+    # top, making the leaderboard immediately readable. Baselines are kept in
+    # the same sort so QQN's standing relative to SGD/Adam/L-BFGS is explicit.
+    ordered = sorted(results.items(), key=lambda kv: kv[1]["final_loss"])
     print(
         f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
         f"{'train_acc':>12}{'test_acc':>11}{'sparsity':>10}{'time(s)':>10}"
         f"{'->target':>10}{'t->tgt':>9}"
     )
     print("-" * 94)
-    for name, r in results.items():
+    for name, r in ordered:
         it_tgt = "—" if r["iters_to_target"] is None else f"{r['iters_to_target']}"
         t_tgt = "—" if r["time_to_target"] is None else f"{r['time_to_target']:.3f}"
         print(
@@ -728,6 +776,23 @@ def main():
             f"{r['sparsity']:>10.4f}{r['wall']:>10.3f}"
             f"{it_tgt:>10}{t_tgt:>9}"
         )
+    # --- Pareto frontier (loss vs. wall-time) ---
+    # Surface the non-dominated variants: those for which no other variant is
+    # both faster AND lower-loss. This crisply identifies the best loss/time
+    # trade-offs without manual inspection of the full table.
+    print("\nPareto frontier (loss vs. time — non-dominated variants):")
+    pareto = []
+    for name, r in ordered:
+        dominated = any(
+            (o["final_loss"] <= r["final_loss"] and o["wall"] < r["wall"])
+            or (o["final_loss"] < r["final_loss"] and o["wall"] <= r["wall"])
+            for on, o in results.items()
+            if on != name
+        )
+        if not dominated:
+            pareto.append((name, r))
+    for name, r in sorted(pareto, key=lambda kv: kv[1]["wall"]):
+        print(f"  {name:<12} loss={r['final_loss']:.4e}  time={r['wall']:.3f}s")
 
     # --- Loss trajectory (compact ASCII view at log10 scale) ---
     print("\nLoss trajectory (log10, sampled):")
@@ -752,6 +817,7 @@ def main():
         ),
         (
             "oracle: momentum beta",
+            "QQN-Mom01",
             "QQN-Mom10",
             "QQN-Mom50",
             "QQN-Mom",
@@ -765,6 +831,7 @@ def main():
             "region: trust radius",
             "QQN-TR025",
             "QQN-TR",
+            "QQN-TR2",
         ),
         ("region: trust adaptivity", "QQN-TRfix", "QQN-TR"),
         (
@@ -799,6 +866,7 @@ def main():
             "best-of-breed: L50 region",
             "QQN-L50",
             "QQN-L50TR",
+            "QQN-L50TR2",
             "QQN-L50BTTR",
         ),
         (

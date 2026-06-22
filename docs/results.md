@@ -65,6 +65,8 @@ rule, all share:
 The summary table records, for every method, the iteration (`->target`) and
 wall-clock time (`t->tgt`) at which the shared loss/gradient target was first
 reached — or `—` when the method did not reach it within the iteration limit.
+In this run **no method reached the aggressive `f_target = 1.0e-1` within the
+50-iteration budget**, so every `->target` / `t->tgt` entry is `—`.
 
 ## Baseline Comparison
 
@@ -75,10 +77,10 @@ budget.
 
 | Optimizer | Final loss | Iters | Train acc | Test acc | Time (s) |
 |-----------|-----------:|------:|----------:|---------:|---------:|
-| QQN       |  1.209e-01 |    50 |    0.9858 |   0.8740 |    1.479 |
-| SGD       |  4.178e-01 |    50 |    0.8994 |   0.8680 |    0.475 |
-| Adam      |  1.801e-01 |    50 |    0.9628 |   0.8960 |    0.452 |
-| L-BFGS    |  1.231e-01 |    50 |    0.9840 |   0.8760 |    2.094 |
+| QQN       |  1.209e-01 |    50 |    0.9854 |   0.8720 |    1.467 |
+| SGD       |  4.178e-01 |    50 |    0.8994 |   0.8680 |    0.471 |
+| Adam      |  1.801e-01 |    50 |    0.9628 |   0.8960 |    0.450 |
+| L-BFGS    |  1.231e-01 |    50 |    0.9840 |   0.8760 |    2.098 |
 
 **Observations:**
 
@@ -108,14 +110,14 @@ diminishing returns past size 50 and a hard plateau at size 100.
 
 | Variant  | History | Final loss | Time (s) |
 |----------|--------:|-----------:|---------:|
-| QQN-L5   |       5 |  1.266e-01 |    1.194 |
-| QQN      |      10 |  1.209e-01 |    1.479 |
-| QQN-L20  |      20 |  1.153e-01 |    1.227 |
-| QQN-L50  |      50 |  1.062e-01 |    1.222 |
-| QQN-L100 |     100 |  1.062e-01 |    1.301 |
+| QQN-L5   |       5 |  1.266e-01 |    1.183 |
+| QQN      |      10 |  1.209e-01 |    1.467 |
+| QQN-L20  |      20 |  1.167e-01 |    1.198 |
+| QQN-L50  |      50 |  1.061e-01 |    1.255 |
+| QQN-L100 |     100 |  1.061e-01 |    1.260 |
 
 The sweep `L5 < L10 < L20 < L50` confirms richer curvature memory helps, but
-the loss plateaus exactly at 1.062e-01 from size 50 onward (`L50 == L100`)
+the loss plateaus exactly at 1.061e-01 from size 50 onward (`L50 == L100`)
 while wall-time keeps growing — so very deep histories (L100) buy *no*
 accuracy for extra cost on this problem.
 
@@ -127,13 +129,30 @@ on this problem (the sweep is monotone in `beta`).
 
 | Variant   | beta | Final loss | Time (s) |
 |-----------|-----:|-----------:|---------:|
-| QQN-Mom10 | 0.10 |  3.630e-01 |    1.062 |
-| QQN-Mom50 | 0.50 |  4.152e-01 |    1.070 |
-| QQN-Mom   | 0.90 |  5.062e-01 |    1.080 |
+| QQN-Mom10 | 0.10 |  3.630e-01 |    1.090 |
+| QQN-Mom50 | 0.50 |  4.152e-01 |    1.120 |
+| QQN-Mom   | 0.90 |  5.062e-01 |    1.071 |
 
 Near-zero momentum (`beta = 0.1`) effectively collapses toward steepest
 descent, which on this smooth full-batch problem outperforms heavier momentum
 (`Mom10 < Mom50 < Mom` in loss).
+
+### Oracle: Accelerator Class (Momentum vs Shampoo)
+
+The structure-aware **Shampoo** oracle recomputes inverse matrix roots on a
+static cadence (`update_freq=20`) over a dense `n×n` preconditioner. On this
+high-dimensional softmax problem the per-refresh eigendecomposition is very
+expensive: `QQN-Sh` hits the shared 10-second wall-clock budget after only
+**6 iterations** and lands at a much higher loss than even the momentum
+oracle.
+
+| Variant   | Oracle              | Final loss | Iters | Time (s) |
+|-----------|---------------------|-----------:|------:|---------:|
+| QQN-Mom10 | Momentum (beta=0.1) |  3.630e-01 |    50 |    1.090 |
+| QQN-Sh    | Shampoo (freq=20)   |  8.598e-01 |     6 |   11.549 |
+
+Shampoo's dense inverse-root refresh does not amortize well at this scale; it
+is the only oracle to exhaust the time budget before reaching `maxiter`.
 
 ### Region: Trust-Region Radius and Adaptivity
 
@@ -143,12 +162,46 @@ performance on this well-conditioned problem.
 
 | Variant   | Radius | Adaptive | Final loss | Time (s) |
 |-----------|-------:|:--------:|-----------:|---------:|
-| QQN-TR025 |   0.25 |   yes    |  1.217e-01 |    1.171 |
-| QQN-TR    |   1.00 |   yes    |  1.209e-01 |    1.179 |
-| QQN-TRfix |   1.00 |    no    |  1.217e-01 |    1.180 |
+| QQN-TR025 |   0.25 |   yes    |  1.217e-01 |    1.186 |
+| QQN-TR    |   1.00 |   yes    |  1.210e-01 |    1.189 |
+| QQN-TRfix |   1.00 |    no    |  1.220e-01 |    1.161 |
 
 Over-constraining the step (radius 0.25) very slightly harms the loss; an
 adaptive radius performs marginally better than a fixed one (`TR < TRfix`).
+
+### Region: Combinator and Orthant Sparsity
+
+The combinator `Sequential([Box, TrustRegion])` composes two projections in
+order at negligible extra cost, and the orthant region is the only one to
+induce measurable weight sparsity.
+
+| Variant  | Configuration                    | Final loss | Sparsity | Time (s) |
+|----------|----------------------------------|-----------:|---------:|---------:|
+| QQN-TR   | TrustRegion(1.0, adaptive)       |  1.210e-01 |   0.0000 |    1.189 |
+| QQN-Box  | BoxRegion(-2, 2)                 |  1.217e-01 |   0.0000 |    1.174 |
+| QQN-Seq  | Sequential([Box(-2,2), TR(1.0)]) |  1.214e-01 |   0.0000 |    1.345 |
+| QQN-Orth | OrthantRegion (OWL-QN-style)     |  1.228e-01 |   0.0042 |    1.181 |
+
+The Sequential combinator's projected loss (1.214e-01) sits between the box
+and trust-region results, confirming it composes the two constraints as
+expected with only a small overhead (~0.16s).
+
+### t-Grid: Blend Discretization
+
+The t-grid samples the continuous blend parameter `t`. Sweeping its
+granularity (2, 4, and 8 points) has a negligible effect on the converged
+loss but a modest effect on wall-time: a finer grid runs more line searches
+per iteration.
+
+| Variant     | t-grid points | Final loss | Time (s) |
+|-------------|--------------:|-----------:|---------:|
+| QQN-Tcoarse |             2 |  1.199e-01 |    1.258 |
+| QQN         |             4 |  1.209e-01 |    1.467 |
+| QQN-Tfine   |             8 |  1.201e-01 |    1.425 |
+
+The coarse 2-point grid is essentially as good as the default 4-point grid on
+this smooth problem, confirming the t-grid is a cheap tuning knob here rather
+than an accuracy driver.
 
 ### Line Search (at fixed oracle depth, L-BFGS-10)
 
@@ -159,17 +212,19 @@ problem.
 
 | Variant  | Line search   | Final loss | Time (s) |
 |----------|---------------|-----------:|---------:|
-| QQN      | armijo        |  1.209e-01 |    1.479 |
-| QQN-BT   | backtracking  |  1.209e-01 |    1.191 |
-| QQN-SW   | strong_wolfe  |  1.209e-01 |    3.014 |
-| QQN-Spln | armijo+spline |  1.208e-01 |    2.664 |
+| QQN      | armijo        |  1.209e-01 |    1.467 |
+| QQN-BT   | backtracking  |  1.209e-01 |    1.188 |
+| QQN-SW   | strong_wolfe  |  1.209e-01 |    3.011 |
+| QQN-Spln | armijo+spline |  1.207e-01 |    2.680 |
 
-The default search is Armijo backtracking (`QQN`, 1.479s); the dedicated
-`QQN-BT` backtracking variant is the cheapest robust search (1.191s).
-Strong-Wolfe (`QQN-SW`, 3.014s) and the cubic Hermite spline refinement
-(`QQN-Spln`, 2.664s) reach essentially the same loss — useful confirmation
+The default search is Armijo backtracking (`QQN`, 1.467s); the dedicated
+`QQN-BT` backtracking variant is the cheapest robust search (1.188s).
+Strong-Wolfe (`QQN-SW`, 3.011s) and the cubic Hermite spline refinement
+(`QQN-Spln`, 2.680s) reach essentially the same loss — useful confirmation
 that the more expensive searches do not degrade quality, but do not pay off
-on a smooth convex objective.
+on a smooth convex objective. The `QQN-L20HZ` variant additionally exercises
+the Hager-Zhang approximate-Wolfe search atop an L20 oracle (1.159e-01 at
+2.146s).
 
 ### Spline Refinement (orthogonal enhancement)
 
@@ -181,12 +236,12 @@ improve on the inner search's accepted step.
 
 | Variant       | Configuration                           | Final loss | Time (s) |
 |---------------|-----------------------------------------|-----------:|---------:|
-| QQN-Spln      | armijo + spline                         |  1.208e-01 |    2.664 |
-| QQN-BTSpln    | backtracking + spline                   |  1.208e-01 |    2.571 |
-| QQN-L50Spln   | L50 oracle + spline                     |  1.057e-01 |    2.906 |
-| QQN-L100Spln  | L100 oracle + spline                    |  1.057e-01 |    2.623 |
-| QQN-SplnTR    | armijo + spline + adaptive trust-region |  1.208e-01 |    2.736 |
-| QQN-L50SplnTR | L50 + spline + adaptive trust-region    |  1.051e-01 |    2.683 |
+| QQN-Spln      | armijo + spline                         |  1.207e-01 |    2.680 |
+| QQN-BTSpln    | backtracking + spline                   |  1.207e-01 |    2.555 |
+| QQN-L50Spln   | L50 oracle + spline                     |  1.057e-01 |    2.860 |
+| QQN-L100Spln  | L100 oracle + spline                    |  1.057e-01 |    2.697 |
+| QQN-SplnTR    | armijo + spline + adaptive trust-region |  1.212e-01 |    2.794 |
+| QQN-L50SplnTR | L50 + spline + adaptive trust-region    |  1.051e-01 |    2.758 |
 
 The spline refinement notably **sharpens the deep-memory trajectory**:
 `QQN-L50Spln` reaches the `-0.98` log10 plateau distinctly earlier than the
@@ -204,17 +259,21 @@ trust-region — yields the lowest losses observed, at competitive wall-time.
 
 | Variant     | Configuration                     | Final loss | Time (s) |
 |-------------|-----------------------------------|-----------:|---------:|
-| QQN-L50TR   | L50 + adaptive trust-region       |  1.044e-01 |    1.233 |
-| QQN-L50BTTR | L50 + backtracking + trust-region |  1.044e-01 |    1.251 |
-| QQN-L100TR  | L100 + adaptive trust-region      |  1.044e-01 |    1.290 |
+| QQN-L50TR   | L50 + adaptive trust-region       |  1.044e-01 |    1.295 |
+| QQN-L50BTTR | L50 + backtracking + trust-region |  1.044e-01 |    1.267 |
+| QQN-L100TR  | L100 + adaptive trust-region      |  1.044e-01 |    1.370 |
+| QQN-Best    | L50 + BT + spline + TR + 8-pt grid|  1.056e-01 |    2.853 |
 
 The `L50TR` / `L50BTTR` / `L100TR` combos reach the **lowest-loss trajectory
-observed** (1.044e-01) while staying around ~1.23–1.29s — a strong pareto
+observed** (1.044e-01) while staying around ~1.27–1.37s — a strong pareto
 point on loss vs. time. The trust-region shaves the loss below the raw L50
-oracle (1.062e-01 → 1.044e-01) at essentially no extra cost. Note that the
-experiment also includes a `QQN-SW+TR` combo (strong-Wolfe + adaptive
-trust-region, 1.217e-01 at 3.069s) which trades wall-time for no accuracy
-gain on this smooth objective.
+oracle (1.061e-01 → 1.044e-01) at essentially no extra cost. The full
+"everything" stack `QQN-Best` (deep L50 + backtracking + spline + adaptive
+trust-region + fine 8-point grid) reaches 1.056e-01 but at ~2.3× the wall-time
+of `QQN-L50BTTR` — the spline refinement does not improve the deep-memory
+backtracking combo here. Note that the experiment also includes a
+`QQN-SW+TR` combo (strong-Wolfe + adaptive trust-region, 1.217e-01 at 3.095s)
+which trades wall-time for no accuracy gain on this smooth objective.
 
 In the sampled log10 trajectory, `QQN-L50TR` / `QQN-L100TR` / `QQN-L50BTTR`
 all share the leading trajectory, reaching `-0.90` by the seventh sample and
@@ -229,14 +288,14 @@ they run correctly and produce sensible behavior:
 |------------|----------------------------------|-----------:|---------:|
 | QQN-Fall   | Fallback([L-BFGS(10), Momentum]) |  1.209e-01 |   0.0000 |
 | QQN-Box    | BoxRegion(-2, 2)                 |  1.217e-01 |   0.0000 |
-| QQN-Orth   | OrthantRegion (OWL-QN-style)     |  1.228e-01 |   0.0056 |
+| QQN-Orth   | OrthantRegion (OWL-QN-style)     |  1.228e-01 |   0.0042 |
 | QQN-L20Box | L-BFGS(20) + BoxRegion(-2, 2)    |  1.148e-01 |   0.0000 |
 
 - **Fallback** reproduces the L-BFGS baseline exactly here (1.209e-01),
   because the L-BFGS direction is always valid (finite, non-zero), so the
   momentum fallback never triggers.
 - **OrthantRegion** is the only configuration to induce measurable weight
-  sparsity (0.0056), as expected from its sign-preserving projection.
+  sparsity (0.0042), as expected from its sign-preserving projection.
 - The **box** and **L20+box** constraints add negligible cost while keeping
   weights bounded; the deeper L20 oracle keeps `QQN-L20Box` (1.148e-01) ahead
   of the shallow box variant.
@@ -252,12 +311,14 @@ qualitative picture (over 10 sampled points across the 50 iterations):
   `QQN-L50BTTR`) lead the field, reaching `-0.90` by the seventh sample and
   `-0.98` by the end — distinctly ahead of the size-10 baseline (`-0.81` at
   the seventh sample).
-- **QQN-L50Spln / QQN-L100Spln / QQN-L50SplnTR** match the deep-memory
-  trajectory, reaching `-0.87`/`-0.88` by the seventh sample and `-0.98` by
-  the end.
+- **QQN-L50Spln / QQN-L100Spln / QQN-L50SplnTR / QQN-Best** match the
+  deep-memory trajectory, reaching `-0.87`/`-0.88` by the seventh sample and
+  `-0.98` by the end.
 - **Adam** reaches `-0.74`, between the first-order and quasi-Newton tiers.
 - **SGD and the momentum oracles** plateau between `-0.30` and `-0.44`
   (lighter momentum / `QQN-Mom10` reaching the lowest of these at `-0.44`).
+- **Shampoo** (`QQN-Sh`) barely moves before exhausting the time budget,
+  reaching only `-0.07` after 6 iterations.
 
 ## Key Takeaways
 
@@ -276,10 +337,12 @@ qualitative picture (over 10 sampled points across the 50 iterations):
    does not change the converged loss for shallow-memory variants on this
    smooth objective.
 5. **Regions are low-overhead safeguards** here; the adaptive trust-region
-   marginally improves the loss (e.g. L50 → L50TR: 1.062e-01 → 1.044e-01) at
-   negligible cost, and the orthant region is the lever for sparsity.
+   marginally improves the loss (e.g. L50 → L50TR: 1.061e-01 → 1.044e-01) at
+   negligible cost, the Sequential combinator composes cleanly, and the
+   orthant region is the lever for sparsity.
 6. **Oracle choice matters more than search or region**: momentum trails
-   L-BFGS substantially.
+   L-BFGS substantially, and the dense Shampoo oracle does not scale to this
+   high-dimensional problem within the time budget.
 7. **Under the shared aggressive `f_target = 1.0e-1`**, no method converged
    to target within the 50-iteration budget, but the best-of-breed
    deep-memory + trust-region combos came closest (loss `≈ 1.044e-01`).
