@@ -27,6 +27,7 @@ from qqn_jax.oracles import (
     LBFGSOracle,
     MomentumOracle,
     ShampooOracle,
+    SecantOracle,
     Fallback,
 )
 from qqn_jax.regions import (
@@ -519,6 +520,29 @@ def main():
             params0,
             maxiter,
             oracle=MomentumOracle(beta=0.9),
+            stop=stop,
+        ),
+        # --- A/B (oracle): matrix-free Barzilai-Borwein secant curvature.
+        #     Probes how much curvature lives in a SINGLE realized step:
+        #     O(n) memory, no Hessian, just the path's own secant. Expected
+        #     to trail L-BFGS but crush plain momentum at zero storage cost. ---
+        "QQN-Sec": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=SecantOracle(),
+            stop=stop,
+        ),
+        # --- Combinator: deep L-BFGS with a featherweight secant fallback.
+        #     The secant costs nothing while L-BFGS is healthy, but supplies a
+        #     finite, curvature-aware direction the instant the history
+        #     degenerates — a strictly-dominant safety net over raw momentum. ---
+        "QQN-L50Sec": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=Fallback([LBFGSOracle(history_size=50), SecantOracle()]),
+            region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
         # --- A/B (oracle): lighter momentum damping (completes beta sweep) ---

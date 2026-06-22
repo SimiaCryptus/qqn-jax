@@ -160,6 +160,7 @@ def spline_wrap(inner_search: Callable) -> Callable:
         grad,
         *args,
         spline_max_iter: int = 6,
+        spline_extrapolate: float = 2.0,
         grad_dir=None,
         qn_dir=None,
         region=None,
@@ -220,6 +221,31 @@ def spline_wrap(inner_search: Callable) -> Callable:
             )
         else:
             m1 = tree_vdot(inner.new_grad, direction)
+        # --- Superlinear probe (the symmetry your doc promised) ----------
+        # If the downstream tangent still descends (m1 < 0), the minimum is
+        # *beyond* the inner step. Extend the bracket once and let the cubic
+        # locate the stationary point in closed form. Region-projected and
+        # gated on strict improvement, so it is monotone-safe and free when
+        # the inner step already overshot (m1 >= 0 leaves the bracket intact).
+        still_descending = m1 < 0.0
+        a_ext = jnp.where(
+            still_descending,
+            jnp.minimum(spline_extrapolate * jnp.maximum(a1, 1e-3), spline_extrapolate),
+            a1,
+        )
+        ep, ef, eg, em = eval_at(a_ext)
+        # Adopt the extended point as the right anchor when it both extends
+        # the bracket and does not worsen fitness; otherwise keep the inner.
+        take_ext = jnp.logical_and(still_descending, ef <= f1)
+        a1 = jnp.where(take_ext, a_ext, a1)
+        f1 = jnp.where(take_ext, ef, f1)
+        m1 = jnp.where(take_ext, em, m1)
+        ext_params = jax.tree_util.tree_map(
+            lambda new, old: jnp.where(take_ext, new, old), ep, inner.new_params
+        )
+        ext_grad = jax.tree_util.tree_map(
+            lambda new, old: jnp.where(take_ext, new, old), eg, inner.new_grad
+        )
 
         # Best-so-far starts at the inner search's accepted point.
         InitCarry = (
@@ -229,10 +255,10 @@ def spline_wrap(inner_search: Callable) -> Callable:
             a1,
             f1,
             m1,
-            inner.step_size,
-            inner.new_value,
-            inner.new_params,
-            inner.new_grad,
+            jnp.where(take_ext, a1, inner.step_size),
+            jnp.where(take_ext, f1, inner.new_value),
+            ext_params,
+            ext_grad,
             jnp.asarray(0, jnp.int32),
         )
 

@@ -41,6 +41,7 @@ from qqn_jax.utils import (
     quadratic_path,
     tree_l2_norm,
     tree_negative,
+    tree_vdot,
 )
 
 
@@ -257,10 +258,16 @@ class QQN:
         new_oracle_state = self.oracle.update(state.oracle_state, oracle_info)
         # Update region state (e.g. adaptive trust-region radius).
         actual_reduction = state.value - new_value
+        # Honest predicted reduction from the along-path linear model:
+        #   pred ≈ -⟨∇f, d(t)⟩, the first-order decrease Armijo itself uses.
+        #   d(t) = t(1-t)·grad_dir + t²·qn_dir, so this is exact to first order
+        #   in the realized step and gives the trust-region a *real* ρ ≠ 1.
+        step_dir = quadratic_path(best_t, grad_dir, qn_dir)
+        pred_reduction = -tree_vdot(grad, step_dir)
         info = RegionInfo(
             params=params,
             new_params=new_params,
-            pred_reduction=actual_reduction,
+            pred_reduction=pred_reduction,
             actual_reduction=actual_reduction,
             t=best_t,
             step_size=step_size,

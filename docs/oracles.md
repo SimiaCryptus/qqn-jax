@@ -160,6 +160,24 @@ amortized and the computation stays `jit`-friendly.
 * **Config**: `ShampooOracle(block_size=128, update_freq=20, epsilon=1e-6)`.
 * **Notes**: More expensive than L-BFGS per step, but can capture richer
 curvature structure on layered models.
+### 3b. Secant (Barzilai-Borwein) Oracle
+A matrix-free curvature oracle that infers a scalar inverse-curvature step
+from the *realized secant* of the previous iteration — reusing information
+the quadratic path already measured rather than storing a history.
+* **State**: `(prev_params, prev_grad, alpha, count)` — all `O(n)` or scalar.
+* **Direction**: `-α · ∇f`, where `α` is the BB1 step from the last secant.
+* **Update**:
+   ```
+   s = x_new − x ;  y = ∇f_new − ∇f
+   α = ⟨s, s⟩ / ⟨s, y⟩          (retained if ⟨s, y⟩ ≤ ε; clipped to [ε, α_max])
+   ```
+* **Config**: `SecantOracle(alpha0=1.0, alpha_max=1e3)`.
+* **Notes**: Zero matrix storage. Excellent as the second member of a
+   `Fallback([LBFGSOracle(...), SecantOracle()])`: it is dormant while the
+   L-BFGS history is valid, yet supplies a finite, curvature-aware direction
+   the instant that history degenerates — strictly dominating a momentum
+   fallback, which carries no curvature at all.
+
 
 ### 4. Combinator Oracles
 

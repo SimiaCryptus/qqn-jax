@@ -123,6 +123,65 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
 
 
 # --- Shampoo Oracle ---------------------------------------------------
+# --- Secant (Barzilai-Borwein) Oracle --------------------------------
+class SecantState(NamedTuple):
+    prev_params: jnp.ndarray
+    prev_grad: jnp.ndarray
+    alpha: jnp.ndarray  # current inverse-curvature step scale
+    count: jnp.ndarray
+
+
+def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
+    """Barzilai-Borwein curvature oracle (matrix-free, O(n) memory).
+    The ``t = 1`` endpoint is the gradient scaled by an inverse-curvature
+    estimate inferred from the *realized* secant of the previous step::
+        s = x      - x_prev
+        y = ∇f     - ∇f_prev
+        α = ⟨s, s⟩ / ⟨s, y⟩        (BB1 step; the Rayleigh quotient's inverse)
+        direction = -α · ∇f
+    This reuses the curvature signal that the path *already measured* —
+    no Hessian, no history buffers. It is a featherweight companion for a
+    ``Fallback`` and a probe of how much curvature lives in a single step.
+    The very first step (no secant yet) falls back to ``-alpha0 · ∇f``,
+    i.e. plain scaled steepest descent, preserving the ``d'(0)`` anchor.
+    """
+    eps = 1e-12
+
+    def init(params):
+        zeros = jax.tree_util.tree_map(jnp.zeros_like, params)
+        return SecantState(
+            prev_params=params,
+            prev_grad=zeros,
+            alpha=jnp.asarray(alpha0, dtype=params.dtype),
+            count=jnp.asarray(0, dtype=jnp.int32),
+        )
+
+    def direction(params, grad, state):
+        d = tree_negative(jax.tree_util.tree_map(lambda g: state.alpha * g, grad))
+        return d, state
+
+    def update(state, info):
+        s = jax.tree_util.tree_map(lambda a, b: a - b, info.new_params, info.params)
+        y = jax.tree_util.tree_map(lambda a, b: a - b, info.new_grad, info.grad)
+        ss = sum(jnp.vdot(si, si) for si in jax.tree_util.tree_leaves(s))
+        sy = sum(
+            jnp.vdot(si, yi)
+            for si, yi in zip(
+                jax.tree_util.tree_leaves(s), jax.tree_util.tree_leaves(y)
+            )
+        )
+        # BB1 step; guard against non-positive curvature by retaining prior α.
+        curvature_ok = sy > eps
+        bb = ss / jnp.where(curvature_ok, sy, 1.0)
+        new_alpha = jnp.where(curvature_ok, jnp.clip(bb, eps, alpha_max), state.alpha)
+        return SecantState(
+            prev_params=info.new_params,
+            prev_grad=info.new_grad,
+            alpha=new_alpha.astype(state.alpha.dtype),
+            count=state.count + 1,
+        )
+
+    return Oracle(init=init, direction=direction, update=update)
 
 
 class ShampooState(NamedTuple):
@@ -247,9 +306,12 @@ def resolve_oracle(oracle, history_size: int = 10) -> Oracle:
             return MomentumOracle()
         if oracle == "shampoo":
             return ShampooOracle()
+        if oracle == "secant":
+            return SecantOracle()
         raise ValueError(
             f"Unknown oracle: {oracle!r}. "
-            "Available: 'lbfgs', 'momentum', 'shampoo' or an Oracle instance."
+            "Available: 'lbfgs', 'momentum', 'shampoo', 'secant' "
+            "or an Oracle instance."
         )
     if isinstance(oracle, Oracle):
         return oracle
@@ -262,6 +324,7 @@ __all__ = [
     "LBFGSOracle",
     "MomentumOracle",
     "ShampooOracle",
+    "SecantOracle",
     "Fallback",
     "resolve_oracle",
 ]
