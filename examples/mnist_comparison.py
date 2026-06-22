@@ -34,6 +34,7 @@ from qqn_jax.regions import (
     BoxRegion,
     TrustRegion,
     OrthantRegion,
+    Sequential,
 )
 
 
@@ -177,13 +178,15 @@ def _run_qqn_configured(
     oracle="lbfgs",
     region=None,
     spline: bool = False,
+    t_grid=None,
     stop=None,
 ):
     """Run a configurable QQN variant.
 
     Exposes QQN's swappable components — the *oracle* (curvature source),
     the *line search* (step-size selection), and the *region* (projective
-    constraint) — so we can benchmark several QQN flavours side-by-side.
+     constraint), plus the *t-grid* (blend discretization) — so we can
+     benchmark several QQN flavours side-by-side.
      ``stop`` is a dict with shared termination bounds applied uniformly to
      every optimizer: ``f_target`` (loss threshold), ``gtol`` (gradient-norm
      tolerance), and ``time_budget`` (wall-clock seconds).
@@ -201,6 +204,7 @@ def _run_qqn_configured(
         oracle=oracle,
         region=region,
         spline=spline,
+        t_grid=t_grid,
     )
 
     # Run one update at a time to record the loss trajectory.
@@ -395,6 +399,7 @@ def main():
             params0,
             maxiter,
             spline=True,
+            stop=stop,
         ),
         # --- Best-of-breed (spline): cubic Hermite refinement on top of the
         #     strongest oracle (L50). Probes whether reusing every probe as a
@@ -405,6 +410,7 @@ def main():
             maxiter,
             oracle=LBFGSOracle(history_size=50),
             spline=True,
+            stop=stop,
         ),
         # --- Best-of-breed (spline): cubic Hermite refinement + adaptive
         #     trust-region, stacking the spline's curve-reuse with the
@@ -415,6 +421,7 @@ def main():
             maxiter,
             spline=True,
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
         ),
         # --- Best-of-breed (spline): full stack — deep L-BFGS (L50) + cubic
         "QQN-L50SplnTR": lambda: _run_qqn_configured(
@@ -424,6 +431,7 @@ def main():
             oracle=LBFGSOracle(history_size=50),
             spline=True,
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
         ),
         # --- Best-of-breed (spline): deepest memory (L100) + spline. Extends
         "QQN-L100Spln": lambda: _run_qqn_configured(
@@ -432,6 +440,7 @@ def main():
             maxiter,
             oracle=LBFGSOracle(history_size=100),
             spline=True,
+            stop=stop,
         ),
         # --- Best-of-breed (spline): spline refinement on top of the cheap
         "QQN-BTSpln": lambda: _run_qqn_configured(
@@ -440,6 +449,7 @@ def main():
             maxiter,
             line_search="backtracking",
             spline=True,
+            stop=stop,
         ),
         # --- QQN with a momentum oracle instead of L-BFGS ---
         "QQN-Mom": lambda: _run_qqn_configured(
@@ -447,6 +457,7 @@ def main():
             params0,
             maxiter,
             oracle=MomentumOracle(beta=0.9),
+            stop=stop,
         ),
         # --- A/B (oracle): lighter momentum damping (completes beta sweep) ---
         "QQN-Mom50": lambda: _run_qqn_configured(
@@ -454,6 +465,7 @@ def main():
             params0,
             maxiter,
             oracle=MomentumOracle(beta=0.5),
+            stop=stop,
         ),
         # --- A/B (oracle): minimal momentum damping (beta=0.1) to find the
         #     floor of the monotone beta sweep (0.99>0.9>0.5 in loss); probes
@@ -463,6 +475,17 @@ def main():
             params0,
             maxiter,
             oracle=MomentumOracle(beta=0.1),
+            stop=stop,
+        ),
+        # --- A/B (oracle): Shampoo structure-aware preconditioner. Probes
+        #     whether Kronecker-factored second-moment statistics beat the
+        #     momentum first-order accelerator on this smooth problem. ---
+        "QQN-Sh": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            oracle=ShampooOracle(update_freq=20),
+            stop=stop,
         ),
         # --- A/B (oracle): lighter L-BFGS history (size 5) — cheap memory ---
         "QQN-L5": lambda: _run_qqn_configured(
@@ -470,6 +493,7 @@ def main():
             params0,
             maxiter,
             oracle=LBFGSOracle(history_size=5),
+            stop=stop,
         ),
         # --- QQN with a deeper L-BFGS history (richer curvature memory) ---
         "QQN-L20": lambda: _run_qqn_configured(
@@ -477,6 +501,7 @@ def main():
             params0,
             maxiter,
             oracle=LBFGSOracle(history_size=20),
+            stop=stop,
         ),
         # --- A/B (oracle): even deeper L-BFGS memory (size 50) ---
         "QQN-L50": lambda: _run_qqn_configured(
@@ -484,6 +509,7 @@ def main():
             params0,
             maxiter,
             oracle=LBFGSOracle(history_size=50),
+            stop=stop,
         ),
         # --- A/B (oracle): very deep L-BFGS memory (size 100) — extends the
         #     monotone history sweep (L5<L10<L20<L50) to probe diminishing
@@ -493,6 +519,7 @@ def main():
             params0,
             maxiter,
             oracle=LBFGSOracle(history_size=100),
+            stop=stop,
         ),
         # --- QQN with a Fallback oracle: L-BFGS, else momentum ---
         "QQN-Fall": lambda: _run_qqn_configured(
@@ -500,6 +527,7 @@ def main():
             params0,
             maxiter,
             oracle=Fallback([LBFGSOracle(history_size=10), MomentumOracle()]),
+            stop=stop,
         ),
         # --- QQN constrained to a box region (bounded weights) ---
         "QQN-Box": lambda: _run_qqn_configured(
@@ -507,6 +535,7 @@ def main():
             params0,
             maxiter,
             region=BoxRegion(lo=-2.0, hi=2.0),
+            stop=stop,
         ),
         # --- QQN with an adaptive trust-region sphere ---
         "QQN-TR": lambda: _run_qqn_configured(
@@ -514,6 +543,7 @@ def main():
             params0,
             maxiter,
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
         ),
         # --- A/B (region): very tight adaptive trust-region (radius=0.25),
         #     extends the radius sweep (0.25 -> 0.5 -> 1.0 -> 2.0) to probe
@@ -523,6 +553,7 @@ def main():
             params0,
             maxiter,
             region=TrustRegion(radius=0.25, adaptive=True),
+            stop=stop,
         ),
         # --- A/B (region): fixed (non-adaptive) trust-region control ---
         "QQN-TRfix": lambda: _run_qqn_configured(
@@ -530,6 +561,7 @@ def main():
             params0,
             maxiter,
             region=TrustRegion(radius=1.0, adaptive=False),
+            stop=stop,
         ),
         # --- QQN with an orthant region (OWL-QN-style sparsity) ---
         "QQN-Orth": lambda: _run_qqn_configured(
@@ -537,6 +569,38 @@ def main():
             params0,
             maxiter,
             region=OrthantRegion(),
+            stop=stop,
+        ),
+        # --- A/B (region): Sequential composition (box then trust-region).
+        #     Probes that the combinator composes projections in order with
+        #     negligible overhead and bounds weights while limiting step. ---
+        "QQN-Seq": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            region=Sequential(
+                [BoxRegion(lo=-2.0, hi=2.0), TrustRegion(radius=1.0, adaptive=True)]
+            ),
+            stop=stop,
+        ),
+        # --- A/B (t-grid): finer blend discretization (8 points). Probes
+        #     whether sampling more gradient/oracle blends per iteration helps
+        #     at higher per-iteration cost. ---
+        "QQN-Tfine": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            t_grid=jnp.linspace(0.125, 1.0, 8),
+            stop=stop,
+        ),
+        # --- A/B (t-grid): coarser blend discretization (2 points). The cheap
+        #     end of the t-grid trade-off (fewer blends, lower cost). ---
+        "QQN-Tcoarse": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            t_grid=jnp.array([0.5, 1.0]),
+            stop=stop,
         ),
         # --- Combined: strong-Wolfe search + adaptive trust-region ---
         "QQN-SW+TR": lambda: _run_qqn_configured(
@@ -545,6 +609,7 @@ def main():
             maxiter,
             line_search="strong_wolfe",
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
         ),
         # --- Best-of-breed: deep L-BFGS (size 20) + Hager-Zhang line search.
         #     Combines the fastest-converging oracle (L20: 53 iters) with the
@@ -555,6 +620,7 @@ def main():
             maxiter,
             line_search="hager_zhang",
             oracle=LBFGSOracle(history_size=20),
+            stop=stop,
         ),
         # --- Best-of-breed: L50 oracle + adaptive trust-region. Tests whether
         #     curvature-rich steps benefit from the trust-region safeguard. ---
@@ -564,6 +630,7 @@ def main():
             maxiter,
             oracle=LBFGSOracle(history_size=50),
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
         ),
         # --- Best-of-breed: L100 oracle + adaptive trust-region. Extends the
         #     winning L50TR combo (lowest-loss trajectory) to the deeper L100
@@ -574,6 +641,7 @@ def main():
             maxiter,
             oracle=LBFGSOracle(history_size=100),
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
         ),
         # --- Best-of-breed triple: L50 oracle + backtracking + trust-region.
         #     Combines the strongest pareto components — deep curvature memory,
@@ -586,6 +654,22 @@ def main():
             line_search="backtracking",
             oracle=LBFGSOracle(history_size=50),
             region=TrustRegion(radius=1.0, adaptive=True),
+            stop=stop,
+        ),
+        # --- Best-of-breed full stack: deep L-BFGS (L50) + backtracking +
+        #     spline refinement + adaptive trust-region + finer t-grid. Stacks
+        #     every pareto-winning component to probe the joint loss/time
+        #     optimum and the lowest loss reachable in the budget. ---
+        "QQN-Best": lambda: _run_qqn_configured(
+            loss_fn,
+            params0,
+            maxiter,
+            line_search="backtracking",
+            oracle=LBFGSOracle(history_size=50),
+            spline=True,
+            region=TrustRegion(radius=1.0, adaptive=True),
+            t_grid=jnp.linspace(0.125, 1.0, 8),
+            stop=stop,
         ),
         # --- Combined: deep L-BFGS oracle + box constraint ---
         "QQN-L20Box": lambda: _run_qqn_configured(
@@ -594,6 +678,7 @@ def main():
             maxiter,
             oracle=LBFGSOracle(history_size=20),
             region=BoxRegion(lo=-2.0, hi=2.0),
+            stop=stop,
         ),
         "SGD": lambda: run_optax(
             loss_fn, params0, optax.sgd(learning_rate=0.5), maxiter, stop=stop
@@ -672,11 +757,28 @@ def main():
             "QQN-Mom",
         ),
         (
+            "oracle: accelerator class (Mom vs Shampoo)",
+            "QQN-Mom10",
+            "QQN-Sh",
+        ),
+        (
             "region: trust radius",
             "QQN-TR025",
             "QQN-TR",
         ),
         ("region: trust adaptivity", "QQN-TRfix", "QQN-TR"),
+        (
+            "region: combinator (Sequential box+TR)",
+            "QQN-TR",
+            "QQN-Box",
+            "QQN-Seq",
+        ),
+        (
+            "t-grid: blend discretization",
+            "QQN-Tcoarse",
+            "QQN",
+            "QQN-Tfine",
+        ),
         (
             "search: line search (oracle=L-BFGS-10)",
             "QQN",
@@ -703,6 +805,12 @@ def main():
             "best-of-breed: L100 combos",
             "QQN-L100",
             "QQN-L100TR",
+        ),
+        (
+            "best-of-breed: full stack",
+            "QQN-L50BTTR",
+            "QQN-L50SplnTR",
+            "QQN-Best",
         ),
     ]
 

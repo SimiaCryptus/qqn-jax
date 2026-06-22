@@ -1,5 +1,6 @@
 ---
-documents: results.md
+documents:
+  - results.md
 related:
   - algorithm.md
   - regions.md
@@ -21,14 +22,14 @@ The MNIST optimizer comparison validated QQN as a practical, competitive
 optimizer on a smooth, deterministic, full-batch problem. The headline
 results are:
 
-- **QQN matches L-BFGS quality at a fraction of the cost.** On the softmax
-  MNIST benchmark, QQN reached a final training loss of `1.034e-01` —
-  statistically indistinguishable from Optax's L-BFGS (`1.039e-01`) — while
-  running roughly **2.4× faster** in wall-clock time (0.908s vs. 2.166s).
-- **QQN clearly beats first-order baselines on training loss.** It drove the
-  loss roughly **3× lower than SGD** and well below Adam, confirming the
-  benefit of quasi-Newton acceleration on smooth deterministic objectives.
 - **The four-axis modular design behaves as specified.** Each swappable
+- **QQN matches L-BFGS quality at a fraction of the cost.** On the softmax
+  MNIST benchmark, QQN reached a final training loss of `1.209e-01` —
+  edging out Optax's L-BFGS (`1.231e-01`) — while running roughly **1.4×
+  faster** in wall-clock time (1.479s vs. 2.094s).
+- **QQN clearly beats first-order baselines on training loss.** It drove the
+  loss roughly **3.5× lower than SGD** and clearly below Adam, confirming the
+  benefit of quasi-Newton acceleration on smooth deterministic objectives.
   component (gradient, oracle, search, region) could be substituted
   independently, and the defaults (`oracle="lbfgs"`, `region=None`) reproduced
   the baseline behavior exactly.
@@ -56,15 +57,13 @@ regardless of oracle quality, leaving the oracle free to be aggressive.
 ### Oracle Choice Is the Dominant Lever
 
 - **L-BFGS history depth** is the single most important accuracy lever, with a
-  monotone improvement `L5 < L10 < L20 < L50 < L100`, clear diminishing
-  returns past size 50, and a hard plateau at 100 (`1.024e-01`). Very deep
-  histories buy almost no accuracy for their extra cost.
 - **Momentum** behaved as a first-order accelerator and trailed L-BFGS
+  monotone improvement `L5 < L10 < L20 < L50`, clear diminishing
+  returns past size 50, and a hard plateau at 100 (`L50 == L100` at
+  `1.062e-01`). Very deep histories (L100) buy *no* accuracy for their extra
+  cost on this problem.
   substantially; lighter damping (`beta = 0.1`) — which collapses toward
   steepest descent — outperformed heavier momentum on this smooth problem.
-- **Shampoo** reached only a moderate loss and was orders of magnitude slower
-  (174.4s), confirming it is suited to genuinely matrix-structured parameters
-  rather than the flat softmax vector used here.
 
 ### Line Search Trades Time, Not Final Loss
 
@@ -81,14 +80,19 @@ Consistent with [`spline_search.md`](spline_search.md), the spline behaves as
 an orthogonal enhancement that *wraps* (rather than replaces) the inner search.
 It did not change the converged loss on the smooth objective, but it
 measurably **sharpened the deep-memory trajectory** — `QQN-L50Spln` reached the
-`-0.99` log10 plateau distinctly earlier than the spline-less baseline.
+`-0.98` log10 plateau distinctly earlier than the spline-less baseline (it is
+already at `-0.87` by the seventh sample vs. `-0.81` for the size-10 baseline),
+and the full stack `QQN-L50SplnTR` reached the lowest spline loss observed
+(`1.051e-01`).
 
 ### Regions Are Low-Overhead Safeguards
 
 The adaptive trust-region barely perturbed the converged loss across radii,
 confirming regions function as cheap safeguards rather than performance drivers
-on a well-conditioned problem. The orthant region was the only configuration to
-induce measurable weight sparsity (0.0008), exactly as its sign-preserving
+on a well-conditioned problem. When stacked atop a deep oracle, the adaptive
+trust-region did shave the loss slightly (e.g. L50 → L50TR: `1.062e-01 →
+1.044e-01`) at negligible cost. The orthant region was the only configuration
+to induce measurable weight sparsity (`0.0056`), exactly as its sign-preserving
 projection predicts. Box and stacked constraints added negligible cost.
 
 ### Combinators Work Correctly
@@ -102,7 +106,7 @@ correctly and produced sensible results.
 
 Stacking the strongest pareto components — deep L-BFGS memory (size 50),
 backtracking line search, and an adaptive trust-region — yielded the lowest
-observed losses (`1.024e-01`) at competitive wall-time (~0.86s). For smooth,
+observed losses (`1.044e-01`) at competitive wall-time (~1.23–1.29s). For smooth,
 deterministic, full-batch problems, this configuration represents a strong
 default: most of the accuracy of the deepest histories with the cheapest robust
 search and a low-overhead convergence safeguard.
@@ -116,12 +120,14 @@ following caveats:
 - **Smoothness flatters cheap searches.** On non-smooth or ill-conditioned
   objectives, the stronger Wolfe/Hager-Zhang searches and the spline
   refinement may pay off where they did not here.
-- **Structured parameters change the oracle ranking.** Shampoo's poor showing
-  is specific to the flat parameter block; on genuinely matrix-shaped models
-  its structure-aware preconditioning may compete differently.
 - **Generalization was not the differentiator.** Test accuracy was similar
+- **Structured parameters change the oracle ranking.** The flat softmax
+  parameter block here favors L-BFGS; on genuinely matrix-shaped models a
+  structure-aware preconditioner (e.g. the Shampoo oracle) may compete
+  differently.
   across the strong optimizers; these results concern optimization speed and
-  final training loss, not generalization.
+  final training loss, not generalization (Adam in fact had the highest test
+  accuracy at 0.8960).
 
 ## Overall Assessment
 
