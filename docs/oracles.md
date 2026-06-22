@@ -183,7 +183,6 @@ structure so they remain `jit`-friendly.
 qqn(
   history_size=10,
   line_search="strong_wolfe",
-  t_grid=None,
   oracle="lbfgs",             # "lbfgs" | "momentum" | "shampoo" | Oracle
   region=None,
 )
@@ -195,7 +194,6 @@ QQN(
   history_size=10,
   line_search="strong_wolfe",
   has_aux=False,
-  t_grid=None,
   oracle="lbfgs",             # "lbfgs" | "momentum" | "shampoo" | Oracle
   region=None,
 )

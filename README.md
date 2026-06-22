@@ -106,7 +106,6 @@ QQN(
     # "fixed" | "spline"
     line_search_options=None,  # dict of kwargs for the line search
     has_aux=False,
-    t_grid=None,
     oracle="lbfgs",  # "lbfgs" | "momentum" | "shampoo" | Oracle
     region=None,  # Region | None
 )

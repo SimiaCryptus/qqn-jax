@@ -192,15 +192,13 @@ def _run_qqn_configured(
     oracle="lbfgs",
     region=None,
     spline: bool = False,
-    t_grid=None,
     stop=None,
 ):
     """Run a configurable QQN variant.
 
     Exposes QQN's swappable components — the *oracle* (curvature source),
     the *line search* (step-size selection), and the *region* (projective
-     constraint), plus the *t-grid* (blend discretization) — so we can
-     benchmark several QQN flavours side-by-side.
+      constraint) — so we can benchmark several QQN flavours side-by-side.
      ``stop`` is a dict with shared termination bounds applied uniformly to
      every optimizer: ``f_target`` (loss threshold), ``gtol`` (gradient-norm
      tolerance), and ``time_budget`` (wall-clock seconds).
@@ -219,7 +217,6 @@ def _run_qqn_configured(
         oracle=oracle,
         region=region,
         spline=spline,
-        t_grid=t_grid,
     )
 
     # Run one update at a time to record the loss trajectory.
@@ -671,25 +668,6 @@ def main():
             ),
             stop=stop,
         ),
-        # --- A/B (t-grid): finer blend discretization (8 points). Probes
-        #     whether sampling more gradient/oracle blends per iteration helps
-        #     at higher per-iteration cost. ---
-        "QQN-Tfine": lambda: _run_qqn_configured(
-            loss_fn,
-            params0,
-            maxiter,
-            t_grid=jnp.linspace(0.125, 1.0, 8),
-            stop=stop,
-        ),
-        # --- A/B (t-grid): coarser blend discretization (2 points). The cheap
-        #     end of the t-grid trade-off (fewer blends, lower cost). ---
-        "QQN-Tcoarse": lambda: _run_qqn_configured(
-            loss_fn,
-            params0,
-            maxiter,
-            t_grid=jnp.array([0.5, 1.0]),
-            stop=stop,
-        ),
         # --- Combined: strong-Wolfe search + adaptive trust-region ---
         "QQN-SW+TR": lambda: _run_qqn_configured(
             loss_fn,
@@ -787,7 +765,6 @@ def main():
             line_search_options={"init_step": 2.0, "shrink": 0.7, "max_iter": 40},
             oracle=LBFGSOracle(history_size=50),
             region=TrustRegion(radius=1.0, adaptive=True),
-            t_grid=jnp.array([0.8, 0.9, 0.95, 1.0]),
             stop=stop,
         ),
         # --- Performance: L50 + backtracking + trust-region, but with the
@@ -818,7 +795,6 @@ def main():
             line_search="backtracking",
             oracle=LBFGSOracle(history_size=50),
             region=TrustRegion(radius=1.0, adaptive=True),
-            t_grid=jnp.array([0.6, 0.8, 0.9, 1.0]),
             stop=stop,
         ),
         # --- Performance: the strongest stack — deep L100 memory + warm-started
@@ -833,7 +809,6 @@ def main():
             line_search_options={"init_step": 2.0, "shrink": 0.7, "max_iter": 40},
             oracle=LBFGSOracle(history_size=100),
             region=TrustRegion(radius=1.0, adaptive=True),
-            t_grid=jnp.array([0.6, 0.8, 0.9, 1.0]),
             stop=stop,
         ),
         # --- Best-of-breed full stack: deep L-BFGS (L50) + backtracking +
@@ -848,7 +823,6 @@ def main():
             oracle=LBFGSOracle(history_size=50),
             spline=True,
             region=TrustRegion(radius=1.0, adaptive=True),
-            t_grid=jnp.linspace(0.125, 1.0, 8),
             stop=stop,
         ),
         # --- Diversity-preserving champion: stack the strongest *independent*
@@ -867,7 +841,6 @@ def main():
             line_search_options={"init_step": 3.0, "shrink": 0.75, "max_iter": 45},
             oracle=LBFGSOracle(history_size=50),
             region=TrustRegion(radius=1.5, adaptive=True),
-            t_grid=jnp.array([0.7, 0.85, 0.95, 1.0]),
             stop=stop,
         ),
         # --- Combined: deep L-BFGS oracle + box constraint ---
@@ -1076,12 +1049,6 @@ def main():
             "QQN-TR",
             "QQN-Box",
             "QQN-Seq",
-        ),
-        (
-            "t-grid: blend discretization",
-            "QQN-Tcoarse",
-            "QQN",
-            "QQN-Tfine",
         ),
         (
             "search: line search (oracle=L-BFGS-10)",

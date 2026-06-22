@@ -27,7 +27,12 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import tree_add_scaled, tree_vdot
+from qqn_jax.utils import (
+    tree_add_scaled,
+    tree_vdot,
+    quadratic_path,
+    quadratic_path_derivative,
+)
 from qqn_jax.regions import resolve_region
 from qqn_jax.line_search import LineSearchResult
 
@@ -155,20 +160,29 @@ def spline_wrap(inner_search: Callable) -> Callable:
         grad,
         *args,
         spline_max_iter: int = 6,
+        grad_dir=None,
+        qn_dir=None,
         region=None,
         region_state=None,
         **inner_kwargs,
     ) -> LineSearchResult:
         region = resolve_region(region)
+        use_path = grad_dir is not None and qn_dir is not None
 
         def project(candidate):
             return region.project(params, candidate, region_state)
 
         def eval_at(alpha):
-            raw = tree_add_scaled(params, alpha, direction)
+            if use_path:
+                step = quadratic_path(alpha, grad_dir, qn_dir)
+                raw = jax.tree_util.tree_map(lambda p, s: p + s, params, step)
+                tangent = quadratic_path_derivative(alpha, grad_dir, qn_dir)
+            else:
+                raw = tree_add_scaled(params, alpha, direction)
+                tangent = direction
             projected = project(raw)
             val, g = value_and_grad_fn(projected, *args)
-            slope = tree_vdot(g, direction)
+            slope = tree_vdot(g, tangent)
             return projected, val, g, slope
 
         dtype = value.dtype
@@ -181,6 +195,8 @@ def spline_wrap(inner_search: Callable) -> Callable:
             value,
             grad,
             *args,
+            grad_dir=grad_dir,
+            qn_dir=qn_dir,
             region=region,
             region_state=region_state,
             **inner_kwargs,
@@ -189,11 +205,21 @@ def spline_wrap(inner_search: Callable) -> Callable:
         # 2. Control points: alpha=0 (current point) and the inner result.
         a0 = jnp.asarray(0.0, dtype=dtype)
         f0 = value
-        m0 = tree_vdot(grad, direction)  # slope at alpha=0 is gᵀd
+        # Slope at alpha=0 along the path tangent d'(0). For the quadratic path
+        # d'(0) = grad_dir = -∇f, so the slope is ⟨∇f, -∇f⟩ = -‖∇f‖².
+        if use_path:
+            m0 = tree_vdot(grad, grad_dir)
+        else:
+            m0 = tree_vdot(grad, direction)
 
         a1 = inner.step_size
         f1 = inner.new_value
-        m1 = tree_vdot(inner.new_grad, direction)
+        if use_path:
+            m1 = tree_vdot(
+                inner.new_grad, quadratic_path_derivative(a1, grad_dir, qn_dir)
+            )
+        else:
+            m1 = tree_vdot(inner.new_grad, direction)
 
         # Best-so-far starts at the inner search's accepted point.
         InitCarry = (

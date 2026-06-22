@@ -107,23 +107,29 @@ This formulation ensures:
 - Adaptive behavior based on problem characteristics, discovered by the search
   rather than hand-tuned.
 
-### The t-Grid: Discretizing the Blend Space
 
-In the implementation the continuous parameter `t` is sampled on a small static
-**t-grid** (default `[0.25, 0.5, 0.75, 1.0]`). At each iteration the solver:
 
-1. Builds the path direction `d(t_i)` for every `t_i` in the grid.
-2. Runs the chosen line search along each `d(t_i)` (vectorized with `vmap`).
-3. Selects the candidate `t_i` whose line search yields the **lowest resulting
-   function value**.
 
-This converts the one-dimensional blend search into an embarrassingly parallel
-batch of line searches, one per grid point, all compiled and executed together.
-The grid is a tunable trade-off: a finer grid explores more blends per iteration
-at higher per-iteration cost; a coarser grid is cheaper but explores fewer
-blends. The grid always includes `t = 1` (pure oracle) and excludes `t = 0`
-(pure gradient is recoverable as the limit, and the line search along any
-`d(t_i)` retains the gradient's descent influence through `d'(0)`).
+### Searching the Path Directly
+
+The points along `d(t)` are **states**, not directions to be second-guessed by
+a separate inner line search. The line search therefore traverses the path
+parameter `t ∈ [0, 1]` *directly*: at each iteration a single search walks the
+curve, evaluating candidate states `x + d(t)` and selecting the step `t` (and
+hence the state) that satisfies sufficient decrease. There is no discretized
+"blend grid" and no per-grid-point inner search — the curve itself is the
+one-dimensional search space.
+
+#### Invariance to gradient rescaling
+
+Rescaling the gradient (or the oracle direction) does **not** change the
+geometric path that `d(t)` traces through parameter space. Scaling a direction
+only **distorts the parameterization** along the path — i.e. it changes how the
+scalar `t` maps onto arc length — but the set of points (states) on the curve,
+and therefore the candidates the line search can reach, is invariant. This is
+why it is meaningless to "re-search" a chosen `t` with an inner line search that
+rescales `d(t)`: doing so would only re-walk the very same curve under a
+different clock.
 
 ### The Line Search Strategy: The Critical Component
 
@@ -131,30 +137,30 @@ blends. The grid always includes `t = 1` (pure oracle) and excludes `t = 0`
 algorithmic component** and the mechanism by which QQN's theoretical properties
 are realized in practice.
 
-The line search operates over a *fixed* path direction `d = d(t_i)` (the grid
-point under consideration) and must:
+The line search traverses the quadratic path `d(t)` over `t ∈ [0, 1]` and must:
 
-- **Select step size `α`**: Scale `d(t_i)` to satisfy sufficient decrease
-  conditions (e.g., Armijo/Wolfe conditions).
-- **Enforce descent**: Guarantee that `f(x + α·d(t_i)) < f(x)` (or report
+- **Select the path parameter `t`**: Walk the curve to satisfy sufficient
+   decrease conditions (e.g., Armijo/Wolfe conditions). Each probe `x + d(t)` is
+   a *state* on the path, not a direction to be re-scaled.
+- **Enforce descent**: Guarantee that `f(x + d(t)) < f(x)` (or report
   failure), which is the foundation of global convergence.
 - **Exploit curvature**: A strong Wolfe condition on the line search ensures the
   curvature information `(s, y)` fed back into the L-BFGS oracle remains accurate
   and well-conditioned.
 - **Navigate the feasible path**: When a region is configured, evaluate the
-  *projected* candidate `project_R(x, x + α·d(t_i))` so the search respects
+   *projected* candidate `project_R(x, x + d(t))` so the search respects
   constraints.
 
-The interplay between the grid selection of `t` and the line search selection of
-`α` is what lets QQN **automatically discover the right blend** of gradient and
-oracle directions without manual tuning. A poor line search can cause the
+Walking `t` directly is what lets QQN **automatically discover the right blend**
+of gradient and oracle directions without manual tuning. A poor line search can
+cause the
 algorithm to degenerate into neither effective gradient descent nor effective
 quasi-Newton steps, losing the benefits of both.
 
 > **Key insight**: The quadratic path `d(t)` defines a one-dimensional search
-> space over direction blends; the t-grid samples it and the line search refines
-> the step within each sample. The quality of the overall optimization is
-> therefore directly bounded by the quality of the line search.
+> space over states; the line search walks it directly. The quality of the
+> overall optimization is therefore directly bounded by the quality of the line
+> search.
 
 #### Available Line Search Strategies
 
@@ -298,7 +304,7 @@ QQNState(
     value,         # current objective value f(x)
     grad,          # current gradient ∇f(x)
     oracle_state,  # e.g. L-BFGS history / momentum buffer
-    step_size,     # last accepted α
+     step_size,     # last accepted path parameter t
     error,         # ‖∇f‖ (convergence metric)
     done,          # error ≤ tol
     aux,           # optional auxiliary output of the objective
@@ -318,12 +324,12 @@ QQNState(
 1. **Oracle**: query `qn_dir, _ = oracle.direction(params, grad, oracle_state)`
    for the `t = 1` endpoint `-H∇f`.
 2. **Gradient**: form `grad_dir = -∇f`.
-3. **Path + Search (batched over the t-grid)**: for each `t_i`, build
-   `d(t_i) = t_i(1-t_i)·grad_dir + t_i²·qn_dir` and run the configured line
-   search along it (vectorized with `vmap`), each respecting the region via the
-   projected path.
-4. **Selection**: pick the grid point with the smallest resulting `new_value`;
-   extract its `new_params`, `new_value`, `new_grad`, `step_size`, and `best_t`.
+3. **Path + Search**: run a single configured line search that traverses the
+    quadratic path `d(t) = t(1-t)·grad_dir + t²·qn_dir` over `t ∈ [0, 1]`,
+    evaluating candidate states `x + d(t)` (each respecting the region via the
+    projected path) and selecting the step `t`.
+4. **Selection**: extract the accepted `new_params`, `new_value`, `new_grad`,
+    and `step_size` (the chosen `t`).
 5. **Oracle update**: assemble an `OracleInfo` (`params`, `new_params`, `grad`,
    `new_grad`, `t`, `α`) and call `oracle.update(...)` — e.g. push the new L-BFGS
    curvature pair `(s, y) = (x_new − x, ∇f_new − ∇f)`.
@@ -351,7 +357,6 @@ QQN(
     line_search_options=None,     # dict forwarded to the line search (c1, c2, …)
      spline=False,                 # orthogonal cubic Hermite refinement (any LS)
     has_aux=False,
-    t_grid=None,                  # default [0.25, 0.5, 0.75, 1.0]
     oracle="lbfgs",               # "lbfgs"|"momentum"|"shampoo"|Oracle
     region=None,                  # Region | None
 )
@@ -365,7 +370,8 @@ exactly.
 ## Advantages
 
 1. **Adaptive Behavior**: Automatically balances between conservative and
-   aggressive steps via the t-grid + line search, with no manual blend tuning.
+    aggressive steps via the line search walking the path, with no manual blend
+    tuning.
 2. **Robustness**: The path's `d'(0) = -∇f` property plus multiple line-search
    fallbacks ensure progress even when the oracle is poor.
 3. **Efficiency**: L-BFGS (or other oracle) acceleration when appropriate;
@@ -384,9 +390,10 @@ exactly.
    size, `n` is parameter dimension); other oracles (e.g. Shampoo) may store
    larger preconditioner statistics.
 2. **Computational Overhead**: Quadratic path evaluation across the t-grid adds
-   per-iteration cost proportional to the grid size.
+2. **Computational Overhead**: Evaluating the quadratic path and walking it with
+    the line search adds modest per-iteration cost.
 3. **Parameter Tuning**: Performance is sensitive to configuration (history size,
-   t-grid, line-search constants, region radii).
+    line-search constants, region radii).
 4. **Line Search Sensitivity**: The algorithm's effectiveness is highly sensitive
    to the line search implementation. An inexact or poorly tuned line search
    undermines both convergence speed and the quality of L-BFGS curvature updates.

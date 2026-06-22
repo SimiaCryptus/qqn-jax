@@ -205,7 +205,6 @@ while fine-tuning on a specialized one.
 qqn(
     history_size=10,
     line_search="strong_wolfe",
-    t_grid=None,
     region=None,                 # Region | None
 )
 
@@ -216,7 +215,6 @@ QQN(
     history_size=10,
     line_search="strong_wolfe",
     has_aux=False,
-    t_grid=None,
     region=None,                 # Region | None
 )
 ```

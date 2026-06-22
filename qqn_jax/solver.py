@@ -9,6 +9,15 @@ blending the steepest-descent direction (``-∇f``) with the L-BFGS direction
 
 The solver follows the JAXopt-style ``init_state`` / ``update`` / ``run``
 interface and keeps all state in JIT-compatible NamedTuples.
+
+Note on parameterization:
+    The line search traverses the path parameter ``t`` directly. The points
+    ``x + d(t)`` along the curve are *states*, not directions to be
+    re-scaled by a separate inner line search. Importantly, rescaling the
+    gradient (or the oracle direction) does **not** change the geometric
+    path traced by ``d(t)`` — it only distorts the parameterization (i.e.
+    how ``t`` maps onto arc length along the curve). The curve itself, and
+    therefore the set of candidate states, is invariant to such rescaling.
 """
 
 from functools import partial
@@ -53,7 +62,7 @@ class QQNState(NamedTuple):
         value: current objective value.
         grad: current gradient.
          oracle_state: state of the oracle (e.g. L-BFGS history).
-        step_size: last accepted step size ``α``.
+        step_size: last accepted step size ``α`` (the path parameter ``t``).
         error: gradient norm (convergence metric).
         done: whether convergence has been reached.
         aux: optional auxiliary output of the objective.
@@ -92,8 +101,12 @@ class QQN:
              path is reused as a control point and the spline's stationary points
              guide the search. It composes with any chosen line search.
         has_aux: whether ``fun`` returns auxiliary data.
-        t_grid: candidate interpolation parameters ``t`` to evaluate. The
-            best (lowest line-searched value) is chosen each iteration.
+
+    Note:
+        The line search traverses the path parameter ``t ∈ [0, 1]`` directly.
+        Each evaluated point ``x + d(t)`` is a *state* on the quadratic curve,
+        not a direction to be independently re-scaled. Rescaling the gradient
+        does not change the path geometry — only its parameterization.
     """
 
     def __init__(
@@ -106,7 +119,6 @@ class QQN:
         line_search_options: Optional[Dict[str, Any]] = None,
         spline: bool = False,
         has_aux: bool = False,
-        t_grid: Optional[jnp.ndarray] = None,
         region=None,
         oracle="lbfgs",
     ):
@@ -121,11 +133,6 @@ class QQN:
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
         self.oracle = resolve_oracle(oracle, history_size=history_size)
-
-        if t_grid is None:
-            # A small set of blends from gradient (small t) to L-BFGS (t=1).
-            t_grid = jnp.array([0.25, 0.5, 0.75, 1.0])
-        self.t_grid = jnp.asarray(t_grid)
 
         if line_search not in _LINE_SEARCHES:
             raise ValueError(
@@ -186,41 +193,51 @@ class QQN:
     def update(self, params, state: QQNState, *args):
         """Perform a single QQN iteration.
 
+        A *single* line search traverses the quadratic path ``d(t)`` over the
+        parameter ``t ∈ [0, 1]``. The points along the path are states, not
+        directions to be re-searched: the search selects one ``t`` (the step
+        size along the curve) and the corresponding state ``x + d(t)`` is the
+        accepted iterate.
+
         Returns ``(new_params, new_state)``.
         """
         grad = state.grad
 
-        # 1. Oracle: L-BFGS direction (-H∇f).
+        # 1. Oracle: L-BFGS direction (-H∇f), the t=1 endpoint of the path.
         qn_dir, _ = self.oracle.direction(params, grad, state.oracle_state)
 
-        # 2. Gradient: steepest descent direction (-∇f).
+        # 2. Gradient: steepest descent direction (-∇f), the path's tangent.
         grad_dir = tree_negative(grad)
 
-        # 3 & 4. Quadratic path + line search over each candidate t,
-        #         selecting the blend that yields the lowest value.
-        def search_one_t(t):
+        # 3. Single line search along the quadratic path.
+        #    The "direction" handed to the line search is the path itself,
+        #    parameterized so that step size ``t`` traces d(t). The search
+        #    walks the curve directly; each probe ``x + d(t)`` is a state.
+        def path_value_and_grad(t, *inner_args):
             d = quadratic_path(t, grad_dir, qn_dir)
-            res = self._ls(
-                self._plain_value_and_grad,
-                params,
-                d,
-                state.value,
-                grad,
-                *args,
-                region=self.region,
-                region_state=state.region_state,
+            return self._plain_value_and_grad(
+                jax.tree_util.tree_map(lambda p, dd: p + dd, params, d),
+                *inner_args,
             )
-            return res
 
-        results = jax.vmap(search_one_t)(self.t_grid)
+        res = self._ls(
+            self._plain_value_and_grad,
+            params,
+            qn_dir,
+            state.value,
+            grad,
+            *args,
+            grad_dir=grad_dir,
+            qn_dir=qn_dir,
+            region=self.region,
+            region_state=state.region_state,
+        )
 
-        # Pick the candidate with the smallest resulting value.
-        best_idx = jnp.argmin(results.new_value)
-        new_params = jax.tree_util.tree_map(lambda a: a[best_idx], results.new_params)
-        new_value = results.new_value[best_idx]
-        new_grad = jax.tree_util.tree_map(lambda a: a[best_idx], results.new_grad)
-        step_size = results.step_size[best_idx]
-        best_t = self.t_grid[best_idx]
+        new_params = res.new_params
+        new_value = res.new_value
+        new_grad = res.new_grad
+        step_size = res.step_size
+        best_t = step_size
 
         # Recompute aux at the accepted point if needed.
         if self.has_aux:
