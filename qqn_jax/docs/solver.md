@@ -2,7 +2,7 @@
 
 ## Overview
 
-`solver.py` implements the **Quasi-Quadratic-Newton (QQN)** optimizer: the
+`solver.py` implements the **Quadratic Quasi-Newton (QQN)** optimizer: the
 top-level `QQN` class and its immutable state container `QQNState`.
 
 QQN constructs a quadratic interpolation path

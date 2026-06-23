@@ -1,4 +1,4 @@
-"""QQN (Quasi-Quadratic-Newton) optimizer for JAX.
+"""QQN (Quadratic Quasi-Newton) optimizer for JAX.
 
 QQN combines steepest descent and L-BFGS through a quadratic interpolation
 path:

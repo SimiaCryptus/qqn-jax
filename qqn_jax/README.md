@@ -1,6 +1,6 @@
 # QQN-JAX
 
-**Quasi-Quadratic-Newton (QQN)** optimizer for [JAX](https://github.com/google/jax).
+**Quadratic Quasi-Newton (QQN)** optimizer for [JAX](https://github.com/google/jax).
 
 QQN blends the steepest-descent direction (`-∇f`) and a curvature-aware
 quasi-Newton direction (`-H∇f`, by default from L-BFGS) along a single

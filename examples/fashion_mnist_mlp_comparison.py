@@ -136,11 +136,13 @@ _INSTALL_HINT = (
 # --------------------------------------------------------------------------
 
 
-def _load_dataset_numpy(dataset, n_train, n_test, n_classes):
+def _load_dataset_numpy(dataset, n_train, n_test, n_classes, subset_seed=0, synth_dim=784):
     """Try to load a real (Fashion-)MNIST subset; fall back to synthetic.
 
     Args:
         dataset: ``"mnist"`` or ``"fashion_mnist"``.
+        n_classes: number of leading classes to keep (1-10 for the real
+            corpora; arbitrary for the synthetic fallback).
 
     Returns:
         (X_train, y_train, X_test, y_test) as numpy arrays with images
@@ -157,7 +159,9 @@ def _load_dataset_numpy(dataset, n_train, n_test, n_classes):
         xtr = xtr.reshape(xtr.shape[0], -1).astype(np.float32) / 255.0
         xte = xte.reshape(xte.shape[0], -1).astype(np.float32) / 255.0
         print(f"[data] Loaded {dataset} via tensorflow.keras.")
-        return _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes)
+        return _subset(
+            xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=subset_seed
+        )
     except Exception:
         pass
 
@@ -179,17 +183,19 @@ def _load_dataset_numpy(dataset, n_train, n_test, n_classes):
         xte = test.data.numpy().reshape(len(test), -1).astype(np.float32) / 255.0
         yte = test.targets.numpy()
         print(f"[data] Loaded {dataset} via torchvision.")
-        return _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes)
+        return _subset(
+            xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=subset_seed
+        )
     except Exception:
         pass
 
     # --- Fallback: synthetic "MNIST-like" Gaussian blobs ---
     print(_INSTALL_HINT)
     print(f"[data] Real {dataset} unavailable; using synthetic Gaussian blobs.")
-    return _synthetic(n_train, n_test, n_classes, dim=784)
+    return _synthetic(n_train, n_test, n_classes, dim=synth_dim, seed=subset_seed)
 
 
-def _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes):
+def _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=0):
     """Keep only the first ``n_classes`` classes and class-balanced subsample.
 
     Rather than taking the *first* N examples (which biases the full-batch
@@ -197,8 +203,10 @@ def _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes):
     reproducible, class-balanced random subset. A balanced full-batch
     objective has a better-conditioned, more representative Hessian — a fairer
     and more discriminating test bed for the curvature-aware methods.
+    The subsampling RNG is seeded by ``seed`` (overridable via the
+    ``SUBSET_SEED`` env var) so the drawn subset is reproducible yet tunable.
     """
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(seed)
     train_mask = ytr < n_classes
     test_mask = yte < n_classes
     xtr, ytr = xtr[train_mask], ytr[train_mask]
@@ -227,9 +235,9 @@ def _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes):
     return xtr, ytr.astype(np.int32), xte, yte.astype(np.int32)
 
 
-def _synthetic(n_train, n_test, n_classes, dim):
+def _synthetic(n_train, n_test, n_classes, dim, seed=0):
     """Generate a linearly-separable-ish synthetic classification set."""
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(seed)
     centers = rng.normal(scale=3.0, size=(n_classes, dim)).astype(np.float32)
 
     def make(n):
@@ -930,7 +938,15 @@ def main():
         dataset = "mnist"
 
     # Problem configuration
-    n_classes = 10
+    # Number of classes to train on. For the real (Fashion-)MNIST corpora this
+    # selects the first ``n_classes`` digit/garment classes (clamped to 1-10);
+    # for the synthetic fallback it sets the number of Gaussian blobs. Reducing
+    # the class count yields an easier, lower-dimensional output layer — useful
+    # for quick smoke tests — while the default 10 reproduces the full problem.
+    n_classes = _env_int("N_CLASSES", 10)
+    if n_classes < 2:
+        print(f"[config] N_CLASSES={n_classes} too small; using 2.")
+        n_classes = 2
     # Larger training set + harder problem better exposes the curvature signal
     # that the second-order methods (QQN, L-BFGS) exploit. A bigger full-batch
     # objective has a richer, more anisotropic Hessian — precisely the regime
@@ -963,6 +979,11 @@ def main():
     # Baseline first-order learning rates (configurable for re-tuning).
     sgd_lr = _env_float("SGD_LR", 0.05)
     adam_lr = _env_float("ADAM_LR", 0.01)
+    # Seed controlling the (reproducible) class-balanced dataset subsample.
+    subset_seed = _env_int("SUBSET_SEED", 0)
+    # Synthetic-fallback feature dimension (only used when no real dataset
+    # backend is available); mirrors the 28x28 flattened MNIST image size.
+    synth_dim = _env_int("SYNTH_DIM", 784)
 
     # --- Shared, fair termination bounds applied to EVERY optimizer ---
     # The non-convex MLP loss does not descend as far as the linear model
@@ -1042,7 +1063,14 @@ def main():
         f"  shared stop: f_target={stop['f_target']:.1e}  "
         f"gtol={stop['gtol']:.1e}  time_budget={stop['time_budget']:.1f}s\n"
     )
-    xtr, ytr, xte, yte = _load_dataset_numpy(dataset, n_train, n_test, n_classes)
+    xtr, ytr, xte, yte = _load_dataset_numpy(
+        dataset,
+        n_train,
+        n_test,
+        n_classes,
+        subset_seed=subset_seed,
+        synth_dim=synth_dim,
+    )
     dim = xtr.shape[1]
 
     X_train = jnp.asarray(xtr)
@@ -1065,6 +1093,7 @@ def main():
     )
     print(
         f"  l2={l2:.1e}  sgd_lr={sgd_lr}  adam_lr={adam_lr}  seed={seed}\n"
+        f"  n_classes={n_classes}  subset_seed={subset_seed}\n"
         f"  milestones={stop['milestones']}  target_profile={target_profile}\n"
     )
 

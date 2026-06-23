@@ -46,11 +46,16 @@ def test_momentum_oracle_accumulates_velocity():
     grad = jnp.array([1.0, 2.0])
     state = oracle.init(params)
     d1, _ = oracle.direction(params, grad, state)
-    # First step: v = 0.1 * grad, so d = -0.1 * grad.
-    np.testing.assert_allclose(d1, -0.1 * grad, atol=1e-6)
+    # First step: velocity v = 0, so the endpoint reduces to plain steepest
+    # descent d = -grad (preserving the d'(0) anchor; see MomentumOracle).
+    np.testing.assert_allclose(d1, -grad, atol=1e-6)
     # Velocity is committed in ``update`` (mirroring the solver), not in
     # ``direction`` (whose returned state the solver discards).
-    info = OracleInfo(params=params, new_params=params, grad=grad, new_grad=grad)
+    # The momentum oracle accumulates the *realized* per-iteration delta
+    # Δx = x_new − x, so the update must reflect an actual step taken
+    # (here a steepest-descent move) for the velocity to grow.
+    new_params = params - grad
+    info = OracleInfo(params=params, new_params=new_params, grad=grad, new_grad=grad)
     state = oracle.update(state, info)
     d2, _ = oracle.direction(params, grad, state)
     # Velocity grows on a repeated gradient -> direction magnitude grows.

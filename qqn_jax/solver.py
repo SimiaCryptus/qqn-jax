@@ -1,4 +1,4 @@
-"""QQN (Quasi-Quadratic-Newton) solver.
+"""QQN (Quadratic Quasi-Newton) solver.
 
 QQN constructs the quadratic interpolation path
 
@@ -92,7 +92,7 @@ class QQNState(NamedTuple):
 
 
 class QQN:
-    """Quasi-Quadratic-Newton optimizer.
+    """Quadratic Quasi-Newton optimizer.
 
     Args:
         fun: objective function ``f(params, *args) -> scalar`` (or

@@ -127,6 +127,7 @@ const VARIANTS = {
             HIDDEN: '128',
             DEPTH: '2',
             ACTIVATION: 'identity',
+            F_TARGET: '0.35',
         },
         args: [],
         desc: 'Linear hidden layers (convex) where first-order accelerators (Anderson, Momentum) should excel.',
@@ -152,6 +153,26 @@ const VARIANTS = {
             'JAX Profiler + Perfetto trace capture on a small config. ' +
             'Load profiles/** in ui.perfetto.dev or TensorBoard Trace Viewer.',
     },
+    fashion_profile_simple_fast: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            // DATASET: 'fashion_mnist',
+            DATASET: 'mnist',
+            N_TRAIN: '8000',
+            N_TEST: '2000',
+            HIDDEN: '64',
+            DEPTH: '2',
+            N_CLASSES: '10',
+            ACTIVATION: 'sine',
+            PROFILE: 'jax,perfetto',
+            PROFILE_DIR: 'profiles',
+            PROFILE_NAME: 'simple_fast',
+            TIME_BUDGET: '15',  // seconds
+            F_TARGET: '0.015',
+        },
+        args: [],
+        desc: 'Fast, Small.',
+    },
     fashion_profile_scalene: {
         report: 'fashion_mnist_mlp_comparison',
         env: {
@@ -160,7 +181,7 @@ const VARIANTS = {
             N_TEST: '2000',
             HIDDEN: '128',
             DEPTH: '2',
-            ACTIVATION: 'tanh,gelu',
+            ACTIVATION: 'relu',
             PROFILE: 'scalene',
         },
         args: [],
@@ -223,11 +244,12 @@ const VARIANTS = {
 
 // Default set of variants to run when none are specified.
 const DEFAULT_VARIANTS = [
-    'fashion_default',
-    'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
-    'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
-    'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
-    'fashion_profile_scalene', // Good test but does not producing profiling data?
+    // 'fashion_default',
+    // 'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
+    "fashion_profile_simple_fast",
+    // 'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
+    // 'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
+    // 'fashion_profile_scalene', // Segfault?
 ];
 
 // ---------------------------------------------------------------------------
@@ -257,7 +279,9 @@ function runVariant(name, variant, ts) {
         if (variant.scalene) {
             const profileArgs = variant.scalene === true ? [] : variant.scalene;
             executable = 'scalene';
-            spawnArgs = [...profileArgs, scriptPath, ...variant.args];
+            // Scalene >= 2.3.0 uses a subcommand-based CLI: `scalene run <script>`.
+            // Use `--` to clearly separate Scalene options from the script's own args.
+            spawnArgs = ['run', ...profileArgs, '--', scriptPath, ...variant.args];
         } else {
             executable = 'python3';
             spawnArgs = [scriptPath, ...variant.args];

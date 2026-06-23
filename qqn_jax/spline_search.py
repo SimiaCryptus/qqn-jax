@@ -35,18 +35,29 @@ from qqn_jax.line_search import LineSearchResult, backtracking_search
 def _orient_tangents(h, f0, m0, f1, m1):
     """Apply the upstream/downstream symmetry correction to tangents.
 
-    Each tangent ``m = ⟨∇f, [dx/dt, dy/dt]⟩`` is the dot product of the
-    gradient with the parametric path velocity. If that dot product is
-    negative the tangent points "backwards" against the path's natural
-    flow, so we reverse it so every oriented tangent agrees with the
-    forward direction of travel along the curve.
+    Each tangent ``m = ⟨∇f, d'(t)⟩`` is oriented relative to the *secant
+    slope* of the segment, ``(f1 - f0) / h``. A tangent whose sign opposes
+    the secant's direction of travel points "backwards" against the
+    segment's natural flow, so we reflect it to agree with the secant.
+    When the secant is flat (``f1 == f0``) there is no preferred direction,
+    so the raw tangents are kept unchanged.
     """
 
-    # m is already ⟨∇f, d'(t)⟩, the dot product of the gradient with the
-    # parametric path velocity. Reverse any tangent with negative dot
-    # product so it aligns with the forward flow of the path.
+    # Orient each tangent to share the sign of the secant slope. On a flat
+    # secant (sign == 0) the tangents are returned untouched.
+    secant = f1 - f0
+    secant_sign = jnp.sign(secant)
+    # A genuine interior minimum is bracketed when the segment descends at the
+    # left (m0 < 0) and ascends at the right (m1 > 0). In that case the raw
+    # tangents already encode real curvature and must NOT be reflected, even if
+    # one of them opposes the secant slope.
+    bracketed_min = jnp.logical_and(m0 < 0.0, m1 > 0.0)
+
     def reflect(m):
-        return jnp.where(m < 0.0, -m, m)
+        # Flip ``m`` when its sign opposes the (non-zero) secant sign.
+        opposes = jnp.logical_and(secant_sign != 0.0, m * secant_sign < 0.0)
+        opposes = jnp.logical_and(opposes, jnp.logical_not(bracketed_min))
+        return jnp.where(opposes, -m, m)
 
     return reflect(m0), reflect(m1)
 

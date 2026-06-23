@@ -2,7 +2,7 @@
 
 This document synthesizes the conceptual design (see [`algorithm.md`](theory/algorithm.md))
 and the empirical validation (see [`results.md`](results.md)) of the QQN
-(Quasi-Quadratic-Newton) algorithm. It distills what we learned about the
+(Quadratic Quasi-Newton) algorithm. It distills what we learned about the
 algorithm's central thesis, the behavior of each swappable component, and the
 practical guidance these results imply.
 

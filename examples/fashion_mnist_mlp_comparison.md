@@ -89,9 +89,9 @@ reproduce the headline experiment described in the script.
 
 ### 3.1 Dataset selection
 
-| Variable  | Values                        | Default          | Description                          |
-| --------- | ----------------------------- | ---------------- | ------------------------------------ |
-| `DATASET` | `mnist`, `fashion_mnist`      | `fashion_mnist`  | Which corpus to train on.            |
+| Variable  | Values                   | Default         | Description               |
+|-----------|--------------------------|-----------------|---------------------------|
+| `DATASET` | `mnist`, `fashion_mnist` | `fashion_mnist` | Which corpus to train on. |
 
 ```bash
 DATASET=fashion_mnist python examples/fashion_mnist_mlp_comparison.py
@@ -101,10 +101,25 @@ DATASET=fashion_mnist python examples/fashion_mnist_mlp_comparison.py
 
 ### 3.2 Dataset size
 
-| Variable  | Type | Default | Description                                       |
-| --------- | ---- | ------- | ------------------------------------------------- |
-| `N_TRAIN` | int  | `25000` | Full-batch **training** subset size.              |
-| `N_TEST`  | int  | `5000`  | Full-batch **test** subset size (for accuracy).   |
+| Variable  | Type | Default | Description                                     |
+|-----------|------|---------|-------------------------------------------------|
+| `N_TRAIN` | int  | `25000` | Full-batch **training** subset size.            |
+| `N_TEST`  | int  | `5000`  | Full-batch **test** subset size (for accuracy). |
+
+### 3.2.1 Classes & subsampling
+
+| Variable      | Type | Default | Description                                                                  |
+|---------------|------|---------|------------------------------------------------------------------------------|
+| `N_CLASSES`   | int  | `10`    | Number of classes to train on (clamped to `>= 2`; `<= 10` for real corpora). |
+| `SUBSET_SEED` | int  | `0`     | Seed for the reproducible class-balanced subsample.                          |
+| `SYNTH_DIM`   | int  | `784`   | Feature dimension for the synthetic Gaussian-blob fallback only.             |
+
+```bash
+# Easy 3-class smoke test
+N_CLASSES=3 N_TRAIN=3000 python examples/fashion_mnist_mlp_comparison.py
+# Different reproducible data draw
+SUBSET_SEED=7 python examples/fashion_mnist_mlp_comparison.py
+```
 
 A larger full-batch objective has a richer, more anisotropic Hessian — the
 regime where QQN's gradient + oracle blending is most competitive.
@@ -127,11 +142,11 @@ Precedence (highest first):
 2. `DEPTH` × `HIDDEN` — uniform-width network.
 3. Default: width 256 × depth 3.
 
-| Variable       | Type            | Default | Description                                                       |
-| -------------- | --------------- | ------- | ----------------------------------------------------------------- |
-| `HIDDEN_SIZES` | comma-int list  | (unset) | Explicit per-layer widths, e.g. `256,128,64`. Takes precedence.   |
-| `HIDDEN`       | int             | `256`   | Width of each hidden layer (uniform-width mode).                  |
-| `DEPTH`        | int             | `3`     | Number of hidden layers (uniform-width mode).                     |
+| Variable       | Type           | Default | Description                                                     |
+|----------------|----------------|---------|-----------------------------------------------------------------|
+| `HIDDEN_SIZES` | comma-int list | (unset) | Explicit per-layer widths, e.g. `256,128,64`. Takes precedence. |
+| `HIDDEN`       | int            | `256`   | Width of each hidden layer (uniform-width mode).                |
+| `DEPTH`        | int            | `3`     | Number of hidden layers (uniform-width mode).                   |
 
 Examples:
 
@@ -151,27 +166,27 @@ HIDDEN_SIZES=256,128,64 python examples/fashion_mnist_mlp_comparison.py
 
 ### 3.4 Activation function(s)
 
-| Variable     | Values (single or comma-list) | Default     | Description                       |
-| ------------ | ----------------------------- | ----------- | --------------------------------- |
-| `ACTIVATION` | see table below               | `tanh,gelu` | Hidden-layer activation(s).       |
+| Variable     | Values (single or comma-list) | Default     | Description                 |
+|--------------|-------------------------------|-------------|-----------------------------|
+| `ACTIVATION` | see table below               | `tanh,gelu` | Hidden-layer activation(s). |
 
 Supported activations:
 
-| Name        | Definition                              | Notes                                     |
-| ----------- | --------------------------------------- | ----------------------------------------- |
-| `relu`      | `max(0, x)`                             | Triggers He init.                         |
-| `sigmoid`   | `1 / (1 + e^-x)`                        | Default fallback for unknown names.       |
-| `sine`      | `sin(x)`                                | Periodic.                                 |
-| `gaussian`  | `exp(-x^2)`                             | Localized, RBF-like bump.                 |
-| `triangle`  | periodic triangle wave in `[-1, 1]`     | Piecewise-linear, periodic.               |
-| `sawtooth`  | periodic ramp in `[-1, 1)`              | Periodic.                                 |
-| `logabs`    | `sign(x) * ln(|x| + 1)`                 | Heavy-tailed, odd.                        |
-| `tanh`      | `tanh(x)`                               | Bounded squashing.                        |
-| `gelu`      | Gaussian Error Linear Unit              | Smooth ReLU-like.                         |
-| `swish`     | `x * sigmoid(x)`                        | Smooth, non-monotonic (SiLU).             |
-| `softplus`  | `ln(1 + e^x)`                           | Smooth ReLU approximation.                |
-| `abs`       | `|x|`                                   | V-shaped, even.                           |
-| `identity`  | `x`                                     | Linear (useful in mixes).                 |
+| Name       | Definition                          | Notes                               |
+|------------|-------------------------------------|-------------------------------------|
+| `relu`     | `max(0, x)`                         | Triggers He init.                   |
+| `sigmoid`  | `1 / (1 + e^-x)`                    | Default fallback for unknown names. |
+| `sine`     | `sin(x)`                            | Periodic.                           |
+| `gaussian` | `exp(-x^2)`                         | Localized, RBF-like bump.           |
+| `triangle` | periodic triangle wave in `[-1, 1]` | Piecewise-linear, periodic.         |
+| `sawtooth` | periodic ramp in `[-1, 1)`          | Periodic.                           |
+| `logabs`   | `sign(x) * ln(                      | x                                   | + 1)`                 | Heavy-tailed, odd.                        |
+| `tanh`     | `tanh(x)`                           | Bounded squashing.                  |
+| `gelu`     | Gaussian Error Linear Unit          | Smooth ReLU-like.                   |
+| `swish`    | `x * sigmoid(x)`                    | Smooth, non-monotonic (SiLU).       |
+| `softplus` | `ln(1 + e^x)`                       | Smooth ReLU approximation.          |
+| `abs`      | `                                   | x                                   |`                                   | V-shaped, even.                           |
+| `identity` | `x`                                 | Linear (useful in mixes).           |
 
 **Single activation** (applied to every hidden layer):
 
@@ -199,10 +214,10 @@ ACTIVATION=tanh,gaussian DEPTH=4 python examples/fashion_mnist_mlp_comparison.py
 The script sets these *before* importing JAX to avoid speculative
 multi-GiB workspace allocations that can OOM small GPUs:
 
-| Variable           | Default value         | Purpose                                              |
-| ------------------ | --------------------- | ---------------------------------------------------- |
+| Variable           | Default value                | Purpose                                              |
+|--------------------|------------------------------|------------------------------------------------------|
 | `XLA_FLAGS`        | `--xla_gpu_autotune_level=0` | Disables the cuBLAS-Lt autotuner's parallel probing. |
-| `TF_GPU_ALLOCATOR` | `cuda_malloc_async`   | Falls back to host memory instead of hard OOM.       |
+| `TF_GPU_ALLOCATOR` | `cuda_malloc_async`          | Falls back to host memory instead of hard OOM.       |
 
 Both use `setdefault`, so you can override them in your environment if needed.
 
@@ -235,31 +250,38 @@ Images are flattened to shape `(N, 784)` and scaled to `float32` in `[0, 1]`.
 
 All optimizers stop under the **same** conditions, so the comparison is fair:
 
-| Key           | Value     | Meaning                                                |
-| ------------- | --------- | ------------------------------------------------------ |
-| `f_target`    | `2.0e-2`  | Headline target loss. First crossing is the win point. |
-| `gtol`        | `1.0e-8`  | Gradient-norm convergence tolerance.                   |
-| `time_budget` | `150.0` s | Wall-clock cap (so deep stacks aren't truncated early).|
-| `milestones`  | `1e0, 5e-1, 2e-1, 1e-1` | Loss levels for the convergence-rate profile. |
+| Key           | Value                   | Meaning                                                 |
+|---------------|-------------------------|---------------------------------------------------------|
+| `f_target`    | `2.0e-2`                | Headline target loss. First crossing is the win point.  |
+| `gtol`        | `1.0e-8`                | Gradient-norm convergence tolerance.                    |
+| `time_budget` | `150.0` s               | Wall-clock cap (so deep stacks aren't truncated early). |
+| `milestones`  | `1e0, 5e-1, 2e-1, 1e-1` | Loss levels for the convergence-rate profile.           |
 
 The headline `f_target` is deliberately pushed tighter (`2e-2`) into the regime
 where QQN's curvature blend dominates hardest, while staying reachable within
 the time budget.
+
 ### Overriding termination & training hyper-parameters
+
 Every value above (and the baseline learning rates / regularization) is
 overridable via environment variables, with the documented value as default:
-| Variable         | Type             | Default                       | Description                                         |
+| Variable | Type | Default | Description |
 | ---------------- | ---------------- | ----------------------------- | --------------------------------------------------- |
-| `F_TARGET`       | float            | `2.0e-2`                      | Headline target loss (first-crossing win point).    |
-| `GTOL`           | float            | `1.0e-8`                      | Gradient-norm convergence tolerance.                |
-| `TIME_BUDGET`    | float (seconds)  | `150.0`                       | Wall-clock cap.                                     |
-| `MILESTONES`     | comma-float list | `1.0,0.5,0.2,0.1`             | Loss levels for the convergence-rate profile.       |
-| `TARGET_PROFILE` | comma-float list | `0.2,0.1,0.06,0.04,0.02`      | Targets for the target-sensitivity speedup curve.   |
-| `MAXITER`        | int              | `1000000`                     | Hard iteration cap (shared by all optimizers).      |
-| `L2`             | float            | `1.0e-4`                      | L2 ridge penalty on the flat parameter vector.      |
-| `SGD_LR`         | float            | `0.05`                        | SGD baseline learning rate.                         |
-| `ADAM_LR`        | float            | `0.01`                        | Adam baseline learning rate.                        |
-| `SEED`           | int              | `42`                          | PRNG seed for the shared initial parameters.        |
+| `F_TARGET`       | float | `2.0e-2`                      | Headline target loss (first-crossing win point). |
+| `GTOL`           | float | `1.0e-8`                      | Gradient-norm convergence tolerance. |
+| `TIME_BUDGET`    | float (seconds)  | `150.0`                       | Wall-clock cap. |
+| `MILESTONES`     | comma-float list | `1.0,0.5,0.2,0.1`             | Loss levels for the convergence-rate profile. |
+| `TARGET_PROFILE` | comma-float list | `0.2,0.1,0.06,0.04,0.02`      | Targets for the target-sensitivity speedup
+curve. |
+| `MAXITER`        | int | `1000000`                     | Hard iteration cap (shared by all optimizers). |
+| `L2`             | float | `1.0e-4`                      | L2 ridge penalty on the flat parameter vector. |
+| `SGD_LR`         | float | `0.05`                        | SGD baseline learning rate. |
+| `ADAM_LR`        | float | `0.01`                        | Adam baseline learning rate. |
+| `SEED`           | int | `42`                          | PRNG seed for the shared initial parameters. |
+| `N_CLASSES`      | int | `10`                          | Number of classes (clamped to `>= 2`). |
+| `SUBSET_SEED`    | int | `0`                           | Seed for the class-balanced dataset subsample. |
+| `SYNTH_DIM`      | int | `784`                         | Synthetic-fallback feature dimension. |
+
 ```bash
 # Tighter target with a shorter budget and a higher Adam LR
 F_TARGET=1e-2 TIME_BUDGET=300 ADAM_LR=0.02 \
