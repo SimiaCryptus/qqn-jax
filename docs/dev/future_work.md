@@ -11,7 +11,7 @@ related:
 
 # Future Work: Proposed Benchmarks
 
-The [`conclusions.md`](conclusions.md) evaluation rests on a single smooth,
+The [`conclusions.md`](../conclusions.md) evaluation rests on a single smooth,
 deterministic, full-batch convex benchmark (softmax MNIST). Each caveat in
 that document is a testable hypothesis. The benchmarks below are chosen to be
 both **small-scale-compute** (laptop / single-GPU, seconds-to-minutes) and to

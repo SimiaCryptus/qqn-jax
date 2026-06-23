@@ -17,7 +17,7 @@ This document traces the origin and evolution of the **Quadratic Quasi-Newton
 (QQN)** algorithm — from a hands-on optimization experiment inside a homegrown
 deep-learning framework, through a formal paper and reference implementations,
 to the present JAX/Optax library. It is a narrative companion to the technical
-reference in [`algorithm.md`](algorithm.md) and the project overview in
+reference in [`algorithm.md`](theory/algorithm.md) and the project overview in
 [`../README.md`](../README.md).
 
 ## 1. A Research Project, and a Framework Built to Learn (~2016)
@@ -199,7 +199,7 @@ interpolation parameter `t` and step size `α` together.
 
 What's new in this incarnation is **explicit modularity**. The lessons of the
 earlier implementations are factored into four orthogonal, independently
-swappable axes (see [`algorithm.md`](algorithm.md)):
+swappable axes (see [`algorithm.md`](theory/algorithm.md)):
 
 * **Gradient** — the steepest-descent signal anchoring global convergence.
 * **Oracle** — the `t = 1` endpoint, swappable beyond L-BFGS (Momentum,
@@ -227,7 +227,7 @@ points.
 
 ## See Also
 
-* [`algorithm.md`](algorithm.md) — the complete technical reference for the
+* [`algorithm.md`](theory/algorithm.md) — the complete technical reference for the
   QQN path, line search, oracles, and regions.
 * [`../README.md`](../README.md) — installation, quick start, and configuration.
 * [Optimization research blog post](https://blog.simiacrypt.us/posts/optimization_research/)

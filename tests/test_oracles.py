@@ -45,10 +45,14 @@ def test_momentum_oracle_accumulates_velocity():
     params = jnp.array([0.0, 0.0])
     grad = jnp.array([1.0, 2.0])
     state = oracle.init(params)
-    d1, state = oracle.direction(params, grad, state)
+    d1, _ = oracle.direction(params, grad, state)
     # First step: v = 0.1 * grad, so d = -0.1 * grad.
     np.testing.assert_allclose(d1, -0.1 * grad, atol=1e-6)
-    d2, state = oracle.direction(params, grad, state)
+    # Velocity is committed in ``update`` (mirroring the solver), not in
+    # ``direction`` (whose returned state the solver discards).
+    info = OracleInfo(params=params, new_params=params, grad=grad, new_grad=grad)
+    state = oracle.update(state, info)
+    d2, _ = oracle.direction(params, grad, state)
     # Velocity grows on a repeated gradient -> direction magnitude grows.
     assert float(jnp.linalg.norm(d2)) > float(jnp.linalg.norm(d1))
 

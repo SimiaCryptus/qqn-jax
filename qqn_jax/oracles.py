@@ -157,15 +157,25 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
         return MomentumState(velocity=zeros)
 
     def direction(params, grad, state):
+        # Use the *already-committed* velocity (updated in ``update`` after the
+        # previous accepted step). Do NOT mutate state here: ``direction`` is
+        # called for its endpoint only, and the solver discards the returned
+        # oracle state — the persisted state comes solely from ``update``.
         v_new = jax.tree_util.tree_map(
             lambda v, g: beta * v + (1.0 - beta) * g, state.velocity, grad
         )
         d = tree_negative(v_new)
-        return d, MomentumState(velocity=v_new)
+        return d, state
 
     def update(state, info):
-        # Velocity already committed in ``direction``; nothing to do.
-        return state
+        # Commit the velocity here using the gradient at the iterate that
+        # produced the accepted step (``info.grad``), matching the endpoint
+        # computed in ``direction``. This is the only state the solver
+        # persists across iterations, so the velocity must accumulate here.
+        v_new = jax.tree_util.tree_map(
+            lambda v, g: beta * v + (1.0 - beta) * g, state.velocity, info.grad
+        )
+        return MomentumState(velocity=v_new)
 
     return Oracle(init=init, direction=direction, update=update)
 

@@ -16,7 +16,7 @@ at hand.
 ## What QQN Is
 
 QQN is a **combiner** of four orthogonal components — *gradient*, *oracle*,
-*search*, and *region* (see [`algorithm.md`](algorithm.md)). Rather than
+*search*, and *region* (see [`algorithm.md`](theory/algorithm.md)). Rather than
 hand-tuning a step rule, QQN constructs a quadratic interpolation path
 
 ```
@@ -51,7 +51,7 @@ rather than fixed in advance.
 - **Not a single algorithm.** QQN is a *configuration space*. Fixing one or two
   of its axes to canonical choices reproduces L-BFGS, Newton, momentum,
   Barzilai-Borwein, trust-region, OWL-QN, and projected-gradient methods (see
-  [`equivalences.md`](equivalences.md)). Its identity is the framework, not any
+  [`equivalences.md`](theory/equivalences.md)). Its identity is the framework, not any
   one corner of it.
 
 ---
@@ -107,8 +107,8 @@ into a free byproduct of the geometry.
 
 ## See Also
 
-- [`algorithm.md`](algorithm.md) — the full QQN algorithm and its four axes.
-- [`equivalences.md`](equivalences.md) — classical optimizers as QQN special
+- [`algorithm.md`](theory/algorithm.md) — the full QQN algorithm and its four axes.
+- [`equivalences.md`](theory/equivalences.md) — classical optimizers as QQN special
   cases.
-- [`oracles.md`](oracles.md) — the `t = 1` endpoint sources.
-- [`regions.md`](regions.md) — projective constraints and structure.
+- [`oracles.md`](theory/oracles.md) — the `t = 1` endpoint sources.
+- [`regions.md`](theory/regions.md) — projective constraints and structure.

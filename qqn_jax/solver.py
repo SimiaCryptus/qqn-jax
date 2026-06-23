@@ -39,7 +39,6 @@ from qqn_jax.regions import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
     tree_l2_norm,
-    tree_negative,
     tree_vdot,
 )
 

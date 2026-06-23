@@ -28,13 +28,13 @@ The quadratic path makes the search the *glue*: it blends the gradient and the
 oracle coherently while retaining global-convergence guarantees from the
 steepest-descent fallback at `t = 0`.
 
-See [`algorithm.md`](docs/algorithm.md) for the full conceptual treatment.
+See [`algorithm.md`](docs/theory/algorithm.md) for the full conceptual treatment.
 
 ---
 
 ## Installation
 
-Always work inside a virtual environment (see [`python.md`](docs/python.md)):
+Always work inside a virtual environment (see [`python.md`](docs/project/python.md)):
 
 ```bash
 python3 -m venv .venv
@@ -52,7 +52,7 @@ pip install -e ".[dev]"
 QQN is built directly on **JAX** and **Optax**. The L-BFGS scaling and the
 zoom (Strong Wolfe) line search are delegated to Optax; the rest of the solver
 is pure, functional JAX. If you need GPU support, install the matching CUDA
-wheel of `jaxlib` (see [`libraries.md`](docs/libraries.md)).
+wheel of `jaxlib` (see [`libraries.md`](docs/project/libraries.md)).
 
 ---
 
@@ -133,7 +133,7 @@ solver = QQN(fun, oracle=oracle)
 
 When `oracle="lbfgs"` (the default), the optimizer is byte-for-byte equivalent
 to the reference behavior (numerically equivalent up to floating-point
-reordering). See [`oracles.md`](docs/oracles.md) for details.
+reordering). See [`oracles.md`](docs/theory/oracles.md) for details.
 
 ### Projective Regions
 
@@ -152,7 +152,7 @@ solver = QQN(fun, region=region)
 ```
 
 When `region=None`, behavior is identical to the unconstrained optimizer.
-See [`regions.md`](docs/regions.md) for details.
+See [`regions.md`](docs/theory/regions.md) for details.
 
 ---
 
@@ -160,12 +160,12 @@ See [`regions.md`](docs/regions.md) for details.
 
 | Document                                    | Description                                                         |
 |---------------------------------------------|---------------------------------------------------------------------|
-| [`algorithm.md`](docs/algorithm.md)         | The QQN algorithm: quadratic path, line search, guarantees.         |
-| [`oracles.md`](docs/oracles.md)             | The oracle abstraction (L-BFGS, Momentum, Shampoo, combinators).    |
-| [`regions.md`](docs/regions.md)             | Projective regions (box, trust-region, orthant, combinators).       |
-| [`spline_search.md`](docs/spline_search.md) | Cubic-Hermite spline line search that reuses gradient measurements. |
-| [`python.md`](docs/python.md)               | venv, testing, linting, and publishing workflow.                    |
-| [`libraries.md`](docs/libraries.md)         | Installing JAX/jaxlib and the MNIST dataset.                        |
+| [`algorithm.md`](docs/theory/algorithm.md)         | The QQN algorithm: quadratic path, line search, guarantees.         |
+| [`oracles.md`](docs/theory/oracles.md)             | The oracle abstraction (L-BFGS, Momentum, Shampoo, combinators).    |
+| [`regions.md`](docs/theory/regions.md)             | Projective regions (box, trust-region, orthant, combinators).       |
+| [`spline_search.md`](docs/theory/spline_search.md) | Cubic-Hermite spline line search that reuses gradient measurements. |
+| [`python.md`](docs/project/python.md)               | venv, testing, linting, and publishing workflow.                    |
+| [`libraries.md`](docs/project/libraries.md)         | Installing JAX/jaxlib and the MNIST dataset.                        |
 | [`results.md`](docs/results.md)             | Empirical MNIST benchmark: QQN vs. baselines and component sweeps.  |
 | [`conclusions.md`](docs/conclusions.md)     | Synthesis of the experimental findings and design-claim validation. |
 ## Empirical Results
@@ -225,7 +225,7 @@ ruff format .          # auto-format
 ruff check . --fix     # lint + autofix
 ```
 
-See [`python.md`](docs/python.md) for the full developer and publishing workflow.
+See [`python.md`](docs/project/python.md) for the full developer and publishing workflow.
 
 ---
 

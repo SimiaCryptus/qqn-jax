@@ -1,16 +1,6 @@
----
-documents:
-  - results.md
-related:
-  - algorithm.md
-  - regions.md
-  - oracles.md
-  - spline_search.md
----
-
 # Conclusions: QQN as a Modular Combiner for Numerical Optimization
 
-This document synthesizes the conceptual design (see [`algorithm.md`](algorithm.md))
+This document synthesizes the conceptual design (see [`algorithm.md`](theory/algorithm.md))
 and the empirical validation (see [`results.md`](results.md)) of the QQN
 (Quasi-Quadratic-Newton) algorithm. It distills what we learned about the
 algorithm's central thesis, the behavior of each swappable component, and the
@@ -167,6 +157,6 @@ combiner *can* be iteration-efficient while remaining fully
 this scale, and none of these rankings have yet been validated off the convex
 case.
 
-See [`algorithm.md`](algorithm.md) for the conceptual treatment,
+See [`algorithm.md`](theory/algorithm.md) for the conceptual treatment,
 [`results.md`](results.md) for the full empirical breakdown, and
 [`../mnist_comparison.log`](../results/mnist_comparison.log) for the raw output.
