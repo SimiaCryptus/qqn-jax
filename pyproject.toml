@@ -27,6 +27,9 @@ dependencies = [
     "jaxtyping>=0.2",
 ]
 
+[tool.setuptools.package-data]
+qqn_jax = ["py.typed"]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",

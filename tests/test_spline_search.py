@@ -214,9 +214,10 @@ def test_spline_strictly_improves_when_armijo_accepts_short_step():
     value, grad = vg(params)
     direction = -grad  # steepest descent; true minimizer at alpha = 0.5
     # Large initial step + aggressive shrink => Armijo accepts a short step.
-    inner_kwargs = dict(init_step=8.0, shrink=0.1)
-    inner = backtracking_search(vg, params, direction, value, grad, **inner_kwargs)
-    res = spline_search(vg, params, direction, value, grad, **inner_kwargs)
+    inner = backtracking_search(
+        vg, params, direction, value, grad, init_step=8.0, shrink=0.1
+    )
+    res = spline_search(vg, params, direction, value, grad, init_step=8.0, shrink=0.1)
     # Sanity: the inner search accepts a step that misses the true minimizer
     # (alpha = 0.5). With this configuration Armijo stops at alpha = 0.8,
     # overshooting the minimizer, so the inner-accepted value is well above 0.

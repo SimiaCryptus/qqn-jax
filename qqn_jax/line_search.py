@@ -11,7 +11,7 @@ backtracking (Armijo) search. Both are adapted to the QQN interface so
 the strategies remain swappable.
 """
 
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Any
 
 import jax
 import jax.numpy as jnp
@@ -41,20 +41,20 @@ class LineSearchResult(NamedTuple):
     new_grad: jnp.ndarray
     new_params: jnp.ndarray
     done: jnp.ndarray
-    probe_params: jnp.ndarray = None
-    probe_grads: jnp.ndarray = None
-    probe_valid: jnp.ndarray = None
+    probe_params: Any = None
+    probe_grads: Any = None
+    probe_valid: Any = None
     # Per-probe objective values (so callers gating on descent need not
     # recompute f via an extra vmapped forward pass — the line search
     # already evaluated these points).
-    probe_values: jnp.ndarray = None
+    probe_values: Any = None
     # Per-probe step size α (lets the oracle replay probes in α-order
     # rather than slot-order, which matters for secant differences).
-    probe_alphas: jnp.ndarray = None
+    probe_alphas: Any = None
     # Number of value-and-grad evaluations performed by the line search.
     # Each ``value_and_grad_fn`` call evaluates both f and ∇f, so this counts
     # combined value+grad oracle calls. ``None`` means "not reported".
-    num_evals: jnp.ndarray = None
+    num_evals: Any = None
 
 
 def _empty_probes(params, max_probes):
@@ -164,8 +164,10 @@ def backtracking_search(
         # ``evals`` counts every eval_at call: the body adds exactly one.
         return alpha, i + 1, evals + 1, new_val, new_g, new_params, pp, pg, pv, pval, pa
 
+    init_alpha = jnp.asarray(init_step, dtype=value.dtype)
+
     # Evaluate at the initial step first.
-    init_params, init_val, init_g = eval_at(init_step)
+    init_params, init_val, init_g = eval_at(init_alpha)
     # Slot 0 records the initial-step probe.
     init_pp, init_pg, init_pv, init_pval, init_pa = _record_probe(
         init_pp,
@@ -177,7 +179,7 @@ def backtracking_search(
         init_params,
         init_g,
         init_val,
-        jnp.asarray(init_step, dtype=params.dtype),
+        init_alpha,
         eff_probes,
     )
 
@@ -197,7 +199,7 @@ def backtracking_search(
         cond,
         body,
         (
-            init_step,
+            init_alpha,
             jnp.asarray(1),
             jnp.asarray(1, jnp.int32),  # the initial eval_at(init_step) probe
             init_val,

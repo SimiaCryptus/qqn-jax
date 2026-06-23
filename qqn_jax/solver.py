@@ -251,7 +251,7 @@ class QQN:
         # Diagnostic: directional derivative along the oracle direction. A
         # non-negative value means the oracle handed back a non-descent
         # direction at t=1 (degenerate curvature) — worth surfacing.
-        qn_slope = tree_vdot(grad, qn_dir).astype(state.value.dtype)
+        qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
 
         # 2. Gradient: steepest descent direction (-∇f), the path's tangent.
         # Note: grad_dir = -grad is never materialized; the only consumer is

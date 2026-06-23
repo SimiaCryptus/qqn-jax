@@ -190,6 +190,59 @@ const VARIANTS = {
         args: [],
         desc: 'Linear hidden layers (convex) where first-order accelerators (Anderson, Momentum) should excel.',
     },
+     // ---- Profiling-enabled variants -------------------------------------
+     // These mirror the headline config but switch on the integrated
+     // profilers (JAX Profiler API + Perfetto traces, and Scalene hints).
+     fashion_profile_jax: {
+         report: 'fashion_mnist_mlp_comparison',
+         env: {
+             DATASET: 'fashion_mnist',
+             N_TRAIN: '8000',
+             N_TEST: '2000',
+             HIDDEN: '128',
+             DEPTH: '2',
+             ACTIVATION: 'tanh,gelu',
+             PROFILE: 'jax,perfetto',
+             PROFILE_DIR: 'profiles',
+             PROFILE_NAME: 'fashion_jax',
+         },
+         args: [],
+         desc:
+             'JAX Profiler + Perfetto trace capture on a small config. ' +
+             'Load profiles/** in ui.perfetto.dev or TensorBoard Trace Viewer.',
+     },
+     fashion_profile_scalene: {
+         report: 'fashion_mnist_mlp_comparison',
+         env: {
+             DATASET: 'fashion_mnist',
+             N_TRAIN: '8000',
+             N_TEST: '2000',
+             HIDDEN: '128',
+             DEPTH: '2',
+             ACTIVATION: 'tanh,gelu',
+             PROFILE: 'scalene',
+         },
+         args: [],
+         desc:
+             'Prints the Scalene re-launch command (Scalene must wrap the ' +
+             'whole interpreter: scalene examples/...py).',
+     },
+     fashion_profile_all: {
+         report: 'fashion_mnist_mlp_comparison',
+         env: {
+             DATASET: 'fashion_mnist',
+             N_TRAIN: '8000',
+             N_TEST: '2000',
+             HIDDEN: '128',
+             DEPTH: '2',
+             ACTIVATION: 'tanh,gelu',
+             PROFILE: 'all',
+             PROFILE_DIR: 'profiles',
+             PROFILE_NAME: 'fashion_all',
+         },
+         args: [],
+         desc: 'Enable every profiling backend (JAX/Perfetto + Scalene hint).',
+     },
 
 
     // ----------------------- mnist_comparison ----------------------------

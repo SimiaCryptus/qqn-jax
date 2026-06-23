@@ -18,6 +18,8 @@ import pytest
 _HERE = os.path.dirname(__file__)
 _EXAMPLE_PATH = os.path.join(_HERE, "..", "examples", "mnist_comparison.py")
 _spec = importlib.util.spec_from_file_location("mnist_comparison", _EXAMPLE_PATH)
+assert _spec is not None
+assert _spec.loader is not None
 mc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mc)
 

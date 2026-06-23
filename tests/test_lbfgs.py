@@ -39,7 +39,7 @@ def test_history_update_curvature():
     state = update_lbfgs_history(state, x1, g1, history_size)
 
     # Count should have incremented (positive curvature).
-    assert int(state.count) == 1
+    assert int(state.step_count) == 1
 
     d = lbfgs_direction(state, g1)
     # The L-BFGS direction should be a descent direction.
@@ -55,7 +55,7 @@ def test_rejects_negative_curvature():
     bad_params = jnp.array([1.0, 0.0])  # s = (1, 0)
     bad_grad = jnp.array([-2.0, 1.0])  # y = (-3, 0), yᵀs = -3 < 0
     new_state = update_lbfgs_history(state, bad_params, bad_grad, 5)
-    assert int(new_state.count) == 0
+    assert int(new_state.step_count) == 0
 
 
 def test_history_buffer_is_circular():
@@ -72,7 +72,7 @@ def test_history_buffer_is_circular():
         x_new = x * 0.7  # always positive curvature toward origin
         state = update_lbfgs_history(state, x_new, grad(x_new), history_size)
         x = x_new
-    assert int(state.count) == history_size
+    assert int(state.step_count) == history_size
 
 
 def test_relative_curvature_guard_rejects_tiny_curvature():
@@ -85,7 +85,7 @@ def test_relative_curvature_guard_rejects_tiny_curvature():
     new_grad = jnp.array([1e-9 + 1.0, 1.0])
     new_state = update_lbfgs_history(state, new_params, new_grad, 5)
     # Curvature is tiny relative to scale; should be rejected.
-    assert int(new_state.count) == 0
+    assert int(new_state.step_count) == 0
 
 
 def test_history_batch_replays_valid_probes():
@@ -104,7 +104,7 @@ def test_history_batch_replays_valid_probes():
         state, params_seq, grad_seq, valid_seq, history_size
     )
     # All three positive-curvature probes should be admitted.
-    assert int(new_state.count) == 3
+    assert int(new_state.step_count) == 3
     d = lbfgs_direction(new_state, grad(params_seq[-1]))
     assert float(jnp.vdot(d, grad(params_seq[-1]))) < 0.0
 
@@ -125,7 +125,7 @@ def test_history_batch_skips_invalid_slots():
     new_state = update_lbfgs_history_batch(
         state, params_seq, grad_seq, valid_seq, history_size
     )
-    assert int(new_state.count) == 2
+    assert int(new_state.step_count) == 2
 
 
 def test_direction_is_jittable():
@@ -147,7 +147,7 @@ def test_update_is_jittable():
 
     fn = jax.jit(step)
     new_state = fn(state, jnp.array([0.5, 0.5]), jnp.array([0.5, 5.0]))
-    assert int(new_state.count) == 1
+    assert int(new_state.step_count) == 1
 
 
 def test_gradient_does_not_poison_on_rejected_pair():

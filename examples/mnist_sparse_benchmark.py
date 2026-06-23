@@ -116,6 +116,10 @@ def load_mnist(
         x_test = rng.random((n_test, 784)).astype(np.float32)
         y_test = rng.integers(0, 10, size=n_test).astype(np.int32)
         return x_train, y_train, x_test, y_test
+    assert x_train is not None
+    assert y_train is not None
+    assert x_test is not None
+    assert y_test is not None
 
     # Subsample to the requested sizes.
     rng = np.random.default_rng(seed)

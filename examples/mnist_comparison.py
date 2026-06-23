@@ -21,6 +21,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+from typing import Any
 
 from qqn_jax import QQN
 from qqn_jax.oracles import (
@@ -189,9 +190,9 @@ def _run_qqn_configured(
     loss_fn,
     params0,
     maxiter,
-    line_search="armijo",
+    line_search: str = "armijo",
     line_search_options=None,
-    oracle="lbfgs",
+    oracle: Any = "lbfgs",
     region=None,
     spline: bool = False,
     stop=None,

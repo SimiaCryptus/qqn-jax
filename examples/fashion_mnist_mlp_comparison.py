@@ -95,6 +95,7 @@ Run with:  python examples/fashion_mnist_mlp_comparison.py
 
 import os
 import time
+from typing import Any
 
 # The cuBLAS-Lt autotuner profiles several candidate algorithms *concurrently*,
 # each allocating a multi-GiB workspace for the large full-batch JVP matmuls.
@@ -111,6 +112,11 @@ import numpy as np
 import optax
 
 from qqn_jax import QQN
+from qqn_jax.profiling import (
+    profile_session,
+    profile_region,
+    device_memory_report,
+)
 from qqn_jax.oracles import (
     LBFGSOracle,
     MomentumOracle,
@@ -382,7 +388,7 @@ def _param_layout(dim, hidden_sizes, n_classes):
     return np.cumsum(sizes)
 
 
-def init_params(dim, hidden_sizes, n_classes, key, activation="sigmoid"):
+def init_params(dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid"):
     """Flat parameter vector for a multi-layer MLP.
 
     Uses He-style init for ReLU and Xavier/Glorot-style init otherwise
@@ -1394,16 +1400,19 @@ def main():
 
     results = {}
     for name, runner in runners.items():
-        (
-            params,
-            history,
-            wall,
-            times,
-            iters_to_target,
-            time_to_target,
-            milestone_hits,
-            real_evals_to_target,
-        ) = runner()
+        # Annotate each optimizer variant as a named span in the Perfetto /
+        # JAX trace so the timeline cleanly separates per-method work.
+        with profile_region(name):
+            (
+                params,
+                history,
+                wall,
+                times,
+                iters_to_target,
+                time_to_target,
+                milestone_hits,
+                real_evals_to_target,
+            ) = runner()
         train_acc = float(
             accuracy(
                 params, X_train, y_train, dim, hidden_sizes, n_classes, activation_fn
@@ -1778,4 +1787,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Wrap the whole run in a (possibly no-op) profiling session. Enable via
+    # the PROFILE env var, e.g. PROFILE=jax,scalene or PROFILE=all.
+    with profile_session("fashion_mnist_mlp_comparison"):
+        main()
+        mem = device_memory_report()
+        if mem is not None:
+            print("\n[profile] Device memory at end of run:\n" + mem)

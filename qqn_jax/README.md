@@ -52,6 +52,42 @@ line search into the oracle's curvature memory (gated on genuine descent).
 
 ---
 
+## Profiling (Perfetto / JAX Profiler / Scalene)
+QQN-JAX ships a light profiling facade in `qqn_jax/profiling.py` that wires
+three complementary backends into any benchmark via environment variables:
+
+| Backend  | What it captures                          | View with                          |
+|----------|-------------------------------------------|------------------------------------|
+| JAX      | Device + host op traces (`jax.profiler`)  | TensorBoard Trace Viewer           |
+| Perfetto | Same trace in Perfetto protobuf form      | https://ui.perfetto.dev            |
+| Scalene  | Whole-process CPU + GPU + memory sampling | `scalene` HTML/CLI report          |
+
+Enable via the `PROFILE` env var (`jax`, `perfetto`, `scalene`, or `all`):
+
+```bash
+# Capture a Perfetto-loadable trace into ./profiles:
+PROFILE=jax,perfetto PROFILE_DIR=profiles \
+     python examples/fashion_mnist_mlp_comparison.py
+# Whole-process CPU+GPU+memory profile (Scalene wraps the interpreter):
+scalene examples/fashion_mnist_mlp_comparison.py
+# All backends at once:
+PROFILE=all python examples/fashion_mnist_mlp_comparison.py
+```
+
+In code:
+```python
+from qqn_jax.profiling import profile_session, profile_region
+with profile_session("my_run"):          # whole-run device+host trace
+     with profile_region("QQN-L80"):      # named span in the Perfetto timeline
+         solver.run(x0)
+```
+Each optimizer variant in the comparison benchmark is automatically wrapped
+in a `profile_region`, so the Perfetto timeline cleanly separates the work
+done by each method.
+
+---
+
+
 ## Installation
 
 ```bash

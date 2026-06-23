@@ -77,7 +77,7 @@ def test_secant_oracle_updates_curvature():
         params=params, new_params=new_params, grad=grad, new_grad=new_grad
     )
     new_state = oracle.update(state, info)
-    assert int(new_state.count) == 1
+    assert int(new_state.step_count) == 1
     # BB step should be finite and positive.
     assert float(new_state.alpha) > 0.0
     assert np.isfinite(float(new_state.alpha))

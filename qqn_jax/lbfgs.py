@@ -33,7 +33,7 @@ class LBFGSState(NamedTuple):
         s_history: buffer of parameter differences, shape (history_size, n).
         y_history: buffer of gradient differences, shape (history_size, n).
         rho_history: buffer of 1 / (yᵀs), shape (history_size,).
-        count: number of valid entries currently stored.
+         step_count: number of valid entries currently stored.
         gamma: scaling factor for the initial Hessian H0 = gamma * I.
         prev_params: previous parameters (for computing s).
         prev_grad: previous gradient (for computing y).
@@ -42,7 +42,7 @@ class LBFGSState(NamedTuple):
     s_history: jnp.ndarray
     y_history: jnp.ndarray
     rho_history: jnp.ndarray
-    count: jnp.ndarray
+    step_count: jnp.ndarray
     gamma: jnp.ndarray
     prev_params: jnp.ndarray
     prev_grad: jnp.ndarray
@@ -55,7 +55,7 @@ def init_lbfgs_state(params, grad, history_size: int) -> LBFGSState:
         s_history=jnp.zeros((history_size, n), dtype=params.dtype),
         y_history=jnp.zeros((history_size, n), dtype=params.dtype),
         rho_history=jnp.zeros((history_size,), dtype=params.dtype),
-        count=jnp.asarray(0, dtype=jnp.int32),
+        step_count=jnp.asarray(0, dtype=jnp.int32),
         gamma=jnp.asarray(1.0, dtype=params.dtype),
         prev_params=params,
         prev_grad=grad,
@@ -115,8 +115,8 @@ def update_lbfgs_history(
     )
     new_count = jnp.where(
         valid,
-        jnp.minimum(state.count + 1, history_size),
-        state.count,
+        jnp.minimum(state.step_count + 1, history_size),
+        state.step_count,
     )
     # Same NaN-safety for the initial-Hessian scale γ = ⟨y,s⟩/⟨y,y⟩.
     safe_yy = jnp.where(yy > 0.0, yy, jnp.ones_like(yy))
@@ -126,7 +126,7 @@ def update_lbfgs_history(
         s_history=new_s,
         y_history=new_y,
         rho_history=new_rho,
-        count=new_count,
+        step_count=new_count,
         gamma=new_gamma,
         prev_params=params,
         prev_grad=grad,
@@ -167,7 +167,7 @@ def update_lbfgs_history_batch(
             rho_history=jnp_select_buf(
                 ok, updated.rho_history, carry_state.rho_history
             ),
-            count=jnp.where(ok, updated.count, carry_state.count),
+            step_count=jnp.where(ok, updated.step_count, carry_state.step_count),
             gamma=jnp.where(ok, updated.gamma, carry_state.gamma),
             prev_params=updated.prev_params,
             prev_grad=updated.prev_grad,

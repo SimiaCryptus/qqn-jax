@@ -186,7 +186,7 @@ class SecantState(NamedTuple):
     prev_params: jnp.ndarray
     prev_grad: jnp.ndarray
     alpha: jnp.ndarray  # current inverse-curvature step scale
-    count: jnp.ndarray
+    step_count: jnp.ndarray
 
 
 def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
@@ -211,7 +211,7 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
             prev_params=params,
             prev_grad=zeros,
             alpha=jnp.asarray(alpha0, dtype=params.dtype),
-            count=jnp.asarray(0, dtype=jnp.int32),
+            step_count=jnp.asarray(0, dtype=jnp.int32),
         )
 
     def direction(params, grad, state):
@@ -236,7 +236,7 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
             prev_params=info.new_params,
             prev_grad=info.new_grad,
             alpha=new_alpha.astype(state.alpha.dtype),
-            count=state.count + 1,
+            step_count=state.step_count + 1,
         )
 
     return Oracle(init=init, direction=direction, update=update)
@@ -324,12 +324,12 @@ class AndersonState(NamedTuple):
     Attributes:
         g_history: window of recent gradients (residuals), (m, n).
         x_history: window of recent iterates,             (m, n).
-        count:     number of valid columns currently stored.
+         step_count:     number of valid columns currently stored.
     """
 
     g_history: jnp.ndarray
     x_history: jnp.ndarray
-    count: jnp.ndarray
+    step_count: jnp.ndarray
 
 
 def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Oracle:
@@ -359,7 +359,7 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         return AndersonState(
             g_history=zeros,
             x_history=zeros,
-            count=jnp.asarray(0, dtype=jnp.int32),
+            step_count=jnp.asarray(0, dtype=jnp.int32),
         )
 
     def direction(params, grad, state):
@@ -390,7 +390,7 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         A = gram + reg * scale * eye_m
         b = dG.T @ grad
         # Mask columns with no stored history so empty windows are inert.
-        active = jnp.arange(m) < state.count
+        active = jnp.arange(m) < state.step_count
         b = jnp.where(active, b, 0.0)
         # Mask inactive rows/cols to the identity and add an absolute diagonal
         # ridge in one fused step: a degenerate window can otherwise leave A
@@ -407,7 +407,7 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         residual = grad - dG @ theta
         d = -beta * residual - dX @ theta
         # Safeguard: fall back to steepest descent if the solve degenerates.
-        ok = jnp.all(jnp.isfinite(d)) & (state.count > 0)
+        ok = jnp.all(jnp.isfinite(d)) & (state.step_count > 0)
         d = jnp.where(ok, d, -grad)
         return d, state
 
@@ -415,8 +415,8 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         # Roll the windows, inserting the freshly-accepted (x, g).
         new_x = jnp.roll(state.x_history, shift=1, axis=0).at[0].set(info.new_params)
         new_g = jnp.roll(state.g_history, shift=1, axis=0).at[0].set(info.new_grad)
-        new_count = jnp.minimum(state.count + 1, window)
-        return AndersonState(g_history=new_g, x_history=new_x, count=new_count)
+        new_count = jnp.minimum(state.step_count + 1, window)
+        return AndersonState(g_history=new_g, x_history=new_x, step_count=new_count)
 
     return Oracle(init=init, direction=direction, update=update)
 
@@ -460,6 +460,8 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
                 # Order-critical: snapshot chosen_valid BEFORE the OR-update so
                 # we keep the *first* valid direction. Reordering these three
                 # lines silently breaks the fallback priority.
+                assert chosen is not None
+                assert chosen_valid is not None
                 take_prev = chosen_valid
                 chosen = jnp.where(take_prev, chosen, d)
                 chosen_valid = chosen_valid | valid
@@ -467,6 +469,8 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
         # non-finite / zero) direction, fall back to steepest descent so the
         # path's t=1 endpoint can never be a non-descent or NaN direction.
         neg_grad = tree_negative(grad)
+        assert chosen is not None
+        assert chosen_valid is not None
         chosen = jnp.where(chosen_valid, chosen, neg_grad)
         return chosen, tuple(new_states)
 
