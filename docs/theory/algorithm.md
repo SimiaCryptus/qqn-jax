@@ -334,8 +334,9 @@ QQNState(
 4. **Selection**: extract the accepted `new_params`, `new_value`, `new_grad`,
     and `step_size` (the chosen `t`).
 5. **Oracle update**: assemble an `OracleInfo` (`params`, `new_params`, `grad`,
-   `new_grad`, `t`, `α`) and call `oracle.update(...)` — e.g. push the new L-BFGS
-   curvature pair `(s, y) = (x_new − x, ∇f_new − ∇f)`.
+    `new_grad`, `t`, `α`) and call `oracle.update(...)` — e.g. push the new L-BFGS
+    curvature pair `(s, y) = (x_new − x, ∇f_new − ∇f)`, admitted only if
+    `⟨y, s⟩ > ε` (the curvature safeguard).
 6. **Region update**: assemble a `RegionInfo` (with predicted/actual reduction,
    `t`, `α`) and call `region.update(...)` — e.g. grow/shrink the trust radius.
 7. **Convergence**: recompute `error = ‖∇f_new‖` and `done = error ≤ tol`;
@@ -355,14 +356,15 @@ QQN(
     maxiter=100,
     tol=1e-5,
     history_size=10,
-     line_search="armijo",         # DEFAULT. Also: "backtracking"/"strong_wolfe"/
-                                    #    "hager_zhang"/"fixed". Note: "strong_wolfe"
-                                    #    over-restricts the path step here.
-    line_search_options=None,     # dict forwarded to the line search (c1, c2, …)
-     spline=False,                 # orthogonal cubic Hermite refinement (any LS)
+    line_search="armijo",  # DEFAULT. Also: "backtracking" / "strong_wolfe"
+    #   / "hager_zhang" / "fixed". Note:
+    #   "strong_wolfe" over-restricts the path step
+    #   on the MNIST benchmark.
+    line_search_options=None,  # dict forwarded to the line search (c1, c2, …)
+    spline=False,  # orthogonal cubic Hermite refinement (any LS)
     has_aux=False,
-    oracle="lbfgs",               # "lbfgs"|"momentum"|"shampoo"|Oracle
-    region=None,                  # Region | None
+    oracle="lbfgs",  # "lbfgs"|"momentum"|"shampoo"|Oracle
+    region=None,  # Region | None
 )
 ```
 
@@ -437,3 +439,5 @@ The QQN algorithm combines ideas from:
 - Backtracking line search with Armijo conditions (fallback robustness).
 - Cubic Hermite interpolation (the information-reusing spline search).
 - OWL-QN (the Orthant region for sparsity).
+- [`notation.md`](notation.md) — symbol reference and disambiguation of
+   overloaded notation.

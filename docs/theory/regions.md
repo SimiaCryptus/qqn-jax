@@ -139,6 +139,17 @@ Enforces `‖x_new − x‖ ≤ Δ` by radially clipping the step.
   ```
 
   All branches via `jnp.where`/`lax.select`; no Python conditionals.
+
+> **Sign convention & the chord/arc pitfall**: Both reductions are defined
+> as *decreases*, so `ared = f(x) - f(x_new) > 0` and
+> `pred(t) = -⟨∇f, d(t)⟩ > 0` for a descent step; `ρ > 0` indicates progress.
+> **Caveat (known issue):** on QQN's *curved* path the radial clip measures
+> chord length `‖x_new − x‖` while the predicted-reduction model integrates
+> along arc length. This chord/arc mismatch makes the naive `ρ` an
+> underestimate, causing the adaptive radius to **over-shrink** with
+> deep-memory oracles. Prefer a fixed radius until this is resolved; see
+> [`conclusions.md`](../conclusions.md).
+
 * **Config**: `TrustRegion(radius=1.0, radius_max=1e3, adaptive=True)`.
 
 ### 3. Box / Min-Max Region (valid parameter ranges)

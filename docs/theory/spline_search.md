@@ -95,6 +95,22 @@ Any real root with `s ∈ [0, 1]` is mapped back via `t = t_0 + s·h` and become
 candidate minimizer. The candidate with the lowest predicted fitness across all
 bracketed segments is selected as the next evaluation point.
 
+### Closed-Form Roots
+
+Collecting `f'(s) = A·s² + B·s + C` gives:
+
+```
+A =  6·f_0 + 3·h·m_0 - 6·f_1 + 3·h·m_1
+B = -6·f_0 - 4·h·m_0 + 6·f_1 - 2·h·m_1
+C =          h·m_0
+```
+
+The roots follow the standard quadratic formula
+`s = (-B ± √(B² - 4AC)) / (2A)`. For `jit`-friendliness, guard the degenerate
+near-linear case `|A| < ε` by falling back to the linear root `s = -C / B`
+(and discarding when `|B| < ε` as well). Both roots are clamped/tested against
+`s ∈ [0, 1]` before being mapped back to `t`.
+
 ## Gradient Orientation: Upstream/Downstream Symmetry
 
 ### The Terrain Analogy

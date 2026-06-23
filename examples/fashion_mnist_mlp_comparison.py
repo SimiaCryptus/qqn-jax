@@ -519,7 +519,7 @@ def _parse_hidden_sizes():
         # the full-batch Hessian (more compositional non-convexity), widening
         # the regime where coherent gradient+oracle blending beats first-order
         # methods — the speedup-widens-with-depth signal from the prior run.
-        depth = int(os.environ.get("DEPTH", "4"))
+        depth = int(os.environ.get("DEPTH", "3"))
         if hidden <= 0 or depth < 0:
             raise ValueError
     except ValueError:
@@ -857,7 +857,7 @@ def main():
     # Hidden-layer activation(s) configurable via ACTIVATION env var. May be a
     # single name (uniform) or a comma-separated list to mix per-layer.
     activation_name, activation_fn = _parse_activation(len(hidden_sizes))
-    maxiter = 100000
+    maxiter = 1000000
 
     # --- Shared, fair termination bounds applied to EVERY optimizer ---
     # The non-convex MLP loss does not descend as far as the linear model

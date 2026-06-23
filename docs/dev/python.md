@@ -38,7 +38,8 @@ pip install -e ".[dev]"
 
 ## 3. Testing (pytest)
 
-`pytest` is the only test tool worth using. Write a file starting with `test_`, write functions starting with `test_`, use plain `assert`.
+`pytest` is the only test tool worth using. Write a file starting with `test_`, write functions starting with `test_`,
+use plain `assert`.
 
 Run it:
 
@@ -75,4 +76,96 @@ ruff format .
 
 # Find problems (and auto-fix what it can)
 ruff check . --fix
+```
+
+---
+
+## 5. Type Checking (mypy / pyright)
+
+Static type checking catches bugs before you run your code. Add type hints to
+your functions, then let a checker verify them.
+
+### 5.1 Declaring Your Package as Typed (PEP 561)
+
+If you ship type hints, you **must** tell tools they exist by adding a marker
+file. Without it, downstream users won't get type checking against your package.
+
+```bash
+# Create an empty marker file inside your package directory
+touch qqn_jax/py.typed
+```
+
+Then make sure it's included in your build. In `pyproject.toml`:
+
+```toml
+# setuptools
+[tool.setuptools.package-data]
+qqn_jax = ["py.typed"]
+# OR for hatchling
+[tool.hatch.build.targets.wheel]
+packages = ["qqn_jax"]
+```
+
+**Pro tip:** The `py.typed` file is empty — its mere presence is the signal.
+
+### 5.2 Running a Type Checker
+
+```bash
+# mypy (the classic)
+pip install mypy
+mypy qqn_jax
+# pyright (fast, used by VS Code / Pylance)
+pip install pyright
+pyright
+```
+
+### 5.3 Configuring mypy
+
+Put config in `pyproject.toml` so everyone uses the same settings:
+
+```toml
+[tool.mypy]
+python_version = "3.10"
+strict = true                # turn on all the good checks
+warn_unused_ignores = true   # flag stale "# type: ignore" comments
+warn_redundant_casts = true
+files = ["qqn_jax", "tests"]
+# Silence third-party libs that lack stubs
+[[tool.mypy.overrides]]
+module = ["some_untyped_lib.*"]
+ignore_missing_imports = true
+```
+
+### 5.4 Configuring pyright
+
+```toml
+[tool.pyright]
+include = ["qqn_jax", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.10"
+```
+
+### 5.5 Inline Escape Hatches
+
+Sometimes the checker is wrong (or a library is untyped). Suppress narrowly:
+
+```python
+result = legacy_call()  # type: ignore[no-untyped-call]
+```
+
+**Always** pin the specific error code in brackets so you don't accidentally
+hide *other* real errors on that line.
+
+### 5.6 Add Type Checking to Dev Dependencies
+
+Wire it into your optional `[dev]` extras so `pip install -e ".[dev]"` grabs it:
+
+```toml
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
 ```

@@ -75,8 +75,8 @@ class Oracle(NamedTuple):
   #   state:    oracle state
   # returns (direction, new_state). `direction` has the same structure
   # as params and represents the t = 1 endpoint of d(t).
-  direction: Callable[[Params, Params, OracleState],
-                      Tuple[Params, OracleState]]
+  direction: Callable[[Params, Grad, OracleState],
+                       Tuple[Direction, OracleState]]
 
   # Optional update of oracle state after a step is accepted.
   #   Used by history-based oracles (e.g. L-BFGS curvature pairs).
@@ -180,6 +180,29 @@ the quadratic path already measured rather than storing a history.
     the instant that history degenerates — carrying curvature a momentum
     fallback lacks (a plausible advantage observed on the single convex
     benchmark, not a proven strict ordering).
+### 3c. Anderson Oracle
+An acceleration oracle based on **Anderson mixing** (a.k.a. Anderson/Pulay
+acceleration), the variational ideal that L-BFGS approximates. Rather than
+building an explicit inverse-Hessian model, it solves a small least-squares
+problem over a window of recent residuals to extrapolate a better iterate.
+* **State**: ring buffers of recent residuals `Fₖ = ∇f(xₖ)` (or fixed-point
+  residuals) and the corresponding iterates, plus a window size `m`.
+* **Direction**: form the residual matrix over the window and solve the
+  constrained least-squares problem
+  ```
+  min_θ ‖ Σ θᵢ Fᵢ ‖²   s.t.   Σ θᵢ = 1
+  ```
+  then return the mixed direction `-Σ θᵢ ∇f(xᵢ)` (optionally damped by a
+  mixing parameter `β`) as the `t = 1` endpoint.
+* **Config**: `AndersonOracle(window=10, beta=1.0, reg=1e-8)`, where `reg`
+  Tikhonov-regularizes the least-squares solve for stability.
+* **Notes**: On the convex MNIST benchmark, Anderson reached the **lowest
+  final loss of any configuration**, and `Fallback([LBFGSOracle(50),
+  AndersonOracle(...)])` matched the fastest pure-L-BFGS stack by supplying a
+  finite, curvature-aware direction the instant the L-BFGS history degenerates.
+  Like every oracle, it is globally anchored by the path's `d'(0) = -∇f`
+  tangent, so an ill-conditioned least-squares solve costs at most a short line
+  search, never divergence.
 
 
 ### 4. Combinator Oracles
@@ -204,7 +227,7 @@ structure so they remain `jit`-friendly.
 qqn(
   history_size=10,
    line_search="armijo",       # default; see results.md (strong_wolfe over-restricts)
-  oracle="lbfgs",             # "lbfgs" | "momentum" | "shampoo" | Oracle
+   oracle="lbfgs",             # "lbfgs"|"momentum"|"secant"|"anderson"|"shampoo"|Oracle
   region=None,
 )
 
@@ -215,7 +238,7 @@ QQN(
   history_size=10,
    line_search="armijo",       # default; see results.md (strong_wolfe over-restricts)
   has_aux=False,
-  oracle="lbfgs",             # "lbfgs" | "momentum" | "shampoo" | Oracle
+   oracle="lbfgs",             # "lbfgs"|"momentum"|"secant"|"anderson"|"shampoo"|Oracle
   region=None,
 )
 ```

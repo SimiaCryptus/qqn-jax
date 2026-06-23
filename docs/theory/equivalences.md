@@ -24,18 +24,19 @@ a wide range of well-known algorithms.
 
 ## Summary Table
 
-| Classical Method               | Oracle               | Search                            | Region              | Notes                      |
-|--------------------------------|----------------------|-----------------------------------|---------------------|----------------------------|
-| Gradient Descent (fixed)       | any                  | `fixed` step, `t→0` regime        | `None`              | tangent is `-∇f`           |
-| Steepest Descent (line search) | any                  | line search restricted near `t=0` | `None`              | exact line min along `-∇f` |
-| L-BFGS                         | `lbfgs`              | line search reaching `t=1`        | `None`              | `d(1) = -H∇f`              |
+| Classical Method               | Oracle               | Search                            | Region              | Notes                                  |
+|--------------------------------|----------------------|-----------------------------------|---------------------|----------------------------------------|
+| Gradient Descent (fixed)       | any                  | `fixed` step, `t→0` regime        | `None`              | tangent is `-∇f`                       |
+| Steepest Descent (line search) | any                  | line search restricted near `t=0` | `None`              | exact line min along `-∇f`             |
+| L-BFGS                         | `lbfgs`              | line search reaching `t=1`        | `None`              | `d(1) = -H∇f`                          |
 | Newton's Method                | exact-Hessian oracle | accept `t=1`                      | `None`              | local, well-conditioned; unimplemented |
-| Momentum / Heavy-Ball          | `momentum`           | `fixed` (`t=1`)                   | `None`              | `d(1) = -(βv+(1-β)∇f)`     |
-| Barzilai-Borwein               | `secant`             | accept `t=1`                      | `None`              | scalar BB step             |
-| Trust Region                   | `lbfgs`              | `t`-search w/ ρ-acceptance        | `TrustRegion`       | adaptive radius            |
-| OWL-QN                         | `lbfgs`              | line search                       | `OrthantRegion(l1)` | sparsity via orthant       |
-| Projected Gradient             | any                  | line search near `t=0`            | `BoxRegion`         | bound constraints          |
-| Conjugate Gradient             | no-op / CG oracle    | bisecting line search             | `None`              | see caveats below          |
+| Momentum / Heavy-Ball          | `momentum`           | `fixed` (`t=1`)                   | `None`              | `d(1) = -(βv+(1-β)∇f)`                 |
+| Barzilai-Borwein               | `secant`             | accept `t=1`                      | `None`              | scalar BB step                         |
+| Anderson Acceleration          | `anderson`           | accept `t=1`                      | `None`              | least-squares residual mix             |
+| Trust Region                   | `lbfgs`              | `t`-search w/ ρ-acceptance        | `TrustRegion`       | adaptive radius                        |
+| OWL-QN                         | `lbfgs`              | line search                       | `OrthantRegion(l1)` | sparsity via orthant                   |
+| Projected Gradient             | any                  | line search near `t=0`            | `BoxRegion`         | bound constraints                      |
+| Conjugate Gradient             | no-op / CG oracle    | bisecting line search             | `None`              | see caveats below                      |
 
 ---
 
@@ -187,6 +188,20 @@ QQN(fun, oracle="secant", line_search="fixed")
 
 This is matrix-free (`O(n)` / scalar state) and reuses information the
 quadratic path already measured.
+
+### 3.2b Anderson Acceleration
+
+The **Anderson** oracle solves a small constrained least-squares problem over
+a window of recent gradient residuals and returns the extrapolated mixing
+direction at `t = 1`. Accepting `t = 1` reproduces Anderson/Pulay
+acceleration — the variational ideal that L-BFGS approximates:
+
+```python
+QQN(fun, oracle="anderson", line_search="strong_wolfe")
+```
+
+Because the path retains `-∇f` at `t = 0`, an ill-conditioned residual solve
+is automatically globalized by the gradient anchor.
 
 ### 3.3 Shampoo / Preconditioned Methods
 
