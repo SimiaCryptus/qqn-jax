@@ -205,12 +205,11 @@ const VARIANTS = {
 
 // Default set of variants to run when none are specified.
 const DEFAULT_VARIANTS = [
-    // 'fashion_default',
-    // 'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
-    // 'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
-    //'fashion_alt_relu', // Redundant, narrow advantage
-    'fashion_alt_linear',
-    'fashion_profile_scalene',
+    'fashion_default',
+    'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
+    'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
+    'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
+    'fashion_profile_scalene', // Good test but does not producing profiling data?
 ];
 
 // ---------------------------------------------------------------------------

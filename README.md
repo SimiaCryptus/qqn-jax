@@ -395,4 +395,4 @@ publishing workflow.
 
 ## License
 
-See the repository `LICENSE` file.
+[Apache 2.0](LICENSE)

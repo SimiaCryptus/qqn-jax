@@ -47,30 +47,30 @@ ENABLED = [
     # --- Baseline QQN + negative-control spline variants ---
     "QQN",
     "QQN-S",
-    "QQN-BT",
-    "QQN-BT-S",
+    # "QQN-BT",
+    # "QQN-BT-S",
     # --- L-BFGS memory-depth sweep ---
     "QQN-L20",
-    "QQN-L50",
+    # "QQN-L50",
     "QQN-L80",
-    "QQN-Cheap",
-    "QQN-L120",
-    "QQN-L160",
-    "QQN-L80And",
-    "QQN-L80-BT",
+    # "QQN-L120",
+    # "QQN-L160",
+    # "QQN-L80-BT",
     # --- Alternative oracles ---
     "QQN-Mom",
     "QQN-Mom-S",
     "QQN-Sec",
-    "QQN-And",
-    "QQN-L50And",
+    # "QQN-And",
+    # "QQN-L50And",
+    "QQN-L80And",
     # --- Regions / best-of-breed stacks ---
     "QQN-TR",
-    "QQN-Fast",
-    "QQN-Max",
-    "QQN-Champ",
     "QQN-Box",
-    "QQN-Lean",
+    # "QQN-Cheap",
+    "QQN-Fast",
+    # "QQN-Max",
+    "QQN-Champ",
+    # "QQN-Lean",
     # --- Baselines ---
     "SGD",
     "Adam",
@@ -358,18 +358,6 @@ def _profiles():
             {},
         )
 
-    def QQN_Champ(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=120),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
     def QQN_Box(ctx):
         return (
             lambda: ctx.run_qqn(
@@ -377,18 +365,6 @@ def _profiles():
                 ctx.params0,
                 ctx.maxiter,
                 region=BoxRegion(lo=-2.0, hi=2.0),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_Lean(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=80),
                 stop=ctx.stop,
             ),
             {},
@@ -447,9 +423,7 @@ def _profiles():
         "QQN-TR": QQN_TR,
         "QQN-Fast": QQN_Fast,
         "QQN-Max": QQN_Max,
-        "QQN-Champ": QQN_Champ,
         "QQN-Box": QQN_Box,
-        "QQN-Lean": QQN_Lean,
         "SGD": SGD,
         "Adam": Adam,
         "L-BFGS": LBFGS,
