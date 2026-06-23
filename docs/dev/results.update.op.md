@@ -2,12 +2,10 @@
 specifies:
   - ../../examples/fashion_mnist_mlp_comparison.py
 related:
-  - ../../results/fashion_mnist_mlp_comparison*.log
   - ../../results/fashion_mnist_mlp_comparison*.analysis.md
-  - algorithm.md
+  - ../theory/algorithm.md
+  - ../ideal_problem.md
   - ../../qqn_jax/solver.py
-  - ../../qqn_jax/line_search.py
-#  - ../../qqn_jax/oracles.py
 ---
 
 Improve QQN Performance without reducing diversity.

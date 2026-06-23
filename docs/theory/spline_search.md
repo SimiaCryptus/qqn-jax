@@ -1,6 +1,6 @@
 # Spline Search: An Improvement on the Quadratic Path
 
-[demo](spline_demo.html)
+[demo](../../spline_demo.html)
 
 ## Motivation
 
