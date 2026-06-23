@@ -131,59 +131,77 @@ const VARIANTS = {
         args: [],
         desc: 'Linear hidden layers (convex) where first-order accelerators (Anderson, Momentum) should excel.',
     },
-     // ---- Profiling-enabled variants -------------------------------------
-     // These mirror the headline config but switch on the integrated
-     // profilers (JAX Profiler API + Perfetto traces, and Scalene hints).
-     fashion_profile_jax: {
-         report: 'fashion_mnist_mlp_comparison',
-         env: {
-             DATASET: 'fashion_mnist',
-             N_TRAIN: '8000',
-             N_TEST: '2000',
-             HIDDEN: '128',
-             DEPTH: '2',
-             ACTIVATION: 'tanh,gelu',
-             PROFILE: 'jax,perfetto',
-             PROFILE_DIR: 'profiles',
-             PROFILE_NAME: 'fashion_jax',
-         },
-         args: [],
-         desc:
-             'JAX Profiler + Perfetto trace capture on a small config. ' +
-             'Load profiles/** in ui.perfetto.dev or TensorBoard Trace Viewer.',
-     },
-     fashion_profile_scalene: {
-         report: 'fashion_mnist_mlp_comparison',
-         env: {
-             DATASET: 'fashion_mnist',
-             N_TRAIN: '8000',
-             N_TEST: '2000',
-             HIDDEN: '128',
-             DEPTH: '2',
-             ACTIVATION: 'tanh,gelu',
-             PROFILE: 'scalene',
-         },
-         args: [],
-         desc:
-             'Prints the Scalene re-launch command (Scalene must wrap the ' +
-             'whole interpreter: scalene examples/...py).',
-     },
-     fashion_profile_all: {
-         report: 'fashion_mnist_mlp_comparison',
-         env: {
-             DATASET: 'fashion_mnist',
-             N_TRAIN: '8000',
-             N_TEST: '2000',
-             HIDDEN: '128',
-             DEPTH: '2',
-             ACTIVATION: 'tanh,gelu',
-             PROFILE: 'all',
-             PROFILE_DIR: 'profiles',
-             PROFILE_NAME: 'fashion_all',
-         },
-         args: [],
-         desc: 'Enable every profiling backend (JAX/Perfetto + Scalene hint).',
-     },
+    // ---- Profiling-enabled variants -------------------------------------
+    // These mirror the headline config but switch on the integrated
+    // profilers (JAX Profiler API + Perfetto traces, and Scalene hints).
+    fashion_profile_jax: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            DATASET: 'fashion_mnist',
+            N_TRAIN: '8000',
+            N_TEST: '2000',
+            HIDDEN: '128',
+            DEPTH: '2',
+            ACTIVATION: 'tanh,gelu',
+            PROFILE: 'jax,perfetto',
+            PROFILE_DIR: 'profiles',
+            PROFILE_NAME: 'fashion_jax',
+        },
+        args: [],
+        desc:
+            'JAX Profiler + Perfetto trace capture on a small config. ' +
+            'Load profiles/** in ui.perfetto.dev or TensorBoard Trace Viewer.',
+    },
+    fashion_profile_scalene: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            DATASET: 'fashion_mnist',
+            N_TRAIN: '8000',
+            N_TEST: '2000',
+            HIDDEN: '128',
+            DEPTH: '2',
+            ACTIVATION: 'tanh,gelu',
+            PROFILE: 'scalene',
+        },
+        args: [],
+        scalene: true,   // invoke via `scalene <script>` instead of `python3 <script>`
+        desc:
+            'Runs under Scalene for CPU+GPU+memory profiling. ' +
+            'Outputs a live summary to the terminal.',
+    },
+    fashion_profile_all: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            DATASET: 'fashion_mnist',
+            N_TRAIN: '8000',
+            N_TEST: '2000',
+            HIDDEN: '128',
+            DEPTH: '2',
+            ACTIVATION: 'tanh,gelu',
+            PROFILE: 'all',
+            PROFILE_DIR: 'profiles',
+            PROFILE_NAME: 'fashion_all',
+        },
+        args: [],
+        scalene: ['--html', '--outfile', 'profiles/scalene_fashion_all.html'],
+        desc: 'Enable every profiling backend (JAX/Perfetto + Scalene hint).',
+    },
+    fashion_profile_scalene_html: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            DATASET: 'fashion_mnist',
+            N_TRAIN: '8000',
+            N_TEST: '2000',
+            HIDDEN: '128',
+            DEPTH: '2',
+            ACTIVATION: 'tanh,gelu',
+        },
+        args: [],
+        scalene: ['--html', '--outfile', 'profiles/scalene_fashion.html'],
+        desc:
+            'Scalene HTML report saved to profiles/scalene_fashion.html. ' +
+            'Open in a browser for an interactive CPU+GPU+memory breakdown.',
+    },
 
 
     // ----------------------- mnist_comparison ----------------------------
@@ -232,7 +250,19 @@ function runVariant(name, variant, ts) {
         console.log(`    log: ${logfile}`);
 
         const logStream = fs.createWriteStream(logfile, {flags: 'a'});
-        const child = spawn('python3', [scriptPath, ...variant.args], {
+        // If the variant requests scalene execution, use scalene as the
+        // launcher so it actually captures a profile rather than just
+        // printing a hint.
+        let executable, spawnArgs;
+        if (variant.scalene) {
+            const profileArgs = variant.scalene === true ? [] : variant.scalene;
+            executable = 'scalene';
+            spawnArgs = [...profileArgs, scriptPath, ...variant.args];
+        } else {
+            executable = 'python3';
+            spawnArgs = [scriptPath, ...variant.args];
+        }
+        const child = spawn(executable, spawnArgs, {
             env: {...process.env, ...variant.env},
         });
 
@@ -321,6 +351,7 @@ async function main() {
     }
 
     ensureDir(RESULTS_DIR);
+    ensureDir('profiles');
     const ts = timestamp();
 
     let selected;
