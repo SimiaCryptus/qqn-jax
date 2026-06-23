@@ -24,10 +24,10 @@ behavior at every iteration — with **no learning rate to tune**.
 - [Quick Start](#quick-start)
 - [JAX Transforms](#jax-transforms-jit-vmap-pmap-grad)
 - [Configuration](#configuration)
-  - [Swappable Oracles](#swappable-oracles)
-  - [Pluggable Line Searches](#pluggable-line-searches)
-  - [Projective Regions](#projective-regions)
-  - [Spline Refinement](#spline-refinement)
+    - [Swappable Oracles](#swappable-oracles)
+    - [Pluggable Line Searches](#pluggable-line-searches)
+    - [Projective Regions](#projective-regions)
+    - [Spline Refinement](#spline-refinement)
 - [Theoretical Guarantees](#theoretical-guarantees)
 - [Empirical Results](#empirical-results)
 - [Documentation](#documentation)
@@ -71,15 +71,15 @@ QQN is **not** a drop-in replacement for Adam on every problem. Its value
 compounds on **ill-curved, anisotropic landscapes** where naïve direction
 choices stall, oscillate, or diverge.
 
-| Situation                                                      | Prefer           |
-|----------------------------------------------------------------|------------------|
-| Large-scale, noisy, stochastic minibatch training              | **Adam**         |
-| Tight memory budget, very high dimension                       | **Adam / SGD**   |
-| Smooth, full-batch, ill-conditioned objective                  | **QQN**          |
-| Complex / anisotropic curvature where step tuning is brittle   | **QQN**          |
-| Curvature that is locally useful but globally unreliable       | **QQN**          |
-| You want a parameter-free, self-tuning blend of GD and L-BFGS  | **QQN**          |
-| Bound / orthant / trust constraints alongside curvature        | **QQN + region** |
+| Situation                                                     | Prefer           |
+|---------------------------------------------------------------|------------------|
+| Large-scale, noisy, stochastic minibatch training             | **Adam**         |
+| Tight memory budget, very high dimension                      | **Adam / SGD**   |
+| Smooth, full-batch, ill-conditioned objective                 | **QQN**          |
+| Complex / anisotropic curvature where step tuning is brittle  | **QQN**          |
+| Curvature that is locally useful but globally unreliable      | **QQN**          |
+| You want a parameter-free, self-tuning blend of GD and L-BFGS | **QQN**          |
+| Bound / orthant / trust constraints alongside curvature       | **QQN + region** |
 
 For everyday large-scale stochastic training, **Adam remains faster per
 step and more memory efficient**. QQN earns its keep when curvature
@@ -120,29 +120,31 @@ need GPU support, install the matching CUDA wheel of `jaxlib` (see
 import jax.numpy as jnp
 from qqn_jax import QQN
 
+
 # Rosenbrock function
 def fun(x):
-    return (1 - x[0])**2 + 100 * (x[1] - x[0]**2)**2
+    return (1 - x[0]) ** 2 + 100 * (x[1] - x[0] ** 2) ** 2
+
 
 solver = QQN(fun, maxiter=100, tol=1e-6)
 init = jnp.array([-1.2, 1.0])
 params, state = solver.run(init)
 
-print(params)        # ~ [1.0, 1.0]
-print(state.value)   # ~ 0.0
-print(state.iter)    # iterations taken
-print(state.error)   # final gradient L2 norm
+print(params)  # ~ [1.0, 1.0]
+print(state.value)  # ~ 0.0
+print(state.iter)  # iterations taken
+print(state.error)  # final gradient L2 norm
 ```
 
 ### The `QQN` interface
 
 QQN follows a JAXopt-style `init_state` / `update` / `run` API:
 
-| Method                          | Description                                          |
-|---------------------------------|------------------------------------------------------|
-| `init_state(params, *args)`     | Build the initial `QQNState` at `params`.            |
-| `update(params, state, *args)`  | Perform one QQN iteration → `(new_params, new_state)`.|
-| `run(init_params, *args)`       | Run to convergence (or `maxiter`) → `(params, state)`.|
+| Method                         | Description                                            |
+|--------------------------------|--------------------------------------------------------|
+| `init_state(params, *args)`    | Build the initial `QQNState` at `params`.              |
+| `update(params, state, *args)` | Perform one QQN iteration → `(new_params, new_state)`. |
+| `run(init_params, *args)`      | Run to convergence (or `maxiter`) → `(params, state)`. |
 
 ---
 
@@ -178,16 +180,16 @@ QQN(
     fun,
     maxiter=100,
     tol=1e-5,
-    history_size=10,            # L-BFGS memory size m
-    line_search="armijo",       # "armijo" (default) | "backtracking" |
-                                # "strong_wolfe" | "hager_zhang" |
-                                # "fixed" | "spline"
-    line_search_options=None,   # dict of kwargs for the line search
-    spline=False,               # cubic-Hermite spline refinement
+    history_size=10,  # L-BFGS memory size m
+    line_search="armijo",  # "armijo" (default) | "backtracking" |
+    # "strong_wolfe" | "hager_zhang" |
+    # "fixed" | "spline"
+    line_search_options=None,  # dict of kwargs for the line search
+    spline=False,  # cubic-Hermite spline refinement
     has_aux=False,
-    oracle="lbfgs",             # "lbfgs" | "momentum" | "secant" |
-                                # "shampoo" | "anderson" | ... | Oracle
-    region=None,                # Region | None
+    oracle="lbfgs",  # "lbfgs" | "momentum" | "secant" |
+    # "shampoo" | "anderson" | ... | Oracle
+    region=None,  # Region | None
     feed_probes_to_oracle=False,
     probe_descent_gate=True,
     max_probes=32,
@@ -202,14 +204,14 @@ optimizer with an Armijo backtracking line search.
 The `t = 1` endpoint `-H∇f` of the path is supplied by an **oracle**. Swap
 it freely by name or with a custom `Oracle` instance:
 
-| Name                | Endpoint                                              |
-|---------------------|-------------------------------------------------------|
-| `"lbfgs"` (default) | limited-memory BFGS two-loop recursion                |
-| `"momentum"`        | heavy-ball / exponentially-weighted gradient          |
-| `"secant"`          | Barzilai-Borwein step (matrix-free, `O(n)` memory)    |
-| `"shampoo"`         | structure-aware preconditioning                       |
-| `"anderson"`        | Anderson (Type-II) acceleration                       |
-| `"lbfgs+secant"`    | safeguarded fallback (deep curvature + light backup)  |
+| Name                | Endpoint                                             |
+|---------------------|------------------------------------------------------|
+| `"lbfgs"` (default) | limited-memory BFGS two-loop recursion               |
+| `"momentum"`        | heavy-ball / exponentially-weighted gradient         |
+| `"secant"`          | Barzilai-Borwein step (matrix-free, `O(n)` memory)   |
+| `"shampoo"`         | structure-aware preconditioning                      |
+| `"anderson"`        | Anderson (Type-II) acceleration                      |
+| `"lbfgs+secant"`    | safeguarded fallback (deep curvature + light backup) |
 
 ```python
 from qqn_jax.oracles import (
@@ -232,7 +234,7 @@ details.
 ### Pluggable Line Searches
 
 ```python
-QQN(fun, line_search="armijo")        # default; robust efficiency winner
+QQN(fun, line_search="armijo")  # default; robust efficiency winner
 QQN(fun, line_search="backtracking")
 QQN(fun, line_search="strong_wolfe")
 QQN(fun, line_search="hager_zhang")
@@ -252,14 +254,14 @@ QQN(fun, line_search="backtracking",
 Constrain or remap the search onto a feasible set with a **region**. The
 line search then navigates the *projected* path:
 
-| Region              | Effect                                               |
-|---------------------|-------------------------------------------------------|
-| `IdentityRegion`    | default, zero overhead                                |
-| `BoxRegion`         | elementwise bounds `[lo, hi]`                         |
-| `OrthantRegion`     | OWL-QN-style L1 sparsity                              |
-| `TrustRegion`       | adaptive `‖x_new − x‖₂ ≤ Δ`                           |
-| `NoDecreaseRegion`  | protect a secondary objective                         |
-| `Sequential`        | compose multiple regions (applied in order)          |
+| Region             | Effect                                      |
+|--------------------|---------------------------------------------|
+| `IdentityRegion`   | default, zero overhead                      |
+| `BoxRegion`        | elementwise bounds `[lo, hi]`               |
+| `OrthantRegion`    | OWL-QN-style L1 sparsity                    |
+| `TrustRegion`      | adaptive `‖x_new − x‖₂ ≤ Δ`                 |
+| `NoDecreaseRegion` | protect a secondary objective               |
+| `Sequential`       | compose multiple regions (applied in order) |
 
 ```python
 from qqn_jax.regions import BoxRegion, TrustRegion, Sequential
@@ -320,20 +322,20 @@ for what QQN actually requires versus what merely helps.
 
 ## Documentation
 
-| Document                                                | Description                                                         |
-|---------------------------------------------------------|---------------------------------------------------------------------|
-| [`algorithm.md`](docs/theory/algorithm.md)              | The QQN algorithm: quadratic path, line search, guarantees.         |
-| [`oracles.md`](docs/theory/oracles.md)                  | The oracle abstraction (L-BFGS, Momentum, Shampoo, combinators).    |
-| [`regions.md`](docs/theory/regions.md)                  | Projective regions (box, trust-region, orthant, combinators).       |
-| [`spline_search.md`](docs/theory/spline_search.md)      | Cubic-Hermite spline line search that reuses gradient measurements. |
-| [`equivalences.md`](docs/theory/equivalences.md)        | Classical optimizers as QQN special cases.                          |
-| [`positioning.md`](docs/positioning.md)                 | Where QQN fits relative to Adam / L-BFGS.                           |
-| [`ideal_problem.md`](docs/ideal_problem.md)             | What QQN actually requires vs. what merely helps.                   |
-| [`genesis.md`](docs/genesis.md)                         | The origin and evolution of the QQN algorithm.                      |
-| [`results.md`](docs/results.md)                         | Empirical MNIST benchmark: QQN vs. baselines and component sweeps.  |
-| [`conclusions.md`](docs/conclusions.md)                 | Synthesis of the experimental findings and design-claim validation. |
-| [`python.md`](docs/project/python.md)                   | venv, testing, linting, and publishing workflow.                    |
-| [`libraries.md`](docs/project/libraries.md)             | Installing JAX/jaxlib and the MNIST dataset.                        |
+| Document                                           | Description                                                         |
+|----------------------------------------------------|---------------------------------------------------------------------|
+| [`algorithm.md`](docs/theory/algorithm.md)         | The QQN algorithm: quadratic path, line search, guarantees.         |
+| [`oracles.md`](docs/theory/oracles.md)             | The oracle abstraction (L-BFGS, Momentum, Shampoo, combinators).    |
+| [`regions.md`](docs/theory/regions.md)             | Projective regions (box, trust-region, orthant, combinators).       |
+| [`spline_search.md`](docs/theory/spline_search.md) | Cubic-Hermite spline line search that reuses gradient measurements. |
+| [`equivalences.md`](docs/theory/equivalences.md)   | Classical optimizers as QQN special cases.                          |
+| [`positioning.md`](docs/positioning.md)            | Where QQN fits relative to Adam / L-BFGS.                           |
+| [`ideal_problem.md`](docs/ideal_problem.md)        | What QQN actually requires vs. what merely helps.                   |
+| [`genesis.md`](docs/genesis.md)                    | The origin and evolution of the QQN algorithm.                      |
+| [`results.md`](docs/results.md)                    | Empirical MNIST benchmark: QQN vs. baselines and component sweeps.  |
+| [`conclusions.md`](docs/conclusions.md)            | Synthesis of the experimental findings and design-claim validation. |
+| [`python.md`](docs/project/python.md)              | venv, testing, linting, and publishing workflow.                    |
+| [`libraries.md`](docs/project/libraries.md)        | Installing JAX/jaxlib and the MNIST dataset.                        |
 
 ---
 
