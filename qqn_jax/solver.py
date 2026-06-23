@@ -289,7 +289,7 @@ class QQN:
         # compatible (see LineSearchResult.probe_*).
         if self.feed_probes_to_oracle and res.probe_params is not None:
             probe_valid = res.probe_valid
-            if self.probe_descent_gate:
+            if self.probe_descent_gate and res.probe_values is not None:
                 # Descent gate: only admit probes whose objective value strictly
                 # improves on the *current* iterate. The line search already
                 # evaluated f at every probe (``res.probe_values``), so the gate
@@ -297,6 +297,17 @@ class QQN:
                 # extra ``vmap`` of ``max_probes`` forward evaluations per
                 # iteration to recover values the line search had thrown away.)
                 descends = res.probe_values < state.value
+                probe_valid = jnp.logical_and(res.probe_valid, descends)
+            elif self.probe_descent_gate:
+                # The (e.g. spline-wrapped) line search recorded probe params and
+                # grads but not their objective values. Recover the values with a
+                # single vmapped forward pass so the descent gate can still admit
+                # only genuinely-improving probes (the documented fix against
+                # history-polluting rejected probes).
+                probe_values = jax.vmap(
+                    lambda p: self._plain_value_and_grad(p, *args)[0]
+                )(res.probe_params)
+                descends = probe_values < state.value
                 probe_valid = jnp.logical_and(res.probe_valid, descends)
             oracle_info = OracleInfo(
                 params=params,

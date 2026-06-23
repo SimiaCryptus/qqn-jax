@@ -92,7 +92,9 @@ This is the scary part but it's only 3 commands. There are **two** PyPIs:
 ### One-time setup
 1. Make an account on https://pypi.org and https://test.pypi.org
 2. Create an **API token** (Account Settings → API tokens). It looks like `pypi-AgEN...`
-3. Don't paste tokens into files. `twine` will prompt you, or use env vars.
+3. Don't paste tokens into files **and never commit them to git** (even encrypted).
+    Let `twine` prompt you interactively, or use environment variables / a
+    `~/.pypirc` file that is **outside** your repo and chmod'd `600`.
 
 ### Build the package
 
@@ -128,7 +130,38 @@ twine upload dist/*
 # Password: <paste your real PyPI token>
 ```
 
-Done. Now `pip install qqn-jax` works for everyone.
+Note: secret keys are source-controlled here, encrypted with AWS KMS and
+decrypted at runtime. This is dangerous. Use carefully.
 
-**Critical rule:** You can **never** re-upload the same version number. Bump `version = "0.1.0"` → `"0.1.1"` in `pyproject.toml` every single release.
+```bash
+# Encrypt a token once; paste the printed blob into the variables below.
+read_secret_aws() {
+   read -s -p "Enter secret: " secret
+   echo
+   echo -n "$secret" | aws kms encrypt \
+     --key-id alias/maven-central \
+     --encryption-context project=qqn-jax,purpose=pypi-publish \
+     --plaintext fileb:///dev/stdin \
+     --output text --query CiphertextBlob
+}
 
+# Decrypt a stored ciphertext blob back to the plaintext token.
+decrypt_aws() {
+   aws kms decrypt \
+     --ciphertext-blob fileb://<(echo "$1" | base64 --decode) \
+     --encryption-context project=qqn-jax,purpose=pypi-publish \
+     --output text --query Plaintext | base64 --decode
+}
+
+KEY_PYPI_TEST=$(decrypt_aws '...testpypi ciphertext...')
+KEY_PYPI_PROD=$(decrypt_aws '...pypi ciphertext...')
+
+# TestPyPI
+export TWINE_USERNAME=__token__
+export TWINE_PASSWORD="$KEY_PYPI_TEST"
+twine upload --repository testpypi dist/*
+
+# Real PyPI
+export TWINE_PASSWORD="$KEY_PYPI_PROD"
+twine upload dist/*
+```
