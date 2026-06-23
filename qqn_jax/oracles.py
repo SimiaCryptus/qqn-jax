@@ -94,7 +94,16 @@ def LBFGSOracle(history_size: int = 10) -> Oracle:
         # every gradient evaluated along the path contributes curvature, then
         # finish with the accepted point as the newest pair. Otherwise fall
         # back to the single-pair update (byte-for-byte legacy behavior).
-        if info.probe_params is None:
+        # The replay path additionally needs probe_alphas (to sort the probes
+        # into monotone-α order) and probe_valid (to mask empty slots). Some
+        # line searches (e.g. the spline-wrapped variant) record probe params
+        # and grads but neither alphas nor a valid mask — in that case we
+        # cannot meaningfully replay, so fall back to the single-pair update.
+        if (
+            info.probe_params is None
+            or info.probe_alphas is None
+            or info.probe_valid is None
+        ):
             return update_lbfgs_history(
                 state, info.new_params, info.new_grad, history_size
             )
