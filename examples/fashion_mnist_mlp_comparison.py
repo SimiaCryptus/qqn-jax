@@ -89,13 +89,6 @@ Dataset size selection:
   (defaults 15000 / 2000). A larger full-batch objective has a richer, more
   anisotropic Hessian — the regime where QQN's gradient+oracle blending along
   the quadratic path is most competitive against L-BFGS.
-Probe-feeding variants:
-  ``QQN-L50P`` and ``QQN-MaxP`` enable ``feed_probes_to_oracle=True``, which
-  forwards every gradient evaluated *during the line search* into the oracle's
-  curvature memory (not just the accepted point). On curvature-rich non-convex
-  surfaces this enriches the L-BFGS Hessian approximation essentially for free,
-  since those gradients were already computed by the line search.
-
 
 Run with:  python examples/fashion_mnist_mlp_comparison.py
 """
@@ -1129,23 +1122,6 @@ def main():
             oracle=LBFGSOracle(history_size=50),
             stop=stop,
         ),
-        # --- Deep L-BFGS memory + probe-feeding (free curvature boost) ---
-        #
-        # QUARANTINED: the 20260622_203115 run showed this variant STALLS HARD
-        # (flatlines at loss 0.48) DESPITE the descent-gated probe admission.
-        # The descent gate is NOT sufficient to prevent history pollution when
-        # feeding line-search probes into a deep-50 history on this surface.
-        # We retain ONE probe-fed variant for diversity / as a documented
-        # negative control, but it is no longer presented as a "free boost".
-        # See the analysis: probe-feeding remains a net liability here.
-        "QQN-L50P": lambda: _run_qqn(
-            loss_fn,
-            params0,
-            maxiter,
-            oracle=LBFGSOracle(history_size=50),
-            feed_probes_to_oracle=True,
-            stop=stop,
-        ),
         # --- Deep L-BFGS (history=80) — push the curvature-memory lever ---
         #
         # The 20260622_203115 run identified L80 as the empirical SWEET SPOT:
@@ -1332,25 +1308,6 @@ def main():
             region=TrustRegion(radius=2.0, adaptive=False),
             stop=stop,
         ),
-        # --- NEGATIVE CONTROL: spline + deep fallback + aggressive warm-start.
-        #
-        # The 20260622_235439 run showed EVERY spline variant — even on a plain
-        # deep oracle with gentle Armijo (QQN-Smooth) — DIVERGED to the chance
-        # solution on this ``tanh,gelu,tanh`` surface. We retain this stack as a
-        # documented NEGATIVE CONTROL with the gentlest possible configuration
-        # (default gradient-anchored Armijo, no warm-start), so the comparison
-        # isolates the spline as the failing component. Until a loss-non-increase
-        # safeguard lands around the spline step, this config is expected to
-        # diverge and serves as the canonical failure exhibit.
-        "QQN-MaxS": lambda: _run_qqn(
-            loss_fn,
-            params0,
-            maxiter,
-            oracle=Fallback([LBFGSOracle(history_size=80), AndersonOracle(window=5)]),
-            region=TrustRegion(radius=2.0, adaptive=False),
-            spline=True,
-            stop=stop,
-        ),
         # --- Pure wall-clock champion: sweet-spot memory + warm-started
         #     bare Armijo, NO spline, NO probe-feeding, NO region.
         #
@@ -1390,25 +1347,6 @@ def main():
             oracle=LBFGSOracle(history_size=80),
             stop=stop,
         ),
-        # --- Smooth-surface spline: sweet-spot memory + spline refinement
-        #     QUARANTINED NEGATIVE CONTROL.
-        #
-        # The 20260622_235439 run REFUTED the "smooth surface => trustworthy
-        # spline" hypothesis: this exact variant (plain deep oracle + spline,
-        # gentle Armijo) DIVERGED to the chance solution from iteration ~1 on
-        # the ``tanh,gelu,tanh`` surface. The cubic model's stationary-point
-        # probes are NOT reliable near init here. QQN-Smooth is retained as the
-        # canonical spline-failure exhibit; it should be REPLACED by a
-        # safeguarded spline (reject the stationary point unless it strictly
-        # reduces the loss) before it is presented as a quality lever again.
-        "QQN-Smooth": lambda: _run_qqn(
-            loss_fn,
-            params0,
-            maxiter,
-            oracle=LBFGSOracle(history_size=80),
-            spline=True,
-            stop=stop,
-        ),
         "SGD": lambda: run_optax(
             loss_fn, params0, optax.sgd(learning_rate=sgd_lr), maxiter, stop=stop
         ),
@@ -1426,7 +1364,6 @@ def main():
         "QQN-BT-S": {"line_search": "backtracking", "spline": True},
         "QQN-L20": {},
         "QQN-L50": {},
-        "QQN-L50P": {},
         "QQN-L80": {},
         "QQN-Cheap": {
             "line_search": "backtracking",
@@ -1447,11 +1384,9 @@ def main():
         "QQN-TR": {},
         "QQN-Fast": {},
         "QQN-Max": {},
-        "QQN-MaxS": {"spline": True},
         "QQN-Champ": {},
         "QQN-Lean": {},
         "QQN-Box": {},
-        "QQN-Smooth": {"spline": True},
         "SGD": {},
         "Adam": {},
         "L-BFGS": {},
@@ -1633,8 +1568,7 @@ def main():
         print("  " + f"{name:<14}" + "".join(f"{c:>14}" for c in cells))
     # Speedup-stability check: how much does QQN-L50's vs-LBFGS ratio move as
     # the target tightens? A stable ratio across targets strengthens the claim.
-    # Track BOTH the bare deep-memory stack (QQN-L50) and the probe-fed
-    # best-of-breed (QQN-L50P) so the speedup profile reflects the strongest
+    # Track BOTH the bare deep-memory stack (QQN-L50) so the speedup profile reflects the strongest
     # converging configuration, not just a single baseline.
     if "L-BFGS" in results:
         for ref_name in (
