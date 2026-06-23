@@ -323,29 +323,34 @@ direction, then convert that into wall-clock time via a cheap line search* —
 is borne out on smooth, full-batch, ill-conditioned objectives.
 On a **4-layer `tanh,gelu,tanh` MLP** (335k params) trained full-batch on
 25k Fashion-MNIST examples, QQN with a **deep L-BFGS oracle** decisively
-wins both the iteration race *and* wall-clock to the `4e-2` loss target:
+wins both the iteration race *and* wall-clock to the `2e-2` loss target:
 
 | variant      | iters |  time (s) | ms/it | vs-L-BFGS (iters) |
 |--------------|------:|----------:|------:|:-----------------:|
-| **QQN-L120** |   439 | **19.74** | 44.95 |     **1.85×**     |
-| **QQN-L80**  |   460 | **19.99** | 43.45 |     **1.76×**     |
-| QQN-L50      |   522 |     21.83 | 41.83 |       1.55×       |
-| L-BFGS       |   810 |     22.59 | 27.89 |    1.00× (ref)    |
+| **QQN-L160** |   879 |     15.59 | 17.73 |     **2.64×**     |
+| **QQN-L120** |   933 | **15.01** | 16.08 |     **2.49×**     |
+| **QQN-L80**  |  1044 | **15.03** | 14.39 |     **2.22×**     |
+| QQN-L50      |  1245 |     16.44 | 13.21 |       1.86×       |
+| L-BFGS       |  2319 |     48.02 | 20.71 |    1.00× (ref)    |
 
-Five QQN variants beat L-BFGS on wall-clock, and the **Pareto frontier
-(loss vs. time) is entirely QQN** — L-BFGS is dominated. The speedup
-*widens as the target tightens* (1.45× @ `2e-1` → 1.91× @ `6e-2`), reflecting
-the second-order advantage in the fine-tuning regime where first-order
-baselines (SGD, Adam) stall and exhaust their budget.
+The **Pareto frontier (loss vs. time) is entirely QQN** — L-BFGS is dominated.
+Crucially, QQN is now *both* iteration-efficient *and* cheaper per iteration
+than L-BFGS (16.08 ms/it vs 20.71 ms/it). The Optax zoom line search inside
+L-BFGS requires ~2.1 evaluations per iteration, whereas QQN's bare Armijo
+search requires only ~1.0–1.1. The speedup *widens as the target tightens*
+(1.45× @ `2e-1` → 2.64× @ `2e-2`), reflecting the second-order advantage in
+the fine-tuning regime where first-order baselines (SGD, Adam) stall and
+exhaust their budget.
+
 Notable findings from the deeper sweeps:
 
 - **The L-BFGS oracle wins among oracle choices.** Momentum, Anderson, and
   the matrix-free secant cannot match the dominant-subspace capture of a deep
   L-BFGS history on an anisotropic Hessian.
-- **The curvature/memory lever is monotone** here:
-  `L20 → L50 → L80 → L120` keeps reducing iterations, with the knee around
-  `L80`–`L120`.
 - **The bare Armijo line search beats aggressive warm-started backtracking**
+- **The curvature/memory lever is monotone in iterations** here:
+  `L20 → L50 → L80 → L120 → L160` keeps reducing iterations, but the
+  wall-clock knee sits squarely at `L80`–`L120`.
   on this smooth surface — larger early probes overshoot the curvature the
   oracle is exploiting and *raise* the iteration count.
   See [`results.md`](docs/results.md) for the full MNIST benchmark, baselines,
