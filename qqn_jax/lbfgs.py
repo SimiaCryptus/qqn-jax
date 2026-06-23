@@ -20,7 +20,10 @@ import jax.numpy as jnp
 
 def jnp_select_buf(flag, a, b):
     """Scalar-flag select between two equally-shaped buffers (lax.select)."""
-    return jax.lax.cond(flag, lambda: a, lambda: b)
+    # Under vmap, ``lax.cond`` is converted to ``select`` and both branches
+    # are evaluated regardless; a plain ``where`` is equivalent but avoids the
+    # cond/branch tracing overhead and composes more cleanly with vmap.
+    return jnp.where(flag, a, b)
 
 
 class LBFGSState(NamedTuple):

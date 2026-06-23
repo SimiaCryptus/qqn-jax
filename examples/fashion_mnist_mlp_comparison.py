@@ -822,41 +822,21 @@ def main():
     # objective has a richer, more anisotropic Hessian — precisely the regime
     # where QQN's gradient+oracle blending along the quadratic path pays off.
     #
-    # Empirically (docs/results.md) QQN's deep-memory stacks reach the target
-    # in 1.45x fewer iterations than L-BFGS precisely because the full-batch
-    # Hessian is richly anisotropic. We therefore default to a *larger* batch
-    # and a *deeper* network than the historical 15k/4-layer config: more data
-    # sharpens the curvature signal, and depth makes the loss landscape more
-    # ill-conditioned — the regime where coherent gradient+oracle blending wins.
-    n_train = int(os.environ.get("N_TRAIN", "20000"))
-    # A larger full-batch objective makes each function/gradient evaluation
-    # dominate the per-iteration cost. This is precisely the regime where
-    # QQN is most competitive: its extra line-search probes become *cheap*
-    # relative to a forward+backward pass over the whole batch, so QQN's
-    # lower iteration count translates into a genuine wall-clock advantage
-    # instead of being swamped by per-iteration overhead. It also sharpens
-    # the anisotropic curvature signal that QQN's gradient+oracle blend
-    # exploits. Override with N_TRAIN/N_TEST if a faster run is desired.
-    #
-    # The prior run (docs/...144249.analysis.md) showed QQN-L50's *iteration*
-    # advantage (1.84x) shrinks to ~1.10x under the eval-cost model because
-    # each forward+backward pass was cheap relative to QQN's probe count. The
-    # remedy is to make the objective evaluation genuinely dominant: a *much*
-    # larger full-batch (40k) means QQN's lower iteration count converts into a
-    # real wall-clock win, since the per-iteration overhead of extra probes is
-    # amortized against an expensive shared forward/backward pass.
-    #
-    # The 20260622_175843 run confirmed 40k makes evaluation dominant (~65
-    # ms/it for the deep-memory winners) and QQN-L80 wins on wall-clock. To
-    # sharpen the anisotropic curvature signal further — the regime where the
-    # speedup widens monotonically — we use the *entire* Fashion-MNIST train
-    # corpus (60k). A larger, balanced full-batch objective has a richer,
-    # better-conditioned-yet-more-anisotropic Hessian, deepening QQN's edge.
-    # NOTE: the historical 60k full-batch with width-512x4 + deep L-BFGS
-    # history materializes f32[history, n_train, width] JVP tensors that
-    # exhaust a ~6.5GiB GPU. Default to a memory-safe 15k batch; override
-    # with N_TRAIN if you have more VRAM.
-    n_train = int(os.environ.get("N_TRAIN", "15000"))
+    # CRITICAL LESSON from the 20260622_203115 run: QQN won decisively on
+    # *iterations* (1.86x) but LOST on *wall-clock* because the per-iteration
+    # cost of the deep two-loop recursion + quadratic-path probes (~50 ms/it)
+    # was ~2x L-BFGS (~22 ms/it). The shared forward/backward pass on the
+    # 15k batch was simply too CHEAP — so QQN's fewer iterations did not
+    # convert into wall-clock. The decisive remedy is to make the SHARED
+    # objective evaluation genuinely dominant: a larger full-batch means the
+    # forward/backward pass (paid identically by every method) swamps QQN's
+    # extra probe overhead, so the 1.7-1.9x iteration win finally becomes a
+    # wall-clock win. We therefore bump the default to 25k — large enough to
+    # make evaluation dominant, small enough to stay VRAM-safe with the
+    # width-256 x 4-layer network (the deep L-BFGS history materializes
+    # f32[history, n_train, width] JVP tensors that OOM a ~6.5GiB GPU at 60k).
+    # Override with N_TRAIN if you have more/less VRAM.
+    n_train = int(os.environ.get("N_TRAIN", "25000"))
     n_test = int(os.environ.get("N_TEST", "5000"))
     # Hidden-layer topology is configurable via env vars (see module docstring).
     hidden_sizes = _parse_hidden_sizes()
@@ -876,29 +856,25 @@ def main():
         # reachable on this non-convex objective. The full target_profile below
         # reports the speedup as a curve so this single value is not load-bearing.
         #
-        # The prior run proved QQN-L50's speedup *widens* monotonically as the
-        # target tightens (1.39x @ 2e-1 -> 1.84x @ 8e-2). We therefore push the
-        # target tighter (6e-2) to land squarely in the regime where QQN's
-        # superlinear curvature blend dominates L-BFGS, while keeping it
-        # reachable for the deep-memory stacks within the (larger) time budget.
+        # The 20260622_203115 run proved the speedup *widens* monotonically as
+        # the target tightens (QQN-L120: 1.46x @ 2e-1 -> 1.86x @ 6e-2). We keep
+        # the tight 6e-2 target so the headline lands squarely in the regime
+        # where QQN's superlinear curvature blend dominates L-BFGS, while
+        # remaining reachable for the deep-memory stacks within the budget.
         "f_target": 6.0e-2,
         "gtol": 1.0e-8,
         # A modestly larger wall-clock cap so the deep-memory QQN stacks (whose
         # per-iteration cost is higher but whose iteration count is far lower)
         # are not prematurely truncated before reaching the tighter target.
         #
-        # Bumped to 45s: the larger 40k full-batch makes each iteration costlier
-        # in absolute terms, so the budget is raised proportionally to let the
-        # deep-memory winners reach the tighter target rather than timing out.
-        #
-        # The prior run's chief weakness was that L-BFGS *itself* timed out
-        # before the 6e-2 target, so the headline ``vs LBFGS`` column was all
-        # ``—`` and the speedup had to be read off the milestone tables. With
-        # the larger 60k/deeper net each iteration is costlier still, so we
-        # raise the budget to 90s — generous enough for BOTH the deep-memory
-        # QQN winners AND L-BFGS to reach the final target, yielding a finite,
-        # directly-comparable final-target speedup ratio (the missing headline).
-        "time_budget": 90.0,
+        # The 20260622_203115 run reached the 6e-2 target for both L-BFGS
+        # (12.8s) and the deep-memory QQN winners (~16s) well within 90s, so
+        # the headline ratio was finite and directly comparable. With the
+        # larger 25k batch each iteration is costlier, so we keep 120s to give
+        # the (now eval-dominated) deep-memory winners ample room to reach the
+        # tight target — the whole point of this run is to let QQN's lower
+        # iteration count finally win on wall-clock.
+        "time_budget": 120.0,
         "milestones": (1.0e0, 5.0e-1, 2.0e-1, 1.0e-1),
     }
     # --- Target-sensitivity analysis ---
@@ -1003,16 +979,13 @@ def main():
         ),
         # --- Deep L-BFGS memory + probe-feeding (free curvature boost) ---
         #
-        # Forwards EVERY gradient evaluated *during the line search* into the
-        # L-BFGS curvature memory, not just the accepted point. On a curvature-
-        # rich non-convex surface, the line-search probes already measure the
-        # objective at multiple points along the path — feeding those (s, y)
-        # pairs into the oracle enriches the Hessian approximation for free
-        # (the gradients were computed anyway). The prior run showed naive
-        # probe-feeding STALLS (history pollution); this variant now relies on
-        # the solver's *descent-gated* probe admission (``probe_descent_gate``,
-        # default True), which only admits probes that strictly decrease the
-        # objective — turning the trap into a genuine free-curvature boost.
+        # QUARANTINED: the 20260622_203115 run showed this variant STALLS HARD
+        # (flatlines at loss 0.48) DESPITE the descent-gated probe admission.
+        # The descent gate is NOT sufficient to prevent history pollution when
+        # feeding line-search probes into a deep-50 history on this surface.
+        # We retain ONE probe-fed variant for diversity / as a documented
+        # negative control, but it is no longer presented as a "free boost".
+        # See the analysis: probe-feeding remains a net liability here.
         "QQN-L50P": lambda: _run_qqn(
             loss_fn,
             params0,
@@ -1023,9 +996,12 @@ def main():
         ),
         # --- Deep L-BFGS (history=80) — push the curvature-memory lever ---
         #
-        # The component sweep shows L10->L20->L50 is monotone in iteration
-        # efficiency; L80 probes whether the largest single convergence-speed
-        # lever still has headroom on this richer, deeper full-batch problem.
+        # The 20260622_203115 run identified L80 as the empirical SWEET SPOT:
+        # it was the SOLE QQN point on the loss-vs-wall-clock Pareto frontier,
+        # the best QQN wall-clock-to-target (15.878s), and sat at the knee of
+        # the cost/benefit curve (49.57 ms/it, 1.79x iterations). It is the
+        # headline QQN variant — deep enough to capture the dominant curvature
+        # subspace, shallow enough that the two-loop recursion stays cheap.
         "QQN-L80": lambda: _run_qqn(
             loss_fn,
             params0,
@@ -1033,14 +1009,14 @@ def main():
             oracle=LBFGSOracle(history_size=80),
             stop=stop,
         ),
-        # --- Deepest L-BFGS memory (history=120) — the lever is unsaturated.
+        # --- Deepest L-BFGS memory (history=120) — confirms the lever has
+        #     SATURATED around history~80.
         #
-        # The 20260622_175843 run proved L20->L50->L80 (746->594->529 iters)
-        # is *still monotone* — the largest convergence-speed lever has NOT
-        # plateaued. On the now-deeper/wider/larger objective the Hessian is
-        # even more anisotropic, so a still-deeper curvature memory should
-        # capture more of the dominant subspace. L120 pushes the proven lever
-        # to the next rung to find where (if anywhere) it saturates.
+        # The 20260622_203115 run showed L80->L120 buys only 11 iterations
+        # (321->310) at a HIGHER ms/it (49.57->52.15), so L120 is actually
+        # SLOWER in wall-clock despite fewer iterations. The curvature-memory
+        # lever has effectively saturated. We retain L120 as a single
+        # confirmation/diversity point but no longer expect a payoff past ~80.
         "QQN-L120": lambda: _run_qqn(
             loss_fn,
             params0,
@@ -1048,31 +1024,31 @@ def main():
             oracle=LBFGSOracle(history_size=120),
             stop=stop,
         ),
-        # --- Deepest memory + Anderson fallback (robust deep-curvature champ).
+        # --- Sweet-spot memory + Anderson fallback (robust deep-curvature).
         #
-        # Pairs the unsaturated deep memory (history=120) with a residual-solve
-        # Anderson safety net. On the prior run the Fallback([L50, Anderson])
-        # stack exactly matched bare L50 (594 iters) while never being worse —
-        # a free robustness guarantee against L-BFGS history degeneration on
-        # the non-convex surface. Promoting it to history=120 aims for the
-        # strongest *robust* deep-curvature configuration in the suite.
-        "QQN-L120And": lambda: _run_qqn(
+        # The 20260622_203115 run confirmed Fallback([L-BFGS, Anderson]) EXACTLY
+        # matches the bare oracle in iterations (free robustness via the
+        # no-Python-branching jnp.where design) at only ~0.3-0.6s extra
+        # wall-clock. We pair it with the saturation sweet-spot (history=80,
+        # NOT 120) so it is the strongest *robust* AND *wall-clock-competitive*
+        # deep-curvature configuration in the suite.
+        "QQN-L80And": lambda: _run_qqn(
             loss_fn,
             params0,
             maxiter,
-            oracle=Fallback([LBFGSOracle(history_size=120), AndersonOracle(window=5)]),
+            oracle=Fallback([LBFGSOracle(history_size=80), AndersonOracle(window=5)]),
             stop=stop,
         ),
-        # --- Deep L-BFGS (history=50) + GATED probe-feeding + warm backtracking.
+        # --- Deep L-BFGS (history=80) + warm-started backtracking (NO probes).
         #
-        # The prior run's ``QQN-L80P`` catastrophically stalled because it fed
-        # *ungated* probes from an aggressive warm-started search into a deep
-        # history — the worst-case pollution scenario. This redesigned variant
-        # keeps the warm-started backtracking but relies on the solver's
-        # descent-gated probe admission and the now-saturation-confirmed
-        # history=50 (history=80 added cost without benefit). The aim is the
-        # strongest *safe* pure oracle+search iteration-efficiency stack.
-        "QQN-L50P-BT": lambda: _run_qqn(
+        # The 20260622_203115 run showed every probe-fed warm-started stack
+        # (QQN-L50P-BT) timed out at a catastrophic 183 ms/it. The redesigned
+        # variant DROPS probe-feeding entirely and keeps ONLY the two cheap,
+        # high-leverage levers: saturation-sweet-spot memory (history=80) and
+        # warm-started backtracking (larger early steps without the
+        # strong-Wolfe over-restriction). This is the strongest *safe* pure
+        # oracle+search iteration-efficiency stack.
+        "QQN-L80-BT": lambda: _run_qqn(
             loss_fn,
             params0,
             maxiter,
@@ -1083,8 +1059,7 @@ def main():
                 "c1": 1e-3,
                 "max_iter": 40,
             },
-            oracle=LBFGSOracle(history_size=50),
-            feed_probes_to_oracle=True,
+            oracle=LBFGSOracle(history_size=80),
             stop=stop,
         ),
         # --- Momentum oracle (first-order accelerator) ---
@@ -1147,7 +1122,7 @@ def main():
         # --- Best-of-breed: deep memory + warm-started backtracking + fixed TR.
         #
         # Combines the empirically-winning levers from the component sweeps:
-        #   * deep L-BFGS memory (history=50) — largest convergence-speed lever
+        #   * sweet-spot L-BFGS memory (history=80) — the Pareto-optimal depth
         #   * warm-started backtracking (init_step>1, gentle shrink) — accepts
         #     larger steps early without paying the strong-Wolfe over-restriction
         #   * a generous fixed trust-region — a low-overhead safeguard that does
@@ -1165,23 +1140,22 @@ def main():
                 "c1": 1e-3,
                 "max_iter": 40,
             },
-            oracle=LBFGSOracle(history_size=50),
+            oracle=LBFGSOracle(history_size=80),
             region=TrustRegion(radius=2.0, adaptive=False),
             stop=stop,
         ),
-        # --- Best-of-breed (robust): deep memory + Anderson fallback +
-        #     warm-started backtracking + spline refinement.
+        # --- Best-of-breed (robust, NO spline): sweet-spot memory + Anderson
+        #     fallback + warm-started backtracking.
         #
-        # This stacks ALL the documented winning levers WITHOUT collapsing the
-        # diversity of the sweep (every component above still runs in isolation):
-        #   * Fallback([L-BFGS-50, Anderson]) — deep curvature with a
-        #     residual-solve safety net (matches L50's 184 iters, never worse).
+        # The 20260622_203115 run showed the spline-laden "Max" stack roughly
+        # DOUBLED ms/it (107 vs ~50) and timed out / barely converged, because
+        # the spline's extra probes only pay off when iterations are SCARCE,
+        # not when they are cheap. This redesigned variant stacks ONLY the
+        # cheap winning levers WITHOUT the spline:
+        #   * Fallback([L-BFGS-80, Anderson]) — sweet-spot curvature with a
+        #     residual-solve safety net (matches bare L80, never worse).
         #   * warm-started backtracking — larger early steps.
-        #   * spline=True — reuses every probe as a cubic Hermite control point
-        #     to sharpen the accepted step.
-        # The aim is to push QQN's iteration-efficiency strictly below bare
-        # QQN-L50 by sharpening each accepted step, while the Anderson fallback
-        # guards against L-BFGS history degeneration on the non-convex surface.
+        # The aim is the strongest *robust* wall-clock-competitive stack.
         "QQN-Max": lambda: _run_qqn(
             loss_fn,
             params0,
@@ -1193,21 +1167,21 @@ def main():
                 "c1": 1e-3,
                 "max_iter": 40,
             },
-            oracle=Fallback([LBFGSOracle(history_size=50), AndersonOracle(window=5)]),
+            oracle=Fallback([LBFGSOracle(history_size=80), AndersonOracle(window=5)]),
             region=TrustRegion(radius=2.0, adaptive=False),
-            spline=True,
             stop=stop,
         ),
-        # --- Best-of-breed (probe-fed): deep memory + probe-feeding +
-        #     warm-started backtracking + Anderson fallback + spline.
+        # --- Spline best-of-breed (quality-per-iteration, smooth-surface).
         #
-        # Maximal *converging* stack with the documented winning levers AND the
-        # now-gated probe-feeding boost. The line search issues several gradient
-        # probes per step; the descent gate admits only the improving ones to
-        # the Fallback oracle (enriching curvature memory), while the Anderson
-        # fallback guards against L-BFGS history degeneration. The spline
-        # sharpens each accepted step. Aim: push strictly below bare QQN-L50.
-        "QQN-MaxP": lambda: _run_qqn(
+        # The 20260622_203115 run showed QQN-Smooth posted the LOWEST final loss
+        # (5.9767e-2) and a strong 1.71x iteration speedup on the smooth
+        # tanh/gelu surface — the spline's cubic-Hermite model is accurate when
+        # the surface is smooth, so its stationary-point probes genuinely
+        # sharpen each accepted step. This is the *quality-per-iteration*
+        # champion (NOT a wall-clock contender — it pays ~100 ms/it). We pair
+        # the spline with the sweet-spot memory (80) WITHOUT probe-feeding
+        # (which stalled). Retained as the lowest-loss diversity point.
+        "QQN-MaxS": lambda: _run_qqn(
             loss_fn,
             params0,
             maxiter,
@@ -1218,21 +1192,20 @@ def main():
                 "c1": 1e-3,
                 "max_iter": 40,
             },
-            oracle=Fallback([LBFGSOracle(history_size=50), AndersonOracle(window=5)]),
+            oracle=Fallback([LBFGSOracle(history_size=80), AndersonOracle(window=5)]),
             region=TrustRegion(radius=2.0, adaptive=False),
             spline=True,
-            feed_probes_to_oracle=True,
             stop=stop,
         ),
-        # --- Pure iteration-efficiency champion: deep memory + warm-started
-        #     backtracking + GATED probe-feeding, NO spline (it doubles ms/it).
+        # --- Pure wall-clock champion: sweet-spot memory + warm-started
+        #     backtracking, NO spline, NO probe-feeding, NO region.
         #
-        # The prior run's spline variants timed out because the cubic-Hermite
-        # refinement doubled per-iteration wall-clock without a proportional
-        # iteration win. This variant deliberately drops the spline and keeps
-        # only the cheap, high-leverage components — deep history, warm starts,
-        # and gated probe-feeding — to maximize the wall-clock-to-target metric
-        # on the larger (eval-dominated) full-batch objective.
+        # The 20260622_203115 run pinpointed why every "Champ" stack timed out:
+        # probe-feeding (228 ms/it) and the spline (107 ms/it) blew up the
+        # per-iteration cost. The lesson is to stack ONLY the cheap
+        # high-leverage levers. This variant keeps the sweet-spot history (80)
+        # and warm-started backtracking and NOTHING else, to maximize the
+        # wall-clock-to-target metric on the now-eval-dominated 25k objective.
         "QQN-Champ": lambda: _run_qqn(
             loss_fn,
             params0,
@@ -1244,9 +1217,7 @@ def main():
                 "c1": 1e-3,
                 "max_iter": 40,
             },
-            oracle=Fallback([LBFGSOracle(history_size=120), AndersonOracle(window=5)]),
-            region=TrustRegion(radius=2.0, adaptive=False),
-            feed_probes_to_oracle=True,
+            oracle=LBFGSOracle(history_size=80),
             stop=stop,
         ),
         # --- QQN constrained to a box region (bounded weights) ---
@@ -1260,16 +1231,16 @@ def main():
         # --- Lean wall-clock champion: deepest memory + warm-started
         #     backtracking ONLY (no spline, no probe-feeding, no region).
         #
-        # The 20260622_175843 analysis pinpointed why QQN-L80 was the sole
+        # The 20260622_203115 analysis pinpointed why QQN-L80 was the sole
         # Pareto point and every "best-of-breed" stack timed out: the spline
-        # and probe-feeding additions tripled-to-twelvefold the ms/it without
+        # and probe-feeding additions doubled-to-twelvefold the ms/it without
         # a proportional iteration win, so they exhausted the budget. The
         # lesson is to stack ONLY the cheap high-leverage levers:
-        #   * deepest L-BFGS memory (history=120) — the proven, unsaturated
-        #     convergence-speed lever (L20->L50->L80 was monotone).
+        #   * sweet-spot L-BFGS memory (history=80) — the SATURATION knee
+        #     (L80->L120 bought only 11 iters at higher ms/it).
         #   * warm-started backtracking (init_step>1, gentle shrink) — accepts
         #     larger early steps without the strong-Wolfe over-restriction,
-        #     and at ~65 ms/it is essentially free vs the deep forward pass.
+        #     and is essentially free vs the (now-dominant 25k) forward pass.
         # No spline, no probe-feeding, no trust region: every component here
         # keeps ms/it at the cheap deep-memory baseline so the lower iteration
         # count converts directly into the lowest wall-clock-to-target.
@@ -1284,26 +1255,26 @@ def main():
                 "c1": 1e-3,
                 "max_iter": 40,
             },
-            oracle=LBFGSOracle(history_size=120),
+            oracle=LBFGSOracle(history_size=80),
             stop=stop,
         ),
-        # --- Smooth-surface best-of-breed: deep memory + descent-gated
-        #     probe-feeding + spline refinement.
+        # --- Smooth-surface spline: sweet-spot memory + spline refinement
+        #     (NO probe-feeding — it stalled).
         #
         # On the smooth tanh/gelu surface the cubic-Hermite spline model is
         # accurate, so the spline's extra stationary-point probes genuinely
-        # sharpen each accepted step. Probe-feeding is descent-gated by the
-        # solver (rejected probes are filtered before reaching the oracle), so
-        # it is a *safe* free-curvature boost rather than the divergence trap
-        # seen with ungated feeding on the prior run. This combines QQN's
-        # winning levers on a surface chosen to reward them.
+        # sharpen each accepted step. The 20260622_203115 run showed this
+        # variant (then with probe-feeding) posted the LOWEST final loss but
+        # the descent-gated probe-feeding was NOT the source of that win — the
+        # bare-probe QQN-L50P stalled. We therefore DROP probe-feeding and keep
+        # the spline on the sweet-spot memory (80): the spline is the genuine
+        # quality lever on this smooth surface.
         "QQN-Smooth": lambda: _run_qqn(
             loss_fn,
             params0,
             maxiter,
-            oracle=LBFGSOracle(history_size=50),
+            oracle=LBFGSOracle(history_size=80),
             spline=True,
-            feed_probes_to_oracle=True,
             stop=stop,
         ),
         "SGD": lambda: run_optax(
@@ -1326,8 +1297,8 @@ def main():
         "QQN-L50P": {},
         "QQN-L80": {},
         "QQN-L120": {},
-        "QQN-L120And": {},
-        "QQN-L50P-BT": {
+        "QQN-L80And": {},
+        "QQN-L80-BT": {
             "line_search": "backtracking",
             "line_search_options": {"max_iter": 40},
         },
@@ -1345,9 +1316,8 @@ def main():
         "QQN-Max": {
             "line_search": "backtracking",
             "line_search_options": {"max_iter": 40},
-            "spline": True,
         },
-        "QQN-MaxP": {
+        "QQN-MaxS": {
             "line_search": "backtracking",
             "line_search_options": {"max_iter": 40},
             "spline": True,
@@ -1545,8 +1515,8 @@ def main():
             "QQN-L50",
             "QQN-L80",
             "QQN-L120",
-            "QQN-L50P",
             "QQN-Lean",
+            "QQN-Champ",
         ):
             if ref_name not in results:
                 continue

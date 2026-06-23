@@ -235,7 +235,8 @@ class QQN:
         qn_dir, _ = self.oracle.direction(params, grad, state.oracle_state)
 
         # 2. Gradient: steepest descent direction (-∇f), the path's tangent.
-        grad_dir = tree_negative(grad)
+        # Note: grad_dir = -grad is never materialized; the only consumer is
+        # the directional-derivative model below, where ⟨∇f, grad_dir⟩ = -‖∇f‖².
         # Optional probe recorder: wrap the value-and-grad handed to the line
         # search so every evaluated (params, grad) is captured into a
         # fixed-size circular scratch buffer. We thread the buffer through a
@@ -351,7 +352,8 @@ class QQN:
         #   −⟨∇f, d(t)⟩ = −[t(1−t)·⟨∇f, grad_dir⟩ + t²·⟨∇f, qn_dir⟩].
         # Each ⟨∇f, ·⟩ is a single O(n) dot rather than an O(n) tree_map plus
         # a second O(n) dot over the materialized blend.
-        m_g = tree_vdot(grad, grad_dir)
+        # m_g = ⟨∇f, -∇f⟩ = -‖∇f‖² (avoids materializing grad_dir entirely).
+        m_g = -tree_vdot(grad, grad)
         m_q = tree_vdot(grad, qn_dir)
         a_t = best_t * (1.0 - best_t)
         b_t = best_t * best_t
