@@ -120,7 +120,8 @@ most recent `m` curvature pairs `(sₖ, yₖ)` via the two-loop recursion.
 skipping updates that violate the curvature condition `⟨s, y⟩ > 0`.
 * **Config**: `LBFGSOracle(history_size=10)`.
 * **Notes**: This is the reference oracle; `oracle="lbfgs"` selects it and
-is byte-for-byte equivalent to the current optimizer.
+is numerically equivalent to the current optimizer (up to floating-point
+operation reordering).
 
 ### 2. Momentum Oracle
 

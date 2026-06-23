@@ -51,6 +51,10 @@ class LineSearchResult(NamedTuple):
     # Per-probe step size α (lets the oracle replay probes in α-order
     # rather than slot-order, which matters for secant differences).
     probe_alphas: jnp.ndarray = None
+    # Number of value-and-grad evaluations performed by the line search.
+    # Each ``value_and_grad_fn`` call evaluates both f and ∇f, so this counts
+    # combined value+grad oracle calls. ``None`` means "not reported".
+    num_evals: jnp.ndarray = None
 
 
 def _empty_probes(params, max_probes):
@@ -145,19 +149,20 @@ def backtracking_search(
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
 
     def cond(carry):
-        alpha, i, val, _g, _p, _pp, _pg, _pv, _pval, _pa = carry
+        alpha, i, evals, val, _g, _p, _pp, _pg, _pv, _pval, _pa = carry
         armijo = val <= value + c1 * alpha * dg
         return jnp.logical_and(jnp.logical_not(armijo), i < max_iter)
 
     def body(carry):
-        alpha, i, _val, _g, _p, pp, pg, pv, pval, pa = carry
+        alpha, i, evals, _val, _g, _p, pp, pg, pv, pval, pa = carry
         alpha = alpha * shrink
         new_params, new_val, new_g = eval_at(alpha)
         # Record this probe (slot = i, since slot 0 holds the init_step probe).
         pp, pg, pv, pval, pa = _record_probe(
             pp, pg, pv, pval, pa, i, new_params, new_g, new_val, alpha, eff_probes
         )
-        return alpha, i + 1, new_val, new_g, new_params, pp, pg, pv, pval, pa
+        # ``evals`` counts every eval_at call: the body adds exactly one.
+        return alpha, i + 1, evals + 1, new_val, new_g, new_params, pp, pg, pv, pval, pa
 
     # Evaluate at the initial step first.
     init_params, init_val, init_g = eval_at(init_step)
@@ -178,7 +183,8 @@ def backtracking_search(
 
     (
         alpha,
-        _i,
+        n_iters,
+        eval_count,
         final_val,
         final_g,
         new_params,
@@ -193,6 +199,7 @@ def backtracking_search(
         (
             init_step,
             jnp.asarray(1),
+            jnp.asarray(1, jnp.int32),  # the initial eval_at(init_step) probe
             init_val,
             init_g,
             init_params,
@@ -204,6 +211,10 @@ def backtracking_search(
         ),
     )
     armijo = final_val <= value + c1 * alpha * dg
+    # Evals are tracked explicitly in the carry (1 for the initial-step probe
+    # plus one per backtracking iteration), decoupled from ``n_iters`` so the
+    # count cannot drift if the loop index semantics change.
+    num_evals = eval_count
     return LineSearchResult(
         step_size=alpha,
         new_value=final_val,
@@ -215,6 +226,7 @@ def backtracking_search(
         probe_valid=probe_valid,
         probe_values=probe_values,
         probe_alphas=probe_alphas,
+        num_evals=num_evals,
     )
 
 
@@ -301,6 +313,10 @@ def strong_wolfe_search(
         probe_valid=pv,
         probe_values=pval,
         probe_alphas=pa,
+        # Optax's zoom search does not expose its internal eval count; report
+        # the recompute (1) plus the budget as an upper bound so downstream
+        # totals are conservative rather than silently undercounting.
+        num_evals=jnp.asarray(max_iter + 1, dtype=jnp.int32),
     )
 
 
@@ -342,6 +358,7 @@ def fixed_step_search(
         probe_valid=pv,
         probe_values=pval,
         probe_alphas=pa,
+        num_evals=jnp.asarray(1, dtype=jnp.int32),
     )
 
 
@@ -449,4 +466,5 @@ def hager_zhang_search(
         probe_valid=pv,
         probe_values=pval,
         probe_alphas=pa,
+        num_evals=jnp.asarray(max_iter + 1, dtype=jnp.int32),
     )

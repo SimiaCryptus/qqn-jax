@@ -30,8 +30,9 @@ the direction is not picked by a heuristic schedule but emerges from the
 geometry of the path plus the sufficient-decrease guarantee of the search.
 
 A key consequence is that QQN is, **except for its substrategies,
-parameter-free and requires no hyperparameter tuning**. There is no global
-learning rate to sweep, no `β₁/β₂` schedule, no warmup. The blend between
+free of *additional* hyperparameters beyond those of the components it
+composes**. There is no global learning rate to sweep, no `β₁/β₂` schedule,
+no warmup introduced by QQN itself. The blend between
 first- and second-order behavior is selected per-iteration by the line search
 rather than fixed in advance.
 
@@ -44,7 +45,9 @@ rather than fixed in advance.
   faster per step and more memory efficient**. QQN's per-iteration cost
   (oracle direction + path evaluation + line search) and its L-BFGS history
   (`O(m·n)`) make it a poor fit when gradients are noisy and curvature memory
-  is unreliable.
+  is unreliable. (Where QQN *has* won a majority of benchmark problems, those
+  benchmarks were smooth and full-batch — the convex/deterministic regime,
+  not Adam's noisy/stochastic home turf. The two claims do not conflict.)
 - **Not a single algorithm.** QQN is a *configuration space*. Fixing one or two
   of its axes to canonical choices reproduces L-BFGS, Newton, momentum,
   Barzilai-Borwein, trust-region, OWL-QN, and projected-gradient methods (see

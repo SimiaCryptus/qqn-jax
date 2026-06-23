@@ -79,6 +79,17 @@ class QQNState(NamedTuple):
     done: jnp.ndarray
     aux: Any = None
     region_state: Any = ()
+    # --- Diagnostics / accounting ---------------------------------------
+    # num_evals: cumulative value-and-grad evaluations (line-search probes,
+    #   spline probes, aux recomputes, probe-value recoveries, init).
+    # qn_slope: directional derivative ⟨∇f, -H∇f⟩ at the t=1 endpoint. A
+    #   non-negative value flags a non-descent (degenerate) oracle direction.
+    # ls_success: whether the inner line search met its acceptance test.
+    # last_reduction: actual objective decrease on the last accepted step.
+    num_evals: jnp.ndarray = jnp.asarray(0, jnp.int32)
+    qn_slope: jnp.ndarray = jnp.asarray(0.0)
+    ls_success: jnp.ndarray = jnp.asarray(True)
+    last_reduction: jnp.ndarray = jnp.asarray(0.0)
 
 
 class QQN:
@@ -216,6 +227,11 @@ class QQN:
             done=error <= self.tol,
             aux=aux,
             region_state=region_state,
+            # init_state performs exactly one value-and-grad evaluation.
+            num_evals=jnp.asarray(1, jnp.int32),
+            qn_slope=jnp.asarray(0.0, dtype=value.dtype),
+            ls_success=jnp.asarray(True),
+            last_reduction=jnp.asarray(0.0, dtype=value.dtype),
         )
 
     def update(self, params, state: QQNState, *args):
@@ -233,6 +249,10 @@ class QQN:
 
         # 1. Oracle: L-BFGS direction (-H∇f), the t=1 endpoint of the path.
         qn_dir, _ = self.oracle.direction(params, grad, state.oracle_state)
+        # Diagnostic: directional derivative along the oracle direction. A
+        # non-negative value means the oracle handed back a non-descent
+        # direction at t=1 (degenerate curvature) — worth surfacing.
+        qn_slope = tree_vdot(grad, qn_dir).astype(state.value.dtype)
 
         # 2. Gradient: steepest descent direction (-∇f), the path's tangent.
         # Note: grad_dir = -grad is never materialized; the only consumer is
@@ -288,6 +308,11 @@ class QQN:
         # line search into the oracle's curvature memory — not just the
         # accepted point. The probe buffers are fixed-size and fully JIT/vmap
         # compatible (see LineSearchResult.probe_*).
+        # ``extra_recovery_evals`` accounts for any forward passes spent
+        # recovering probe objective values for the descent gate. It MUST be
+        # bound on every control-flow path (it is summed into step_evals
+        # below), so initialize it to zero here.
+        extra_recovery_evals = jnp.asarray(0, jnp.int32)
         if self.feed_probes_to_oracle and res.probe_params is not None:
             probe_valid = res.probe_valid
             if self.probe_descent_gate and res.probe_values is not None:
@@ -310,6 +335,9 @@ class QQN:
                 )(res.probe_params)
                 descends = probe_values < state.value
                 probe_valid = jnp.logical_and(res.probe_valid, descends)
+                # Override the zero default: we spent one forward pass per probe
+                # slot recovering values the line search did not retain.
+                extra_recovery_evals = jnp.asarray(res.probe_params.shape[0], jnp.int32)
             oracle_info = OracleInfo(
                 params=params,
                 new_params=new_params,
@@ -379,6 +407,18 @@ class QQN:
         # the whole batch's remaining iterations on NaN arithmetic.
         finite = jnp.logical_and(jnp.isfinite(new_value), jnp.isfinite(error))
         done = jnp.logical_or(error <= self.tol, jnp.logical_not(finite))
+        # --- Eval accounting -------------------------------------------------
+        ls_evals = res.num_evals
+        if ls_evals is None:
+            # Defensive: a custom line search may not report evals. Assume the
+            # minimum (one accepted-point evaluation) so totals never decrease.
+            ls_evals = jnp.asarray(1, jnp.int32)
+        aux_evals = (
+            jnp.asarray(1, jnp.int32) if self.has_aux else jnp.asarray(0, jnp.int32)
+        )
+        step_evals = ls_evals + aux_evals + extra_recovery_evals
+        new_num_evals = state.num_evals + step_evals
+
         new_state = QQNState(
             iter=state.iter + 1,
             value=new_value,
@@ -389,6 +429,10 @@ class QQN:
             done=done,
             aux=aux,
             region_state=new_region_state,
+            num_evals=new_num_evals,
+            qn_slope=qn_slope,
+            ls_success=res.done,
+            last_reduction=actual_reduction,
         )
         return new_params, new_state
 

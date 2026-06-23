@@ -270,6 +270,12 @@ guarded so that masked-out branches never backpropagate NaNs under
 - **Divergence termination.** A run terminates early if an iterate becomes
 non-finite, so a single bad start in a vmapped batch does not waste the
 rest of the batch's iterations on NaN arithmetic.
+- **Honest eval counting.** ``QQNState.num_evals`` accumulates every
+value-and-grad evaluation (line-search probes, spline probes, aux
+recomputes, fallback recoveries) so benchmarks compare *work done*, not
+just iteration counts — QQN performs several evaluations per iteration.
+Strong-Wolfe / Hager-Zhang counts are conservative upper bounds because
+Optax does not expose its internal probe count.
 
 ---
 

@@ -1,8 +1,8 @@
-# QQN (Quasi-Quadratic-Newton) Algorithm Technical Documentation
+# QQN (Quadratic Quasi-Newton) Algorithm Technical Documentation
 
 ## Overview
 
-The QQN (Quasi-Quadratic-Newton) algorithm is a novel optimization method that
+The QQN (Quadratic Quasi-Newton) algorithm is a novel optimization method that
 combines the robustness of steepest descent with the efficiency of L-BFGS through
 a unique quadratic interpolation scheme. This implementation provides a
 sophisticated approach to unconstrained (and, via projective regions, lightly
@@ -232,7 +232,10 @@ oracle free to be aggressive. This makes the oracle a natural extension point.
 Concrete oracles (see [`oracles.md`](oracles.md)):
 
 - **L-BFGS** (default): two-loop recursion over the most recent `m` curvature
-  pairs `(s, y)`. Byte-for-byte equivalent to the original optimizer.
+  pairs `(s, y)`. Supplies the `t = 1` endpoint; note QQN's curved path means
+  the realized trajectory is *not* identical to standalone L-BFGS — it is
+  numerically equivalent only at the `t = 1` endpoint, up to floating-point
+  reordering.
 - **Momentum**: heavy-ball direction `-(β·v + (1-β)·∇f)`.
 - **Shampoo**: structure-aware preconditioner via inverse matrix roots on a
   static refresh cadence.
@@ -366,7 +369,7 @@ QQN(
 String shortcuts map to default-configured concrete components; explicit `Oracle`
 or `Region` instances override them for full control. With the defaults
 (`oracle="lbfgs"`, `region=None`), the optimizer reproduces the baseline behavior
-exactly.
+(numerically equivalent up to floating-point reordering).
 
 ## Advantages
 
@@ -382,15 +385,14 @@ exactly.
 5. **Modular Design**: Gradient, oracle, search, and region are conceptually
    separable and independently swappable, making the algorithm extensible.
 6. **Hardware-Friendly**: Pure, functional JAX throughout — composes with `jit`,
-   `vmap`, `pmap`, and `grad`; the per-iteration line searches batch across the
-   t-grid.
+   `vmap`, `pmap`, and `grad`; the per-iteration line search walks the path
+   directly and composes with batched starting points.
 
 ## Limitations
 
 1. **Memory Requirements**: Stores L-BFGS history (`O(m×n)` where `m` is history
    size, `n` is parameter dimension); other oracles (e.g. Shampoo) may store
    larger preconditioner statistics.
-2. **Computational Overhead**: Quadratic path evaluation across the t-grid adds
 2. **Computational Overhead**: Evaluating the quadratic path and walking it with
     the line search adds modest per-iteration cost.
 3. **Parameter Tuning**: Performance is sensitive to configuration (history size,

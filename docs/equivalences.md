@@ -29,7 +29,7 @@ a wide range of well-known algorithms.
 | Gradient Descent (fixed)       | any                  | `fixed` step, `t→0` regime        | `None`              | tangent is `-∇f`           |
 | Steepest Descent (line search) | any                  | line search restricted near `t=0` | `None`              | exact line min along `-∇f` |
 | L-BFGS                         | `lbfgs`              | line search reaching `t=1`        | `None`              | `d(1) = -H∇f`              |
-| Newton's Method                | exact-Hessian oracle | accept `t=1`                      | `None`              | `-H∇f = -∇²f⁻¹∇f`          |
+| Newton's Method                | exact-Hessian oracle | accept `t=1`                      | `None`              | local, well-conditioned; unimplemented |
 | Momentum / Heavy-Ball          | `momentum`           | `fixed` (`t=1`)                   | `None`              | `d(1) = -(βv+(1-β)∇f)`     |
 | Barzilai-Borwein               | `secant`             | accept `t=1`                      | `None`              | scalar BB step             |
 | Trust Region                   | `lbfgs`              | `t`-search w/ ρ-acceptance        | `TrustRegion`       | adaptive radius            |
@@ -78,8 +78,11 @@ QQN(fun, oracle="lbfgs", line_search="strong_wolfe")
 ```
 
 With `region=None`, the L-BFGS history update and direction are byte-for-byte
-equivalent to a standalone L-BFGS implementation (numerically equivalent up to
-floating-point reordering). This is the baseline the rest of QQN extends.
+equivalent to a standalone L-BFGS implementation at the `t = 1` endpoint
+(numerically equivalent up to floating-point reordering). Note that QQN's
+*curved* path means the overall trajectory generally differs from standalone
+L-BFGS — the path is slightly less optimized per step but more robust. This is
+the baseline the rest of QQN extends.
 
 ### 1.4 Newton's Method
 
@@ -89,6 +92,13 @@ Newton step. Accepting `t = 1` (e.g. via a Wolfe line search that admits the
 full step near a well-conditioned minimum) reproduces Newton's method, with
 QQN's gradient tangent providing globalization away from the basin of
 convergence.
+
+> **Caveat**: This holds only near a well-conditioned minimum. For non-convex
+> `f` the Newton system need not be positive-definite, so `t = 1` may be an
+> ascent direction; QQN's steepest-descent tangent at `t → 0` still provides
+> globalization, but exact Newton recovery is local. This oracle is currently
+> **unimplemented** (it is not practical at scale) and is listed for
+> conceptual completeness.
 
 ---
 

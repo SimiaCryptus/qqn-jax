@@ -217,6 +217,12 @@ def spline_wrap(inner_search: Callable) -> Callable:
         # Guard against a zero-length inner step.
         a_ext = jnp.where(a1 > 0.0, a_ext, jnp.asarray(1.0, dtype=dtype))
         p_ext, f_ext, g_ext, m_ext = eval_at(a_ext)
+        # Eval accounting: inner search evals + the single a_ext probe here.
+        # Each spline ``body`` iteration adds one more (tracked in the carry).
+        inner_evals = inner.num_evals
+        if inner_evals is None:
+            inner_evals = jnp.asarray(1, jnp.int32)
+        base_evals = inner_evals + jnp.asarray(1, jnp.int32)
 
         # Order the three measured points (0, a1, a_ext) by alpha so we have a
         # left/mid/right structure for cubic bracketing on the two segments.
@@ -257,14 +263,27 @@ def spline_wrap(inner_search: Callable) -> Callable:
             g_ext,
         )
 
-        InitCarry = (la, lf, lm, ra, rf, rm, ba, bv, bp, bg, jnp.asarray(0, jnp.int32))
+        InitCarry = (
+            la,
+            lf,
+            lm,
+            ra,
+            rf,
+            rm,
+            ba,
+            bv,
+            bp,
+            bg,
+            jnp.asarray(0, jnp.int32),  # iteration index
+            jnp.asarray(0, jnp.int32),  # spline eval count (body probes)
+        )
 
         def cond(carry):
-            (_, _, _, _, _, _, _, _, _, _, i) = carry
+            (_, _, _, _, _, _, _, _, _, _, i, _ev) = carry
             return i < spline_max_iter
 
         def body(carry):
-            (la, lf, lm, ra, rf, rm, ba, bv, bp, bg, i) = carry
+            (la, lf, lm, ra, rf, rm, ba, bv, bp, bg, i, ev) = carry
 
             # Stationary points of the cubic over the bracket [la, ra]. Both
             # endpoint slopes here are *measured* (true directional
@@ -322,10 +341,11 @@ def spline_wrap(inner_search: Callable) -> Callable:
                 n_bp,
                 n_bg,
                 i + 1,
+                ev + 1,  # one eval_at(cand_alpha) per body iteration
             )
 
         final = jax.lax.while_loop(cond, body, InitCarry)
-        (_, _, _, _, _, _, fa, fv, fp, fg, _) = final
+        (_, _, _, _, _, _, fa, fv, fp, fg, _, spline_evals) = final
 
         # The spline starts from the best measured point, so it can only match
         # or improve on the inner result.
@@ -343,6 +363,12 @@ def spline_wrap(inner_search: Callable) -> Callable:
             probe_params=inner.probe_params,
             probe_grads=inner.probe_grads,
             probe_valid=inner.probe_valid,
+            # Forward the inner search's per-probe metadata so a descent-gated
+            # oracle feed does not have to recompute values/alphas downstream.
+            probe_values=inner.probe_values,
+            probe_alphas=inner.probe_alphas,
+            # Honest eval count: inner search + a_ext probe + spline body probes.
+            num_evals=base_evals + spline_evals,
         )
 
     return wrapped
