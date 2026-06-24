@@ -154,13 +154,15 @@ real curvature information would corrupt the spline model.
 
 The `_orient_tangents` helper is provided for use with **synthetic tangents**
 (e.g. finite-difference approximations or secant estimates) where the sign
-convention may be ambiguous. It reflects any tangent with a negative dot
-product against the path's forward direction so that all oriented tangents
+convention may be ambiguous. It orients ``m1`` to agree with ``m0`` via their
+dot product, reflecting ``m1`` when ``⟨m0, m1⟩ < 0`` so that the two tangents
 agree with the natural flow of the curve:
 
 ```python
-def reflect(m):
-    return jnp.where(m < 0.0, -m, m)
+def _orient_tangents(m0, m1):
+    dot = jnp.sum(m0 * m1)
+    m1_oriented = jnp.where(dot < 0.0, -m1, m1)
+    return m0, m1_oriented
 ```
 
 > **Note:** `_orient_tangents` is *not* called inside `spline_wrap` on
@@ -268,11 +270,14 @@ up-to-two stationary points of the cubic over `[t0, t1]`, their predicted
 values, and a boolean validity mask. Invalid candidates receive `+inf` values
 so `jnp.argmin` never selects them.
 
-### `_orient_tangents(h, f0, m0, f1, m1) -> (m0_oriented, m1_oriented)`
+### `_orient_tangents(m0, m1) -> (m0, m1_oriented)`
 
-Reflects tangents with negative dot products against the path's forward
-direction. Intended for synthetic tangents only; do not apply to measured
-directional derivatives.
+Orients ``m1`` to agree with ``m0`` via their dot product: when
+``⟨m0, m1⟩ < 0`` the two tangents point in opposing directions, so ``m1`` is
+reflected. Intended for **synthetic tangents only** (finite-difference or
+secant estimates); do *not* apply to measured directional derivatives, and in
+particular do not use it to re-sign the genuine oracle tangent ``m1`` against
+``m0`` — that would erase the bracketing signal (``m0 < 0, m1 > 0``).
 
 ---
 

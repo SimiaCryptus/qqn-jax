@@ -48,11 +48,12 @@ ENABLED = [
     "QQN",
     "QQN-S",
     # --- L-BFGS memory-depth sweep ---
+    # "QQN-L20_P",
     # "QQN-L20",
     # "QQN-L80",
     # --- Alternative oracles ---
-    "QQN-Mom",
-    "QQN-Mom-S",
+    # "QQN-Mom",
+    # "QQN-Mom-S",
     # "QQN-Sec",
     # "QQN-L80And",
     # --- Regions / best-of-breed stacks ---
@@ -133,6 +134,19 @@ def _profiles():
                 ctx.maxiter,
                 oracle=LBFGSOracle(history_size=20),
                 stop=ctx.stop,
+            ),
+            {},
+        )
+
+    def QQN_L20_P(ctx):
+        return (
+            lambda: ctx.run_qqn(
+                ctx.loss_fn,
+                ctx.params0,
+                ctx.maxiter,
+                oracle=LBFGSOracle(history_size=20),
+                stop=ctx.stop,
+                feed_probes_to_oracle=True,
             ),
             {},
         )
@@ -396,6 +410,7 @@ def _profiles():
         "QQN-BT": QQN_BT,
         "QQN-BT-S": QQN_BT_S,
         "QQN-L20": QQN_L20,
+        "QQN-L20_P": QQN_L20_P,
         "QQN-L50": QQN_L50,
         "QQN-L80": QQN_L80,
         "QQN-Cheap": QQN_Cheap,

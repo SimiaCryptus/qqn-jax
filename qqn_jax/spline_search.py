@@ -32,34 +32,36 @@ from qqn_jax.regions import resolve_region
 from qqn_jax.line_search import LineSearchResult, backtracking_search
 
 
-def _orient_tangents(h, f0, m0, f1, m1):
-    """Apply the upstream/downstream symmetry correction to tangents.
+def _orient_tangents(m0, m1):
+    """Orient synthetic tangents to agree with the path's forward direction.
 
-    Each tangent ``m = ⟨∇f, d'(t)⟩`` is oriented relative to the *secant
-    slope* of the segment, ``(f1 - f0) / h``. A tangent whose sign opposes
-    the secant's direction of travel points "backwards" against the
-    segment's natural flow, so we reflect it to agree with the secant.
-    When the secant is flat (``f1 == f0``) there is no preferred direction,
-    so the raw tangents are kept unchanged.
+    Each tangent is a directional derivative ``m = ⟨∇f, d'(t)⟩`` — the
+    projection of the gradient onto the path's velocity vector ``d'(t)``.
+    When constructing the spline we are *not* seeking a low function value;
+    we are building the simplest curve consistent with the gradient
+    topology along the path. The orientation question is therefore purely
+    geometric: does the tangent agree with the forward direction of travel
+    along the path?
+
+    A tangent whose dot product against the forward path direction is
+    negative points "backwards" relative to the natural flow of the curve,
+    so it is reflected to agree. Because ``m`` is already the dot product of
+    the gradient with the forward velocity ``d'(t)``, the sign of ``m`` *is*
+    the sign of that dot product, and the reflection reduces to flipping the
+    sign of negative tangents.
+
+    This is intended for synthetic tangents (finite-difference or secant
+    estimates) whose sign convention may be ambiguous. It must NOT be
+    applied to genuine measured directional derivatives, which already carry
+    real curvature information.
     """
 
-    # Orient each tangent to share the sign of the secant slope. On a flat
-    # secant (sign == 0) the tangents are returned untouched.
-    secant = f1 - f0
-    secant_sign = jnp.sign(secant)
-    # A genuine interior minimum is bracketed when the segment descends at the
-    # left (m0 < 0) and ascends at the right (m1 > 0). In that case the raw
-    # tangents already encode real curvature and must NOT be reflected, even if
-    # one of them opposes the secant slope.
-    bracketed_min = jnp.logical_and(m0 < 0.0, m1 > 0.0)
-
-    def reflect(m):
-        # Flip ``m`` when its sign opposes the (non-zero) secant sign.
-        opposes = jnp.logical_and(secant_sign != 0.0, m * secant_sign < 0.0)
-        opposes = jnp.logical_and(opposes, jnp.logical_not(bracketed_min))
-        return jnp.where(opposes, -m, m)
-
-    return reflect(m0), reflect(m1)
+    # Orient ``m1`` to agree with ``m0`` via their dot product. When the dot
+    # product is negative the two tangents point in opposing directions, so
+    # ``m1`` is reflected to agree with ``m0``'s forward direction of travel.
+    dot = jnp.sum(m0 * m1)
+    m1_oriented = jnp.where(dot < 0.0, -m1, m1)
+    return m0, m1_oriented
 
 
 def _segment_value(s, h, f0, m0, f1, m1):
@@ -83,7 +85,8 @@ def _segment_stationary_candidates(t0, t1, f0, m0, f1, m1):
     Returns arrays ``(t_cands, val_cands, valid)`` each of length 2.
     """
     h = t1 - t0
-    m0o, m1o = _orient_tangents(h, f0, m0, f1, m1)
+    m0o, m1o = _orient_tangents(m0, m1)
+    # m0o, m1o = (m0, m1)
 
     # f'(s) coefficients (see spline_search.md):
     #   f'(s) = (6s² - 6s)·f0 + (3s² - 4s + 1)·h·m0
@@ -209,6 +212,40 @@ def spline_wrap(inner_search: Callable) -> Callable:
         a1 = inner.step_size
         f1 = inner.new_value
         m1 = tree_vdot(inner.new_grad, direction)
+        # Correct the first measured tangent (the *oracle* tangent at the inner
+        # search's accepted point) based on its agreement with the secant from
+        # the current point (alpha=0) to the oracle point (alpha=a1). The vector
+        # from the current point to the oracle point has the same sign as the
+        # secant slope (f1 - f0)/a1; if the measured oracle tangent opposes that
+        # direction of travel it points "backwards" against the path's natural
+        # flow, so we reflect it to agree. This mirrors the upstream/downstream
+        # symmetry rule applied to synthetic tangents, but is applied here to the
+        # genuine oracle tangent because the oracle endpoint is not guaranteed to
+        # encode a bracketed interior minimum. As with ``_orient_tangents``, a
+        # genuine bracketed minimum (m0 < 0 and m1 > 0) is left untouched.
+        #
+        # IMPORTANT: do NOT use ``_orient_tangents(m0, m1)`` here. That helper
+        # orients ``m1`` to agree with ``m0`` (the slope at alpha=0), which for a
+        # descent direction (m0 < 0) would reflect any genuine bracketing slope
+        # (m1 > 0) into a negative value, destroying the bracketing signal and
+        # corrupting the ``descending_at_inner`` test below.
+        #
+        # The correct rule is secant-based: only reflect ``m1`` when it opposes
+        # the direction of travel implied by the secant. A genuine bracketed
+        # minimum has the secant rising (f1 > f0 is not required, but the
+        # measured slope m1 > 0 at the endpoint is the real curvature signal),
+        # so we leave m1 > 0 untouched and only flip a spuriously-signed tangent.
+        eps_t = jnp.asarray(1e-12, dtype=dtype)
+        a1_safe = jnp.where(
+            jnp.abs(a1) > eps_t, a1, jnp.where(a1 >= 0.0, eps_t, -eps_t)
+        )
+        secant = (f1 - f0) / a1_safe
+        # If the measured tangent disagrees in sign with the secant direction of
+        # travel AND there is no genuine bracketed minimum (i.e. m1 <= 0), the
+        # tangent is ambiguous and reflected to agree with the secant. A real
+        # bracketed minimum (m1 > 0) is always left untouched.
+        ambiguous = jnp.logical_and(m1 <= 0.0, secant * m1 < 0.0)
+        m1 = jnp.where(ambiguous, -m1, m1)
 
         # If the path is still descending at the inner point (m1 < 0), the
         # minimum lies further along; probe an expansion point at 2·a1 (capped

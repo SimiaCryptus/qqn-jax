@@ -136,7 +136,9 @@ _INSTALL_HINT = (
 # --------------------------------------------------------------------------
 
 
-def _load_dataset_numpy(dataset, n_train, n_test, n_classes, subset_seed=0, synth_dim=784):
+def _load_dataset_numpy(
+    dataset, n_train, n_test, n_classes, subset_seed=0, synth_dim=784
+):
     """Try to load a real (Fashion-)MNIST subset; fall back to synthetic.
 
     Args:
@@ -159,9 +161,7 @@ def _load_dataset_numpy(dataset, n_train, n_test, n_classes, subset_seed=0, synt
         xtr = xtr.reshape(xtr.shape[0], -1).astype(np.float32) / 255.0
         xte = xte.reshape(xte.shape[0], -1).astype(np.float32) / 255.0
         print(f"[data] Loaded {dataset} via tensorflow.keras.")
-        return _subset(
-            xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=subset_seed
-        )
+        return _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=subset_seed)
     except Exception:
         pass
 
@@ -183,9 +183,7 @@ def _load_dataset_numpy(dataset, n_train, n_test, n_classes, subset_seed=0, synt
         xte = test.data.numpy().reshape(len(test), -1).astype(np.float32) / 255.0
         yte = test.targets.numpy()
         print(f"[data] Loaded {dataset} via torchvision.")
-        return _subset(
-            xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=subset_seed
-        )
+        return _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=subset_seed)
     except Exception:
         pass
 

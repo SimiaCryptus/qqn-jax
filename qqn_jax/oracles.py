@@ -72,11 +72,18 @@ class OracleInfo(NamedTuple):
 # --- L-BFGS Oracle (default) ------------------------------------------
 
 
-def LBFGSOracle(history_size: int = 10) -> Oracle:
+def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
     """Limited-memory BFGS quasi-Newton oracle.
 
     Wraps the existing ``qqn_jax.lbfgs`` two-loop recursion so the default
     behavior is byte-for-byte equivalent to the original optimizer.
+    ``max_probe_replay`` caps how many line-search probes are folded into the
+    curvature history per step. Probes are *collinear* (they all lie on the
+    single ray ``x + α·d``), so replaying many of them only re-estimates the
+    same 1-D curvature while *evicting* genuine cross-iteration curvature from
+    the fixed-size buffer. Capping to a small number (default 2) keeps the
+    bulk of the real history intact and limits the probe contribution to a
+    mild secant refinement of the t=1 endpoint.
     """
 
     def init(params):
@@ -107,23 +114,41 @@ def LBFGSOracle(history_size: int = 10) -> Oracle:
             return update_lbfgs_history(
                 state, info.new_params, info.new_grad, history_size
             )
-        # Replay probes in INCREASING-α order. The probes are collected by the
-        # line search in slot order (slot 0 = init_step, the *largest* α, then
-        # shrinking) — feeding them in that arbitrary order makes the secant
-        # differences s_k = p_k - p_{k-1} point back-and-forth along the search
-        # ray, producing sign-flipping yᵀs that the curvature guard rejects as
-        # noise. Sorting by α yields monotone-spaced probes whose differences
-        # are consistently oriented, which is the only ordering under which the
-        # replayed pairs carry meaningful (1-D) curvature.
+        # All probes are COLLINEAR (they lie on the single ray x + α·d), so
+        # they only ever re-estimate curvature *along d*. Replaying many of
+        # them flushes the fixed-size buffer of genuine cross-iteration
+        # curvature — strictly worse than a single accepted pair (the prior
+        # benchmark's catastrophic stall). The correct, helpful behavior is:
         #
-        # NOTE: all probes are collinear (they lie on the single ray
-        # x + α·d), so even sorted they only enrich curvature *along d*. This
-        # cannot substitute for genuine cross-iteration curvature; it is a
-        # mild secant refinement of the t=1 endpoint at best.
-        order = jnp.argsort(jnp.where(info.probe_valid, info.probe_alphas, jnp.inf))
-        probe_params = info.probe_params[order]
-        probe_grads = info.probe_grads[order]
-        probe_valid = info.probe_valid[order]
+        #   1. Keep at most ``max_probe_replay`` probes, chosen to be the ones
+        #      CLOSEST to the accepted step (largest α among the valid, descent-
+        #      gated probes). These refine the secant *at the t=1 endpoint*
+        #      rather than far down a rejected ray.
+        #   2. Sort the kept probes by increasing α so their secant
+        #      differences are consistently oriented.
+        #   3. Append the accepted point as the newest pair.
+        #
+        # Capping the replay count guarantees the bulk of the real history
+        # survives, so probes can only *add* a mild endpoint refinement.
+        k = info.probe_alphas.shape[0]
+        n_keep = min(max_probe_replay, k)
+
+        # Rank valid probes by α (descending): the closest-to-accepted probes
+        # first. Invalid slots are pushed to the back with -inf.
+        ranked_alpha = jnp.where(info.probe_valid, info.probe_alphas, -jnp.inf)
+        keep_order = jnp.argsort(-ranked_alpha)[:n_keep]
+        kept_params = info.probe_params[keep_order]
+        kept_grads = info.probe_grads[keep_order]
+        kept_valid = info.probe_valid[keep_order]
+        kept_alphas = info.probe_alphas[keep_order]
+
+        # Now sort the KEPT probes by INCREASING α so the replayed secant
+        # differences s_k = p_k - p_{k-1} are consistently oriented along d.
+        inner = jnp.argsort(jnp.where(kept_valid, kept_alphas, jnp.inf))
+        probe_params = kept_params[inner]
+        probe_grads = kept_grads[inner]
+        probe_valid = kept_valid[inner]
+
         # Append the accepted point as the final (newest) probe.
         params_seq = jnp.concatenate([probe_params, info.new_params[None, :]], axis=0)
         grad_seq = jnp.concatenate([probe_grads, info.new_grad[None, :]], axis=0)
@@ -493,10 +518,10 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
 # --- Resolution -------------------------------------------------------
 
 
-def resolve_oracle(oracle, history_size: int = 10) -> Oracle:
+def resolve_oracle(oracle, history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
     """Map a string shortcut or ``Oracle`` instance to a concrete oracle."""
     if oracle is None or oracle == "lbfgs":
-        return LBFGSOracle(history_size=history_size)
+        return LBFGSOracle(history_size=history_size, max_probe_replay=max_probe_replay)
     if isinstance(oracle, str):
         if oracle == "momentum":
             return MomentumOracle()
@@ -513,7 +538,15 @@ def resolve_oracle(oracle, history_size: int = 10) -> Oracle:
         if oracle == "lbfgs+secant":
             # Your data's "best zero-storage safety net": deep curvature while
             # healthy, finite curvature the instant the history collapses.
-            return Fallback([LBFGSOracle(history_size=history_size), SecantOracle()])
+            return Fallback(
+                [
+                    LBFGSOracle(
+                        history_size=history_size,
+                        max_probe_replay=max_probe_replay,
+                    ),
+                    SecantOracle(),
+                ]
+            )
         raise ValueError(
             f"Unknown oracle: {oracle!r}. "
             "Available: 'lbfgs', 'momentum', 'shampoo', 'secant', 'anderson', "

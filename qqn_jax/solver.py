@@ -314,6 +314,14 @@ class QQN:
         extra_recovery_evals = jnp.asarray(0, jnp.int32)
         if self.feed_probes_to_oracle and res.probe_params is not None:
             probe_valid = res.probe_valid
+            # Enforce the "accepted side" rule promised in the docstring: a
+            # probe must not overshoot the accepted step. Probes beyond
+            # ``step_size`` sit on a rejected stretch of the ray and inject
+            # non-representative curvature. Gate them out here (the oracle then
+            # only replays a small, well-spaced, *closer* subset).
+            if res.probe_alphas is not None:
+                on_accepted_side = res.probe_alphas <= step_size
+                probe_valid = jnp.logical_and(probe_valid, on_accepted_side)
             if self.probe_descent_gate and res.probe_values is not None:
                 # Descent gate: only admit probes whose objective value strictly
                 # improves on the *current* iterate. The line search already
@@ -322,7 +330,7 @@ class QQN:
                 # extra ``vmap`` of ``max_probes`` forward evaluations per
                 # iteration to recover values the line search had thrown away.)
                 descends = res.probe_values < state.value
-                probe_valid = jnp.logical_and(res.probe_valid, descends)
+                probe_valid = jnp.logical_and(probe_valid, descends)
             elif self.probe_descent_gate:
                 # The (e.g. spline-wrapped) line search recorded probe params and
                 # grads but not their objective values. Recover the values with a
@@ -333,7 +341,7 @@ class QQN:
                     lambda p: self._plain_value_and_grad(p, *args)[0]
                 )(res.probe_params)
                 descends = probe_values < state.value
-                probe_valid = jnp.logical_and(res.probe_valid, descends)
+                probe_valid = jnp.logical_and(probe_valid, descends)
                 # Override the zero default: we spent one forward pass per probe
                 # slot recovering values the line search did not retain.
                 extra_recovery_evals = jnp.asarray(res.probe_params.shape[0], jnp.int32)

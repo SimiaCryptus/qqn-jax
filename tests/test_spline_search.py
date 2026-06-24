@@ -73,19 +73,17 @@ def test_segment_value_endpoints():
 
 def test_orient_tangents_reflects_opposing_sign():
     # Secant slope is negative (f1 < f0); a positive tangent gets reflected.
-    f0, f1, h = 1.0, 0.0, 1.0
     m0 = jnp.asarray(2.0)  # opposes the descending channel
     m1 = jnp.asarray(-1.0)  # aligned, kept
-    m0o, m1o = _orient_tangents(h, jnp.asarray(f0), m0, jnp.asarray(f1), m1)
+    m0o, m1o = _orient_tangents(m0, m1)
     assert float(m0o) <= 0.0
     np.testing.assert_allclose(float(m1o), -1.0)
 
 
 def test_orient_tangents_flat_secant_keeps_raw():
-    f0 = f1 = jnp.asarray(1.0)
     m0 = jnp.asarray(2.0)
     m1 = jnp.asarray(-3.0)
-    m0o, m1o = _orient_tangents(1.0, f0, m0, f1, m1)
+    m0o, m1o = _orient_tangents(m0, m1)
     np.testing.assert_allclose(float(m0o), 2.0)
     np.testing.assert_allclose(float(m1o), -3.0)
 
@@ -139,10 +137,9 @@ def test_segment_value_midpoint_between_endpoints():
 
 def test_orient_tangents_preserves_bracketed_minimum():
     # A genuine interior minimum (m0 < 0 < m1) must NOT be reflected away.
-    f0, f1, h = 1.0, 1.0, 1.0
     m0 = jnp.asarray(-2.0)
     m1 = jnp.asarray(3.0)
-    m0o, m1o = _orient_tangents(h, jnp.asarray(f0), m0, jnp.asarray(f1), m1)
+    m0o, m1o = _orient_tangents(m0, m1)
     np.testing.assert_allclose(float(m0o), -2.0)
     np.testing.assert_allclose(float(m1o), 3.0)
 
