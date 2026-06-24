@@ -117,32 +117,29 @@ def BoxRegion(lo=None, hi=None) -> Region:
 
 def OrthantRegion(l1: float = 0.0) -> Region:
     """Constrain each step to remain within the orthant of the current
-    point's signs, zeroing coordinates that would cross zero.
+    point's signs.
 
-    When ``l1 > 0`` the pseudo-gradient ``∇f + l1·sign(x)`` chooses the
-    orthant for zero coordinates (OWL-QN convention). The pseudo-gradient
-    is approximated using ``candidate - params`` as a step proxy, which is
-    the direction the line search proposes.
+    The region merely guarantees that the post-step position does not change
+    the sign of any coordinate: a coordinate that would cross zero is clamped
+    *at* zero. There is no ``l1`` term and no modification of the fitness — the
+    region is a pure geometric projection onto the current orthant.
+
+    For a coordinate with current value ``x``, the projected candidate ``c`` is
+    clamped so that ``sign(c)`` equals ``sign(x)`` (zero is the wall). A
+    coordinate that starts at exactly zero stays at zero.
     """
 
     def project(params, candidate, state):
         def proj_leaf(x, c):
-            step = c - x
-            # Chosen orthant sign ξ. For nonzero x, the orthant is x's own
-            # sign. For genuinely-zero coordinates, OWL-QN selects the orthant
-            # from the *pseudo-gradient* −(∇f + l1·sign(x)); with x=0 and the
-            # step as our descent proxy, the l1 term biases toward the axis,
-            # so a coordinate only leaves zero when |step| exceeds the l1 pull.
-            l1c = jnp.asarray(l1, dtype=c.dtype)
-            # Effective forcing magnitude after the l1 soft-threshold.
-            forced = jnp.abs(step) > l1c
-            xi = jnp.where(
-                x != 0.0,
-                jnp.sign(x),
-                jnp.where(forced, jnp.sign(step), 0.0),
-            )
-            keep = jnp.sign(c) == xi
-            return jnp.where(keep, c, 0.0)
+            # Clamp the candidate so it cannot cross zero relative to x's sign.
+            #   x > 0  -> c is floored at 0
+            #   x < 0  -> c is capped at 0
+            #   x == 0 -> c is pinned at 0
+            zero = jnp.zeros((), dtype=c.dtype)
+            c = jnp.where(x > 0.0, jnp.maximum(c, zero), c)
+            c = jnp.where(x < 0.0, jnp.minimum(c, zero), c)
+            c = jnp.where(x == 0.0, zero, c)
+            return c
 
         return jax.tree_util.tree_map(proj_leaf, params, candidate)
 
@@ -162,24 +159,27 @@ def QuantizationRegion(
     lock: bool = False,
     window: float = 1.0,
 ) -> Region:
-    """Confine weights to the quantization *interval* of their starting value.
+    """Confine weights to the rounding *cell* of their starting value.
 
      Quantization with ``bits`` levels over ``[lo, hi]`` defines a uniform grid
      of representable values spaced by ``Δ = (hi − lo) / (2**bits − 1)`` (or by
-     an explicit ``step``). Consecutive grid points ``[lo + k·Δ, lo + (k+1)·Δ]``
-     form a *rounding interval*: every real value in this interval rounds to one
-     of the two surrounding grid points.
+     an explicit ``step``). The relevant regularizer is the **L1-norm of the
+     rounding delta** ``|x − round(x)|``: a sawtooth whose *minima* (zero error)
+     sit on the grid points and whose *maxima* (largest error, ``Δ/2``) sit on
+     the midpoints *between* grid points.
 
-     This region anchors the interval to the iterate's value **at the start of
-     the step** (``params``): a coordinate is free to explore the full width of
-     *its own* rounding interval, but is projected back at the grid-point walls
-     instead of being allowed to cross into a neighbouring interval.
+     These periodic maxima of the rounding delta partition the line into
+     hypercubic *cells* ``[g_k − Δ/2, g_k + Δ/2]`` around each grid point
+     ``g_k = lo + k·Δ``. This region anchors the cell to the iterate's value
+     **at the start of the step** (``params``): a coordinate is free to explore
+     its own cell but is walled at the midpoints (the local rounding-delta
+     maxima), never crossing into a neighbour's cell.
 
-     The **cell center** — the midpoint between the two surrounding grid points —
-     acts as a natural attractor: it is the point of minimum rounding delta,
-     equidistant from both quantized neighbours. Because the search is projected
-     onto this interval, the optimizer is drawn toward low-rounding-error values
-     rather than toward the grid points themselves.
+     The **cell center** is the *grid point* itself — the local *maximum* of the
+     rounding-delta penalty's negative, i.e. the natural attractor of minimum
+     rounding error. Because the search is projected onto this cell, the
+     optimizer is drawn toward the quantized grid value rather than allowed to
+     drift toward the high-error midpoints.
 
     Args:
         bits: number of quantization bits; the grid has ``2**bits`` levels over
@@ -190,11 +190,11 @@ def QuantizationRegion(
          lock: if ``True``, collapse each coordinate to the nearest grid point —
              hard-snap (true quantization, no exploration).
             If ``False`` (default), the coordinate may roam freely within the
-             rounding interval around its starting value.
+             rounding cell around its starting value.
         window: fraction of the half-cell the coordinate may explore when
             ``lock=False``. ``window=1.0`` (default) exposes the full cell
-             ``[grid_k, grid_{k+1}]``; smaller values tighten the box
-             symmetrically about the interval midpoint.
+             ``[g_k − Δ/2, g_k + Δ/2]``; smaller values tighten the box
+             symmetrically about the grid point.
     """
     if step is None and bits is None:
         raise ValueError("QuantizationRegion requires either `bits` or `step`.")
@@ -213,31 +213,29 @@ def QuantizationRegion(
             delta = _delta(dt)
             lo_v = jnp.asarray(lo, dtype=dt)
             hi_v = jnp.asarray(hi, dtype=dt)
-            # Find which quantization interval x falls in.
-            # Grid points are at lo + k*delta for integer k.
-            # The k-th rounding region is [lo + k*delta, lo + (k+1)*delta].
-            # Its center (the attractor) is lo + (k + 0.5)*delta.
-            # The walls are the grid points themselves.
+            # Grid points sit at g_k = lo + k*delta. The rounding-delta penalty
+            # |x - round(x)| has its maxima at the midpoints g_k ± delta/2,
+            # which form the natural cell walls. The k-th cell is therefore
+            # [g_k - delta/2, g_k + delta/2], centered on the grid point g_k
+            # (the minimum-rounding-error attractor).
             x_clipped = jnp.clip(x, lo_v, hi_v)
-            # Which interval does x belong to? floor gives the lower grid index.
-            k = jnp.floor((x_clipped - lo_v) / delta)
-            # Clamp k so the upper wall doesn't exceed hi.
-            k_max = jnp.floor((hi_v - lo_v) / delta) - 1
+            # Nearest grid index to x: round() snaps x into its own cell.
+            k = jnp.round((x_clipped - lo_v) / delta)
+            # Clamp k to the valid grid range.
+            k_max = jnp.floor((hi_v - lo_v) / delta)
             k = jnp.clip(k, 0.0, k_max)
-            # Cell walls: the two surrounding grid points.
-            cell_lo_grid = lo_v + k * delta
-            cell_hi_grid = lo_v + (k + 1.0) * delta
-            # Cell center: midpoint between the two grid points — the
-            # attractor that minimises rounding delta.
-            center = (cell_lo_grid + cell_hi_grid) * 0.5
+            # Cell center: the grid point itself — the rounding-error minimum.
+            center = lo_v + k * delta
             if lock:
-                # Collapse to the nearest grid point (true quantization).
-                return jnp.round((x_clipped - lo_v) / delta) * delta + lo_v
-            # The explorable cell runs between the two surrounding grid points,
-            # optionally narrowed by `window` around the cell center.
+                # Collapse to the grid point (true quantization).
+                return center
+            # The explorable cell is the midpoint-walled box around the grid
+            # point, optionally narrowed by `window`. The walls are the local
+            # maxima of the rounding delta (the half-cell midpoints), clipped
+            # to the [lo, hi] range.
             half = jnp.asarray(window, dtype=dt) * delta * 0.5
-            cell_lo = jnp.maximum(center - half, cell_lo_grid)
-            cell_hi = jnp.minimum(center + half, cell_hi_grid)
+            cell_lo = jnp.maximum(center - half, lo_v)
+            cell_hi = jnp.minimum(center + half, hi_v)
             return jnp.clip(c, cell_lo, cell_hi)
 
         return jax.tree_util.tree_map(proj_leaf, params, candidate)

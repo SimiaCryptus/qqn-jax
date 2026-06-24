@@ -240,13 +240,84 @@ const VARIANTS = {
         args: [],
         desc: 'Sparse MNIST benchmark (OrthantRegion, default).',
     },
+    sparse_fashion: {
+        report: 'mnist_sparse_benchmark',
+        env: {DATASET: 'fashion_mnist'},
+        args: [],
+        desc: 'Sparse benchmark on Fashion-MNIST (harder corpus).',
+    },
+    sparse_aggressive_l1: {
+        report: 'mnist_sparse_benchmark',
+        env: {L1_SCALE: '1e-3', HIDDEN: '128', DEPTH: '2'},
+        args: [],
+        desc:
+            'Aggressive L1 pressure (1e-3) on a 128x2 net — pushes harder ' +
+            'on sparsity; inspect the accuracy/sparsity Pareto trade-off.',
+    },
+    sparse_precision_8bit: {
+        report: 'mnist_sparse_benchmark',
+        env: {QBITS: '8', QUANT_SCALE: '1e-3'},
+        args: [],
+        desc:
+            'Precision-optimized to an 8-bit grid with a stronger quant ' +
+            'penalty — targets near-lossless 8-bit quantization (low ' +
+            'quant_err).',
+    },
+    sparse_precision_2bit: {
+        report: 'mnist_sparse_benchmark',
+        env: {QBITS: '2', QUANT_SCALE: '1e-3', HIDDEN: '128', DEPTH: '2'},
+        args: [],
+        desc:
+            'Extreme 2-bit precision target: stresses the quantization ' +
+            'region/penalty where the grid is coarsest.',
+    },
+    sparse_relu_deep: {
+        report: 'mnist_sparse_benchmark',
+        env: {ACTIVATION: 'relu', DEPTH: '3', HIDDEN: '128'},
+        args: [],
+        desc:
+            'Deeper ReLU network (128x3): He-init sparsity/precision ' +
+            'behavior vs. the default tanh baseline.',
+    },
+    sparse_mixed_taper: {
+        report: 'mnist_sparse_benchmark',
+        env: {
+            DATASET: 'fashion_mnist',
+            HIDDEN_SIZES: '256,128,64',
+            ACTIVATION: 'tanh,gelu,gaussian',
+            L1_SCALE: '1e-4',
+        },
+        args: [],
+        desc:
+            'Tapering 256->128->64 net with mixed activations on ' +
+            'Fashion-MNIST — richer model for sparsity + precision study.',
+    },
+    sparse_fast: {
+        report: 'mnist_sparse_benchmark',
+        env: {
+            N_TRAIN: '4000',
+            N_TEST: '1000',
+            HIDDEN: '64',
+            DEPTH: '1',
+            MAXITER: '2000',
+        },
+        args: [],
+        desc:
+            'Fast smoke-test config (small data, short budget) for quickly ' +
+            'validating the base+polish pipeline end-to-end.',
+    },
 };
 
 // Default set of variants to run when none are specified.
 const DEFAULT_VARIANTS = [
+    // "sparse_default",
+    // "sparse_fast",            // quick end-to-end smoke test
+    "sparse_fashion",         // harder corpus
+    // "sparse_aggressive_l1",   // sparsity trade-off study
+    // "sparse_precision_8bit",  // near-lossless 8-bit precision
     // 'fashion_default',
     // 'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
-    "fashion_profile_simple_fast",
+    // "fashion_profile_simple_fast",
     // 'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
     // 'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
     // 'fashion_profile_scalene', // Segfault?

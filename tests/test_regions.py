@@ -70,7 +70,7 @@ def test_box_region_unbounded_sides():
 
 
 def test_orthant_region_zeros_sign_crossing():
-    region = OrthantRegion(l1=0.0)
+    region = OrthantRegion()
     params = jnp.array([1.0, -1.0])
     # candidate flips both signs -> both zeroed.
     candidate = jnp.array([-2.0, 2.0])
@@ -79,7 +79,7 @@ def test_orthant_region_zeros_sign_crossing():
 
 
 def test_orthant_region_keeps_same_orthant():
-    region = OrthantRegion(l1=0.0)
+    region = OrthantRegion()
     params = jnp.array([1.0, -1.0])
     candidate = jnp.array([0.5, -0.5])  # same signs
     out = region.project(params, candidate, region.init(params))
@@ -232,7 +232,7 @@ def test_trust_region_shrinks_on_poor_agreement():
 
 
 def test_orthant_region_zeros_only_crossing_coordinate():
-    region = OrthantRegion(l1=0.0)
+    region = OrthantRegion()
     params = jnp.array([1.0, 1.0])
     # First coordinate flips sign, second stays positive.
     candidate = jnp.array([-0.5, 0.5])

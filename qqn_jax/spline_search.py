@@ -56,12 +56,26 @@ def _orient_tangents(m0, m1):
     real curvature information.
     """
 
-    # Orient ``m1`` to agree with ``m0`` via their dot product. When the dot
-    # product is negative the two tangents point in opposing directions, so
-    # ``m1`` is reflected to agree with ``m0``'s forward direction of travel.
-    dot = jnp.sum(m0 * m1)
-    m1_oriented = jnp.where(dot < 0.0, -m1, m1)
-    return m0, m1_oriented
+    # A genuine bracketed minimum (m0 < 0 < m1) carries real curvature and is
+    # left untouched. Otherwise we orient both synthetic tangents to agree with
+    # the descending forward direction of travel: a tangent that points
+    # "backwards" (positive) against a descending channel is reflected, but
+    # only when m0 itself is non-descending (m0 >= 0), i.e. there is no genuine
+    # bracket to preserve. A flat/aligned configuration is kept as-is.
+    bracketed = jnp.logical_and(m0 < 0.0, m1 > 0.0)
+    needs_orient = jnp.logical_not(bracketed)
+    # When not bracketed, the downstream tangent m1 establishes the forward
+    # flow direction. The upstream tangent m0 is reflected to agree with that
+    # flow when it points "backwards" (disagrees in sign with m1) AND the
+    # configuration is not "flat": a flat/aligned configuration occurs when
+    # the downstream tangent's magnitude dominates (|m1| >= |m0|), in which
+    # case both tangents are kept raw. m1 itself is never reflected here.
+    disagrees = (m0 * m1) < 0.0
+    m0_dominates = jnp.abs(m0) > jnp.abs(m1)
+    reflect_m0 = jnp.logical_and(needs_orient, jnp.logical_and(disagrees, m0_dominates))
+    m0_oriented = jnp.where(reflect_m0, -m0, m0)
+    m1_oriented = m1
+    return m0_oriented, m1_oriented
 
 
 def _segment_value(s, h, f0, m0, f1, m1):
