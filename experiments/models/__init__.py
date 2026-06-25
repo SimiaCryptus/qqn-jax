@@ -7,6 +7,7 @@ from experiments.models.activations import (
 )
 from experiments.models.topology import parse_hidden_sizes
 from experiments.models import mlp
+from experiments.models import pytree_mlp
 
 __all__ = [
     "ACTIVATIONS",
@@ -14,4 +15,5 @@ __all__ = [
     "resolve_activation",
     "parse_hidden_sizes",
     "mlp",
+    "pytree_mlp",
 ]
