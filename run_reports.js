@@ -64,6 +64,45 @@ const VARIANTS = {
         args: [],
         desc: 'Headline experiment: Fashion-MNIST, 256x3, tanh,gelu.',
     },
+    fashion_rolling_atan2: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            // DATASET: 'mnist',
+            ACTIVATION: 'rolling_atan2',
+            HIDDEN: '256',
+            DEPTH: '2',
+            TIME_BUDGET: '45',  // seconds
+            F_TARGET: '0.001',
+        },
+        args: [],
+        desc: 'Rolling sine activation on Fashion-MNIST.',
+    },
+    fashion_rolling_sin: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            // DATASET: 'mnist',
+            ACTIVATION: 'rolling_sin',
+            HIDDEN: '256',
+            DEPTH: '3',
+            TIME_BUDGET: '45',  // seconds
+            F_TARGET: '0.001',
+        },
+        args: [],
+        desc: 'Rolling sine activation on Fashion-MNIST.',
+    },
+    fashion_rolling_sin_control: {
+        report: 'fashion_mnist_mlp_comparison',
+        env: {
+            // DATASET: 'mnist',
+            ACTIVATION: 'sine',
+            HIDDEN: '256',
+            DEPTH: '3',
+            TIME_BUDGET: '45',  // seconds
+            F_TARGET: '0.001',
+        },
+        args: [],
+        desc: 'Rolling sine activation on Fashion-MNIST.',
+    },
     fashion_mnist: {
         report: 'fashion_mnist_mlp_comparison',
         env: {DATASET: 'mnist'},
@@ -312,10 +351,13 @@ const VARIANTS = {
 const DEFAULT_VARIANTS = [
     // "sparse_default",
     // "sparse_fast",            // quick end-to-end smoke test
-    "sparse_fashion",         // harder corpus
+    // "sparse_fashion",         // harder corpus
     // "sparse_aggressive_l1",   // sparsity trade-off study
     // "sparse_precision_8bit",  // near-lossless 8-bit precision
     // 'fashion_default',
+    // 'fashion_rolling_atan2',
+    'fashion_rolling_sin',
+    'fashion_rolling_sin_control',
     // 'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
     // "fashion_profile_simple_fast",
     // 'fashion_qqn_wide', // Successfully shows a wider advantage for QQN

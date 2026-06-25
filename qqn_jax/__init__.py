@@ -9,6 +9,11 @@ and uses a line search over this path to select the optimal blend of
 gradient and quasi-Newton directions.
 """
 
+from qqn_jax.rolling_window_activation import (
+    make_rolling_window,
+    rolling_sin_diff,
+    rolling_atan2_ramp,
+)
 from qqn_jax.solver import QQN, QQNState
 from qqn_jax.line_search import strong_wolfe_search, backtracking_search
 from qqn_jax.spline_search import spline_wrap, spline_search
@@ -51,6 +56,9 @@ __all__ = [
     "Fallback",
     "Region",
     "RegionInfo",
+    "make_rolling_window",
+    "rolling_sin_diff",
+    "rolling_atan2_ramp",
     "IdentityRegion",
     "BoxRegion",
     "OrthantRegion",
