@@ -1,0 +1,168 @@
+# variant: sparse_default
+# report:  mnist_sparse_benchmark
+# desc:    Sparse MNIST benchmark (OrthantRegion, default).
+# started: 2026-07-15T12:02:40.291Z
+# command: python3 examples/mnist_sparse_benchmark.py
+------------------------------------------------------------------------
+An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+Loading mnist subset...
+[data] Loaded mnist via tensorflow.keras.
+  train: (10000, 784), test: (5000, 784)
+  arch=784->64->64->10  activation=tanh  line_search=strong_wolfe  history_size=10
+  maxiter=50000  l2=1.0e-04  l1_scale=1.0e-05  quant_scale=1.0e-04  qbits=4  seed=0
+
+
+=== [base] Running: baseline (dense) ===
+  iters=5013  loss=0.0242  test_loss=0.1226  sparsity=0.128  q_sparsity=0.000  quant_loss=0.4000  time=92.13s
+
+=== [base] Running: orthant (sparse) ===
+  iters=50000  loss=0.0462  test_loss=0.1567  sparsity=0.789  q_sparsity=0.000  quant_loss=6.7107  time=912.02s
+
+=== [base] Running: l1-orthant-penalty (sparse) ===
+  iters=50000  loss=0.0591  test_loss=0.1566  sparsity=0.888  q_sparsity=0.000  quant_loss=8.8625  time=927.73s
+
+=== [base] Running: l1-penalty (sparse) ===
+  iters=50000  loss=0.0382  test_loss=0.1183  sparsity=0.675  q_sparsity=0.000  quant_loss=5.0054  time=918.91s
+
+=== [polish] Running: baseline (dense) -> quant-penalty (prec) ===
+  iters=5000  loss=0.0470  test_loss=0.1627  sparsity=0.000  quant_loss=0.2165  time=94.19s
+
+=== [polish] Running: baseline (dense) -> quant-region (prec) ===
+  iters=  0  loss=0.0242  test_loss=0.1226  sparsity=0.128  quant_loss=0.4000  time=1.69s
+
+=== [polish] Running: baseline (dense) -> quant-region-penalty (prec) ===
+  iters=5000  loss=0.0495  test_loss=0.1644  sparsity=0.001  quant_loss=0.3038  time=95.41s
+
+=== [polish] Running: baseline (dense) -> orthant+quant-region (sparse+prec) ===
+  iters=  0  loss=0.0242  test_loss=0.1226  sparsity=0.128  quant_loss=0.4000  time=1.87s
+
+=== [polish] Running: baseline (dense) -> orthant+quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.1100  test_loss=0.1627  sparsity=0.065  quant_loss=0.3154  time=91.82s
+
+=== [polish] Running: baseline (dense) -> quant+l1-penalty (sparse+prec) ===
+  iters=5000  loss=0.0875  test_loss=0.1621  sparsity=0.000  quant_loss=0.2198  time=95.38s
+
+=== [polish] Running: baseline (dense) -> quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.0898  test_loss=0.1631  sparsity=0.001  quant_loss=0.2759  time=89.97s
+
+=== [polish] Running: orthant (sparse) -> quant-penalty (prec) ===
+  iters=5000  loss=0.0734  test_loss=0.1879  sparsity=0.000  quant_loss=0.2293  time=94.26s
+
+=== [polish] Running: orthant (sparse) -> quant-region (prec) ===
+  iters=5000  loss=0.0369  test_loss=0.1440  sparsity=0.530  quant_loss=7.5514  time=98.81s
+
+=== [polish] Running: orthant (sparse) -> quant-region-penalty (prec) ===
+  iters=5000  loss=0.1507  test_loss=0.1647  sparsity=0.157  quant_loss=6.6070  time=99.23s
+
+=== [polish] Running: orthant (sparse) -> orthant+quant-region (sparse+prec) ===
+  iters=5000  loss=0.0468  test_loss=0.1552  sparsity=0.791  quant_loss=6.9942  time=91.55s
+
+=== [polish] Running: orthant (sparse) -> orthant+quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.3570  test_loss=0.1567  sparsity=0.789  quant_loss=6.7321  time=92.37s
+
+=== [polish] Running: orthant (sparse) -> quant+l1-penalty (sparse+prec) ===
+  iters=5000  loss=0.1153  test_loss=0.1847  sparsity=0.000  quant_loss=0.2203  time=92.42s
+
+=== [polish] Running: orthant (sparse) -> quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.1875  test_loss=0.1622  sparsity=0.170  quant_loss=6.5870  time=94.36s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> quant-penalty (prec) ===
+  iters=5000  loss=0.0739  test_loss=0.1926  sparsity=0.000  quant_loss=0.2124  time=94.47s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> quant-region (prec) ===
+  iters=5000  loss=0.0388  test_loss=0.1497  sparsity=0.617  quant_loss=7.8355  time=93.92s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> quant-region-penalty (prec) ===
+  iters=5000  loss=0.1587  test_loss=0.1700  sparsity=0.175  quant_loss=7.0248  time=95.35s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> orthant+quant-region (sparse+prec) ===
+  iters=5000  loss=0.0496  test_loss=0.1562  sparsity=0.888  quant_loss=8.4150  time=95.09s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> orthant+quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.3925  test_loss=0.1545  sparsity=0.888  quant_loss=8.8970  time=95.70s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> quant+l1-penalty (sparse+prec) ===
+  iters=5000  loss=0.1172  test_loss=0.1771  sparsity=0.000  quant_loss=0.2188  time=94.13s
+
+=== [polish] Running: l1-orthant-penalty (sparse) -> quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.1960  test_loss=0.1676  sparsity=0.077  quant_loss=7.0367  time=92.92s
+
+=== [polish] Running: l1-penalty (sparse) -> quant-penalty (prec) ===
+  iters=5000  loss=0.0551  test_loss=0.1692  sparsity=0.000  quant_loss=0.2530  time=89.67s
+
+=== [polish] Running: l1-penalty (sparse) -> quant-region (prec) ===
+  iters=5000  loss=0.0257  test_loss=0.1236  sparsity=0.458  quant_loss=5.8371  time=92.82s
+
+=== [polish] Running: l1-penalty (sparse) -> quant-region-penalty (prec) ===
+  iters=5000  loss=0.0723  test_loss=0.1537  sparsity=0.016  quant_loss=4.9677  time=98.29s
+
+=== [polish] Running: l1-penalty (sparse) -> orthant+quant-region (sparse+prec) ===
+  iters=5000  loss=0.0260  test_loss=0.1219  sparsity=0.725  quant_loss=5.8266  time=91.65s
+
+=== [polish] Running: l1-penalty (sparse) -> orthant+quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.2914  test_loss=0.1474  sparsity=0.652  quant_loss=5.3114  time=94.27s
+
+=== [polish] Running: l1-penalty (sparse) -> quant+l1-penalty (sparse+prec) ===
+  iters=5000  loss=0.0973  test_loss=0.1614  sparsity=0.000  quant_loss=0.2523  time=91.18s
+
+=== [polish] Running: l1-penalty (sparse) -> quant-region+quant-l1 (sparse+prec) ===
+  iters=5000  loss=0.1125  test_loss=0.1503  sparsity=0.017  quant_loss=4.5056  time=91.30s
+
+==========================================================================================
+config                                            iters      loss  test_loss  sparsity quant_loss   time(s)
+------------------------------------------------------------------------------------------------------------------
+baseline (dense)                                   5013    0.0242     0.1226     0.128     0.4000     92.13
+orthant (sparse)                                  50000    0.0462     0.1567     0.789     6.7107    912.02
+l1-orthant-penalty (sparse)                       50000    0.0591     0.1566     0.888     8.8625    927.73
+l1-penalty (sparse)                               50000    0.0382     0.1183     0.675     5.0054    918.91
+baseline (dense) -> quant-penalty (prec)           5000    0.0470     0.1627     0.000     0.2165     94.19
+baseline (dense) -> quant-region (prec)               0    0.0242     0.1226     0.128     0.4000      1.69
+baseline (dense) -> quant-region-penalty (prec)    5000    0.0495     0.1644     0.001     0.3038     95.41
+baseline (dense) -> orthant+quant-region (sparse+prec)      0    0.0242     0.1226     0.128     0.4000      1.87
+baseline (dense) -> orthant+quant-region+quant-l1 (sparse+prec)   5000    0.1100     0.1627     0.065     0.3154     91.82
+baseline (dense) -> quant+l1-penalty (sparse+prec)   5000    0.0875     0.1621     0.000     0.2198     95.38
+baseline (dense) -> quant-region+quant-l1 (sparse+prec)   5000    0.0898     0.1631     0.001     0.2759     89.97
+orthant (sparse) -> quant-penalty (prec)           5000    0.0734     0.1879     0.000     0.2293     94.26
+orthant (sparse) -> quant-region (prec)            5000    0.0369     0.1440     0.530     7.5514     98.81
+orthant (sparse) -> quant-region-penalty (prec)    5000    0.1507     0.1647     0.157     6.6070     99.23
+orthant (sparse) -> orthant+quant-region (sparse+prec)   5000    0.0468     0.1552     0.791     6.9942     91.55
+orthant (sparse) -> orthant+quant-region+quant-l1 (sparse+prec)   5000    0.3570     0.1567     0.789     6.7321     92.37
+orthant (sparse) -> quant+l1-penalty (sparse+prec)   5000    0.1153     0.1847     0.000     0.2203     92.42
+orthant (sparse) -> quant-region+quant-l1 (sparse+prec)   5000    0.1875     0.1622     0.170     6.5870     94.36
+l1-orthant-penalty (sparse) -> quant-penalty (prec)   5000    0.0739     0.1926     0.000     0.2124     94.47
+l1-orthant-penalty (sparse) -> quant-region (prec)   5000    0.0388     0.1497     0.617     7.8355     93.92
+l1-orthant-penalty (sparse) -> quant-region-penalty (prec)   5000    0.1587     0.1700     0.175     7.0248     95.35
+l1-orthant-penalty (sparse) -> orthant+quant-region (sparse+prec)   5000    0.0496     0.1562     0.888     8.4150     95.09
+l1-orthant-penalty (sparse) -> orthant+quant-region+quant-l1 (sparse+prec)   5000    0.3925     0.1545     0.888     8.8970     95.70
+l1-orthant-penalty (sparse) -> quant+l1-penalty (sparse+prec)   5000    0.1172     0.1771     0.000     0.2188     94.13
+l1-orthant-penalty (sparse) -> quant-region+quant-l1 (sparse+prec)   5000    0.1960     0.1676     0.077     7.0367     92.92
+l1-penalty (sparse) -> quant-penalty (prec)        5000    0.0551     0.1692     0.000     0.2530     89.67
+l1-penalty (sparse) -> quant-region (prec)         5000    0.0257     0.1236     0.458     5.8371     92.82
+l1-penalty (sparse) -> quant-region-penalty (prec)   5000    0.0723     0.1537     0.016     4.9677     98.29
+l1-penalty (sparse) -> orthant+quant-region (sparse+prec)   5000    0.0260     0.1219     0.725     5.8266     91.65
+l1-penalty (sparse) -> orthant+quant-region+quant-l1 (sparse+prec)   5000    0.2914     0.1474     0.652     5.3114     94.27
+l1-penalty (sparse) -> quant+l1-penalty (sparse+prec)   5000    0.0973     0.1614     0.000     0.2523     91.18
+l1-penalty (sparse) -> quant-region+quant-l1 (sparse+prec)   5000    0.1125     0.1503     0.017     4.5056     91.30
+==================================================================================================================
+
+Pareto frontier (test_loss vs. sparsity — non-dominated configs):
+  l1-orthant-penalty (sparse) -> orthant+quant-region (sparse+prec) test_loss=0.1562  sparsity=0.888
+  l1-orthant-penalty (sparse) -> orthant+quant-region+quant-l1 (sparse+prec) test_loss=0.1545  sparsity=0.888
+  l1-penalty (sparse) -> orthant+quant-region (sparse+prec) test_loss=0.1219  sparsity=0.725
+  l1-penalty (sparse)                              test_loss=0.1183  sparsity=0.675
+
+Best precision config (lowest quant_loss): l1-orthant-penalty (sparse) -> quant-penalty (prec)
+  quant_loss=0.2124  test_loss=0.1926  sparsity=0.000
+
+Saved convergence plot to 'convergence.png'
+/home/andrew/code/qqn-jax/experiments/reporting/sparse_plots.py:39: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+Saved Pareto plot to 'pareto.png'
+/home/andrew/code/qqn-jax/experiments/reporting/sparse_plots.py:106: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+Saved metrics bar chart to 'metrics_bar.png'
+/home/andrew/code/qqn-jax/experiments/reporting/sparse_plots.py:146: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+
+------------------------------------------------------------------------
+# exit code: 0  elapsed: 5305.3s

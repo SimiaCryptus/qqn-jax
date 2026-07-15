@@ -9,4 +9,5 @@ source .venv/bin/activate
 which pip          # should show .../qqn-jax/.venv/bin/pip
 python -m pip --version
 
-pip install tensorflow torch torchvision
+pip install tensorflow torch torchvision matplotlib
+

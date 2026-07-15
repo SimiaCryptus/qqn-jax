@@ -1,0 +1,103 @@
+# variant: fashion_qqn_deep_hessian
+# report:  fashion_mnist_mlp_comparison
+# desc:    Richer/more anisotropic Hessian (256x4) where the deep-memory curvature lever stays monotone — QQN`s strongest regime.
+# started: 2026-07-15T11:13:04.783Z
+# command: DATASET="fashion_mnist" N_TRAIN="25000" N_TEST="5000" HIDDEN="256" DEPTH="4" ACTIVATION="tanh,gelu" python3 examples/fashion_mnist_mlp_comparison.py
+------------------------------------------------------------------------
+An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+=== 5-layer MLP comparison: QQN vs SGD vs Adam vs L-BFGS ===
+    dataset=fashion_mnist  hidden_sizes=[256, 256, 256, 256]  arch=x->256->256->256->256->10  activation=tanh,gelu,tanh,gelu  (non-convex objective)
+  classes=10  n_train=25000  n_test=5000  maxiter=1000000
+
+  shared stop: f_target=2.0e-02  gtol=1.0e-08  time_budget=150.0s
+
+[data] Loaded fashion_mnist via tensorflow.keras.
+  l2=1.0e-04  sgd_lr=0.05  adam_lr=0.01  seed=42
+  n_classes=10  subset_seed=0
+  milestones=(1.0, 0.5, 0.2, 0.1)  target_profile=(0.2, 0.1, 0.06, 0.04, 0.02)
+
+  model parameters: 400906
+
+optimizer       final_loss   iters   train_acc   test_acc   time(s)   ms/it  ->target   t->tgt  vs LBFGS    evals     AUC
+----------------------------------------------------------------------------------------------------------------------------------
+QQN-Temp      3.540100e-02    1142      1.0000     0.8602   150.074  131.41         —        —         —        —   -0.99
+QQN           3.734823e-02    1064      1.0000     0.8618   150.093  141.06         —        —         —        —   -0.97
+L-BFGS        7.030514e-02     596      1.0000     0.8598   150.002  251.68         —        —         —        —   -0.74
+Adam          2.207086e-01    1235      0.9567     0.8646   150.005  121.46         —        —         —        —   -0.43
+QQN-Adam      3.421493e-01     137      0.9006     0.8706   150.880 1101.31         —        —         —        —   -0.34
+QQN-PathMom   5.115376e-01     251      0.8370     0.8224   150.239  598.56         —        —         —        —   -0.22
+
+Pareto frontier (loss vs. time — non-dominated variants):
+  L-BFGS       loss=7.0305e-02  time=150.002s
+  QQN-Temp     loss=3.5401e-02  time=150.074s
+
+Iteration-efficiency leaderboard (target reached, fewest iters):
+
+Cost-aware leaderboard (estimated function/grad evals to target):
+
+Target-sensitivity profile (iterations to reach each loss target):
+  optimizer         <=2.00e-01    <=1.00e-01    <=6.00e-02    <=4.00e-02    <=2.00e-02
+  QQN                      274           435           754          1006             —
+  QQN-Adam                   —             —             —             —             —
+  QQN-Temp                 277           445           773          1042             —
+  QQN-PathMom                —             —             —             —             —
+  Adam                       —             —             —             —             —
+  L-BFGS                   263           433             —             —             —
+
+Convergence-rate profile (iteration first reaching each loss):
+  optimizer      <=1.0e+00   <=5.0e-01   <=2.0e-01   <=1.0e-01
+  L-BFGS                 8          44         263         433
+  QQN                    7          44         274         435
+  QQN-Temp               7          45         277         445
+  QQN-Adam               7          32           —           —
+  QQN-PathMom            8           —           —           —
+  Adam                  16          68           —           —
+
+Inter-milestone cost breakdown (Δtime[s] / Δevals between consecutive milestones):
+  optimizer         start->1.0e+00    1.0e+00->5.0e-01    5.0e-01->2.0e-01    2.0e-01->1.0e-01
+  QQN-Temp                 5.260/8            4.825/38          29.558/232          21.490/168
+  QQN                      5.325/8            5.211/41          31.683/252          22.016/174
+  L-BFGS                  8.256/17            8.630/74          52.968/456          40.791/359
+  QQN-Adam               10.398/63          23.669/232                   —                   —
+  QQN-PathMom             6.748/25                   —                   —                   —
+  Adam                    3.215/16            6.054/52                   —                   —
+
+Convergence-rate profile (wall-clock seconds first reaching each loss):
+  optimizer      <=1.0e+00   <=5.0e-01   <=2.0e-01   <=1.0e-01
+  QQN-Temp           5.260      10.085      39.642      61.132
+  QQN                5.325      10.536      42.219      64.235
+  L-BFGS             8.256      16.887      69.854     110.645
+  QQN-Adam          10.398      34.067           —           —
+  QQN-PathMom        6.748           —           —           —
+  Adam               3.215       9.269           —           —
+
+Convergence-rate profile (estimated function/grad evals first reaching each loss):
+  optimizer      <=1.0e+00   <=5.0e-01   <=2.0e-01   <=1.0e-01
+  QQN-Temp               8          46         278         446
+  QQN                    8          49         301         475
+  L-BFGS                17          91         547         906
+  QQN-Adam              63         295           —           —
+  QQN-PathMom           25           —           —           —
+  Adam                  16          68           —           —
+
+Stall report (never reached the shared target):
+  QQN-Temp       final=3.5401e-02  iters=1142  time=150.074s  [time-budget exhausted]
+  QQN            final=3.7348e-02  iters=1064  time=150.093s  [time-budget exhausted]
+  L-BFGS         final=7.0305e-02  iters=596  time=150.002s  [time-budget exhausted]
+  Adam           final=2.2071e-01  iters=1235  time=150.005s  [time-budget exhausted]
+  QQN-Adam       final=3.4215e-01  iters=137  time=150.880s  [time-budget exhausted]
+  QQN-PathMom    final=5.1154e-01  iters=251  time=150.239s  [time-budget exhausted]
+
+Loss trajectory (log10, sampled):
+  QQN          0.38  -0.45  -0.64  -0.86  -1.04  -1.10  -1.19  -1.28  -1.36  -1.43
+  QQN-Adam     0.38  -0.18  -0.30  -0.34  -0.38  -0.41  -0.43  -0.44  -0.45  -0.47
+  QQN-Temp     0.38  -0.46  -0.66  -0.88  -1.08  -1.13  -1.21  -1.30  -1.38  -1.45
+  QQN-PathMom   0.38  -0.13  -0.19  -0.22  -0.23  -0.24  -0.25  -0.27  -0.28  -0.29
+  Adam         0.38  -0.40  -0.41  -0.57  -0.42  -0.54  -0.39  -0.50  -0.55  -0.66
+  L-BFGS       0.38  -0.37  -0.49  -0.60  -0.70  -0.82  -0.94  -1.05  -1.12  -1.15
+
+[plot] Saved vs_iter convergence plot to results/fashion_mnist_mlp_comparison_vs_iter_20260715-072815.png
+[plot] Saved vs_time convergence plot to results/fashion_mnist_mlp_comparison_vs_time_20260715-072815.png
+
+------------------------------------------------------------------------
+# exit code: 0  elapsed: 912.5s

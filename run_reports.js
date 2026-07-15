@@ -349,20 +349,21 @@ const VARIANTS = {
 
 // Default set of variants to run when none are specified.
 const DEFAULT_VARIANTS = [
-    // "sparse_default",
+    "sparse_default",
     // "sparse_fast",            // quick end-to-end smoke test
     // "sparse_fashion",         // harder corpus
     // "sparse_aggressive_l1",   // sparsity trade-off study
     // "sparse_precision_8bit",  // near-lossless 8-bit precision
-    'fashion_default',
-    'fashion_rolling_atan2',
-    'fashion_rolling_sin',
-    // 'fashion_rolling_sin_control',
-    'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
-    // "fashion_profile_simple_fast",
-    // 'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
-    'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
-    // 'fashion_profile_scalene', // Segfault?
+
+    // 'fashion_default',
+    // 'fashion_rolling_atan2',
+    // 'fashion_rolling_sin',
+    // 'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
+    // 'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
+
+    'fashion_rolling_sin_control',
+    "fashion_profile_simple_fast",
+    'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
 ];
 
 // ---------------------------------------------------------------------------
