@@ -15,6 +15,8 @@ import optax
 from qqn_jax.oracles import (
     LBFGSOracle,
     MomentumOracle,
+    AdamOracle,
+    PathHistoryMomentumOracle,
     SecantOracle,
     AndersonOracle,
     Fallback,
@@ -26,9 +28,11 @@ from qqn_jax.regions import (
 
 __all__ = ["ENABLED", "build_runners"]
 
-
 ENABLED = [
     "QQN",
+    "QQN-Adam",
+    "QQN-Temp",
+    "QQN-PathMom",
     "Adam",
     "L-BFGS",
 ]
@@ -213,6 +217,42 @@ def _profiles():
             {},
         )
 
+    def QQN_Adam(ctx):
+        return (
+            lambda: ctx.run_qqn(
+                ctx.loss_fn,
+                ctx.params0,
+                ctx.maxiter,
+                oracle=AdamOracle(),
+                stop=ctx.stop,
+            ),
+            {},
+        )
+
+    def QQN_PathMom(ctx):
+        return (
+            lambda: ctx.run_qqn(
+                ctx.loss_fn,
+                ctx.params0,
+                ctx.maxiter,
+                oracle=PathHistoryMomentumOracle(history_size=10, beta=0.9),
+                stop=ctx.stop,
+            ),
+            {},
+        )
+
+    def QQN_Temp(ctx):
+        return (
+            lambda: ctx.run_qqn(
+                ctx.loss_fn,
+                ctx.params0,
+                ctx.maxiter,
+                line_search="backtracking_temperature",
+                stop=ctx.stop,
+            ),
+            {"line_search": "backtracking_temperature"},
+        )
+
     def QQN_Mom_S(ctx):
         return (
             lambda: ctx.run_qqn(
@@ -351,26 +391,29 @@ def _profiles():
     return {
         "QQN": QQN,
         "QQN-S": QQN_S,
-        "QQN-BT": QQN_BT,
-        "QQN-BT-S": QQN_BT_S,
-        "QQN-L20": QQN_L20,
-        "QQN-L20_P": QQN_L20_P,
-        "QQN-L50": QQN_L50,
-        "QQN-L80": QQN_L80,
-        "QQN-Cheap": QQN_Cheap,
-        "QQN-L120": QQN_L120,
-        "QQN-L160": QQN_L160,
-        "QQN-L80And": QQN_L80And,
-        "QQN-L80-BT": QQN_L80_BT,
+        # "QQN-BT": QQN_BT,
+        # "QQN-BT-S": QQN_BT_S,
+        # "QQN-L20": QQN_L20,
+        # "QQN-L20_P": QQN_L20_P,
+        # "QQN-L50": QQN_L50,
+        # "QQN-L80": QQN_L80,
+        # "QQN-Cheap": QQN_Cheap,
+        # "QQN-L120": QQN_L120,
+        # "QQN-L160": QQN_L160,
+        # "QQN-L80And": QQN_L80And,
+        # "QQN-L80-BT": QQN_L80_BT,
         "QQN-Mom": QQN_Mom,
-        "QQN-Mom-S": QQN_Mom_S,
-        "QQN-Sec": QQN_Sec,
-        "QQN-And": QQN_And,
-        "QQN-L50And": QQN_L50And,
-        "QQN-TR": QQN_TR,
-        "QQN-Fast": QQN_Fast,
-        "QQN-Max": QQN_Max,
-        "QQN-Box": QQN_Box,
+        # "QQN-Mom-S": QQN_Mom_S,
+        "QQN-Adam": QQN_Adam,
+        "QQN-PathMom": QQN_PathMom,
+        "QQN-Temp": QQN_Temp,
+        # "QQN-Sec": QQN_Sec,
+        # "QQN-And": QQN_And,
+        # "QQN-L50And": QQN_L50And,
+        # "QQN-TR": QQN_TR,
+        # "QQN-Fast": QQN_Fast,
+        # "QQN-Max": QQN_Max,
+        # "QQN-Box": QQN_Box,
         "SGD": SGD,
         "Adam": Adam,
         "L-BFGS": LBFGS,

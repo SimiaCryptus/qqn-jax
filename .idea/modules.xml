@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/qqn-jax.iml" filepath="$PROJECT_DIR$/qqn-jax.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../qqn-torch/qqn-torch.iml" filepath="$PROJECT_DIR$/../../qqn-torch/qqn-torch.iml" />
+    </modules>
+  </component>
+</project>

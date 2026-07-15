@@ -15,13 +15,19 @@ from qqn_jax.rolling_window_activation import (
     rolling_atan2_ramp,
 )
 from qqn_jax.solver import QQN, QQNState
-from qqn_jax.line_search import strong_wolfe_search, backtracking_search
+from qqn_jax.line_search import (
+    strong_wolfe_search,
+    backtracking_search,
+    backtracking_temperature_search,
+)
 from qqn_jax.spline_search import spline_wrap, spline_search
 from qqn_jax.oracles import (
     Oracle,
     OracleInfo,
     LBFGSOracle,
     MomentumOracle,
+    AdamOracle,
+    PathHistoryMomentumOracle,
     ShampooOracle,
     SecantOracle,
     AndersonOracle,
@@ -44,12 +50,15 @@ __all__ = [
     "QQNState",
     "strong_wolfe_search",
     "backtracking_search",
+    "backtracking_temperature_search",
     "spline_wrap",
     "spline_search",
     "Oracle",
     "OracleInfo",
     "LBFGSOracle",
     "MomentumOracle",
+    "AdamOracle",
+    "PathHistoryMomentumOracle",
     "ShampooOracle",
     "SecantOracle",
     "AndersonOracle",

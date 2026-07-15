@@ -402,6 +402,186 @@ def armijo_search(
     )
 
 
+def backtracking_temperature_search(
+    value_and_grad_fn: Callable,
+    params,
+    direction,
+    value,
+    grad,
+    *args,
+    init_step: float = 1.0,
+    c1: float = 1e-2,
+    shrink: float = 0.5,
+    max_iter: int = 30,
+    temperature: float = 1.0,
+    cooling: float = 0.95,
+    seed: int = 0,
+    region=None,
+    region_state=None,
+    max_probes: int = 32,
+    record_probes: bool = True,
+) -> LineSearchResult:
+    """Backtracking line search with a Metropolis-style temperature.
+    A simulated-annealing flavored backtracking search: at each shrink step
+    the Armijo sufficient-decrease test is checked first, but if it fails the
+    step may *still* be probabilistically accepted — an *uphill climb* — with
+    Metropolis acceptance probability
+        p = exp(−ΔE / T),   ΔE = f(x + α·d) − f(x)
+    where ``T`` is the (annealed) temperature. This lets the search escape
+    shallow local structure by occasionally accepting a worse point. The
+    temperature is cooled geometrically (``T ← cooling·T``) at each iteration
+    so the acceptance of uphill moves becomes progressively less likely.
+    Downhill steps (ΔE ≤ 0) are always accepted (``p ≥ 1``). If neither the
+    Armijo test nor the stochastic test ever accepts, the search terminates at
+    ``max_iter`` with the last (shrunk) step.
+    A ``seed`` seeds a deterministic PRNG so the whole search stays
+    JIT/vmap-compatible and reproducible.
+    """
+    region = resolve_region(region)
+    project = _make_projected_point(region, region_state, params)
+    dg = tree_vdot(grad, direction)  # directional derivative gᵀd
+
+    def eval_at(alpha):
+        raw = tree_add_scaled(params, alpha, direction)
+        projected = project(raw)
+        val, g = value_and_grad_fn(projected, *args)
+        return projected, val, g
+
+    eff_probes = max_probes if record_probes else 1
+    init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
+    temp0 = jnp.asarray(temperature, dtype=value.dtype)
+    key0 = jax.random.PRNGKey(seed)
+
+    def accept(alpha, val, temp, key):
+        """Return (accepted, new_key). Armijo OR Metropolis stochastic test."""
+        armijo = val <= value + c1 * alpha * dg
+        delta_e = val - value
+        # Metropolis probability: exp(-ΔE / T), clamped to [0, 1]. A safe
+        # temperature guards against divide-by-zero when T collapses.
+        safe_t = jnp.maximum(temp, jnp.asarray(1e-12, dtype=value.dtype))
+        p = jnp.exp(-delta_e / safe_t)
+        p = jnp.clip(p, 0.0, 1.0)
+        key, subkey = jax.random.split(key)
+        u = jax.random.uniform(subkey, dtype=value.dtype)
+        stochastic = u < p
+        return jnp.logical_or(armijo, stochastic), key
+
+    def cond(carry):
+        (
+            alpha,
+            i,
+            evals,
+            val,
+            _g,
+            _p,
+            accepted,
+            temp,
+            key,
+            _pp,
+            _pg,
+            _pv,
+            _pval,
+            _pa,
+        ) = carry
+        return jnp.logical_and(jnp.logical_not(accepted), i < max_iter)
+
+    def body(carry):
+        (alpha, i, evals, _val, _g, _p, _accepted, temp, key, pp, pg, pv, pval, pa) = (
+            carry
+        )
+        alpha = alpha * shrink
+        new_params, new_val, new_g = eval_at(alpha)
+        accepted, key = accept(alpha, new_val, temp, key)
+        temp = temp * cooling
+        pp, pg, pv, pval, pa = _record_probe(
+            pp, pg, pv, pval, pa, i, new_params, new_g, new_val, alpha, eff_probes
+        )
+        return (
+            alpha,
+            i + 1,
+            evals + 1,
+            new_val,
+            new_g,
+            new_params,
+            accepted,
+            temp,
+            key,
+            pp,
+            pg,
+            pv,
+            pval,
+            pa,
+        )
+
+    init_alpha = jnp.asarray(init_step, dtype=value.dtype)
+    # Evaluate at the initial step first.
+    init_params, init_val, init_g = eval_at(init_alpha)
+    init_accepted, key1 = accept(init_alpha, init_val, temp0, key0)
+    temp1 = temp0 * cooling
+    init_pp, init_pg, init_pv, init_pval, init_pa = _record_probe(
+        init_pp,
+        init_pg,
+        init_pv,
+        init_pval,
+        init_pa,
+        0,
+        init_params,
+        init_g,
+        init_val,
+        init_alpha,
+        eff_probes,
+    )
+    (
+        alpha,
+        n_iters,
+        eval_count,
+        final_val,
+        final_g,
+        new_params,
+        accepted,
+        _temp,
+        _key,
+        probe_params,
+        probe_grads,
+        probe_valid,
+        probe_values,
+        probe_alphas,
+    ) = jax.lax.while_loop(
+        cond,
+        body,
+        (
+            init_alpha,
+            jnp.asarray(1),
+            jnp.asarray(1, jnp.int32),
+            init_val,
+            init_g,
+            init_params,
+            init_accepted,
+            temp1,
+            key1,
+            init_pp,
+            init_pg,
+            init_pv,
+            init_pval,
+            init_pa,
+        ),
+    )
+    num_evals = eval_count
+    return LineSearchResult(
+        step_size=alpha,
+        new_value=final_val,
+        new_grad=final_g,
+        new_params=new_params,
+        done=accepted,
+        probe_params=probe_params,
+        probe_grads=probe_grads,
+        probe_valid=probe_valid,
+        probe_values=probe_values,
+        probe_alphas=probe_alphas,
+        num_evals=num_evals,
+    )
+
+
 def hager_zhang_search(
     value_and_grad_fn: Callable,
     params,

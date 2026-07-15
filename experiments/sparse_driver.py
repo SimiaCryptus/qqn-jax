@@ -313,12 +313,6 @@ def run_sparse_experiment(config, *, do_plots=True):
     base_configs = _base_configs(l1_reg)
     polish_configs = _polish_configs(config, quant_reg, quant_l1_reg)
 
-    activation_names = (
-        list(config.activation_name)
-        if isinstance(config.activation_name, (list, tuple))
-        else config.activation_name
-    )
-
     results = []
     base_results = []
     for name, region, line_search, regularizer in base_configs:

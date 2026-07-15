@@ -32,6 +32,7 @@ from qqn_jax.line_search import (
     fixed_step_search,
     hager_zhang_search,
     strong_wolfe_search,
+    backtracking_temperature_search,
 )
 from qqn_jax.spline_search import spline_wrap, spline_search
 from qqn_jax.oracles import OracleInfo, resolve_oracle
@@ -51,6 +52,7 @@ _LINE_SEARCHES = {
     "hager_zhang": hager_zhang_search,
     "fixed": fixed_step_search,
     "spline": spline_search,
+    "backtracking_temperature": backtracking_temperature_search,
 }
 
 

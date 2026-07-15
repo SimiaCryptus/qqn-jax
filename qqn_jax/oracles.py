@@ -167,6 +167,84 @@ class MomentumState(NamedTuple):
     velocity: jnp.ndarray
 
 
+# --- ADAM Oracle ------------------------------------------------------
+class AdamState(NamedTuple):
+    """State for the ADAM oracle.
+    Attributes:
+        m: first-moment (momentum) estimate of the gradient.
+        v: second-moment (energy) estimate of the gradient.
+        step: iteration counter for bias correction.
+    """
+
+    m: jnp.ndarray
+    v: jnp.ndarray
+    step: jnp.ndarray
+
+
+def AdamOracle(
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    epsilon: float = 1e-8,
+) -> Oracle:
+    """ADAM (adaptive moment estimation) oracle.
+    The ``t = 1`` endpoint is the classical ADAM update direction, formed by
+    integrating a decaying-weight *momentum* (first moment ``m``) and a
+    decaying-weight *energy* (second moment ``v``) of the gradients, with the
+    standard bias correction::
+        m      = β1·m + (1 − β1)·∇f
+        v      = β2·v + (1 − β2)·∇f²
+        m̂      = m / (1 − β1^t)
+        v̂      = v / (1 − β2^t)
+        direction = − m̂ / (√v̂ + ε)
+    The moments are integrated in ``update`` (committed once a step is
+    accepted) so the persisted state accumulates across iterations. The very
+    first step (before any accepted gradient) reduces to plain (scaled)
+    steepest descent, preserving the ``d'(0)`` anchor.
+    """
+
+    def init(params):
+        zeros = jax.tree_util.tree_map(jnp.zeros_like, params)
+        return AdamState(
+            m=zeros,
+            v=zeros,
+            step=jnp.asarray(0, dtype=jnp.int32),
+        )
+
+    def direction(params, grad, state):
+        # Fold the *current* gradient into the moment estimates to form the
+        # endpoint, but do NOT persist here (the solver discards the returned
+        # oracle state; ``update`` commits the accepted moments).
+        t = state.step + 1
+        m = jax.tree_util.tree_map(
+            lambda mi, g: beta1 * mi + (1.0 - beta1) * g, state.m, grad
+        )
+        v = jax.tree_util.tree_map(
+            lambda vi, g: beta2 * vi + (1.0 - beta2) * (g * g), state.v, grad
+        )
+        bc1 = 1.0 - beta1 ** t.astype(grad.dtype)
+        bc2 = 1.0 - beta2 ** t.astype(grad.dtype)
+        d = jax.tree_util.tree_map(
+            lambda mi, vi: -(mi / bc1) / (jnp.sqrt(vi / bc2) + epsilon),
+            m,
+            v,
+        )
+        return d, state
+
+    def update(state, info):
+        # Commit the accepted gradient into the running moment estimates. This
+        # is the only state the solver persists across iterations.
+        grad = info.grad
+        m = jax.tree_util.tree_map(
+            lambda mi, g: beta1 * mi + (1.0 - beta1) * g, state.m, grad
+        )
+        v = jax.tree_util.tree_map(
+            lambda vi, g: beta2 * vi + (1.0 - beta2) * (g * g), state.v, grad
+        )
+        return AdamState(m=m, v=v, step=state.step + 1)
+
+    return Oracle(init=init, direction=direction, update=update)
+
+
 def MomentumOracle(beta: float = 0.9) -> Oracle:
     """First-order accelerated (heavy-ball) oracle.
 
@@ -211,6 +289,66 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
             lambda v, dx: beta * v + (1.0 - beta) * dx, state.velocity, delta
         )
         return MomentumState(velocity=v_new)
+
+    return Oracle(init=init, direction=direction, update=update)
+
+
+# --- Path-History-Momentum Oracle ------------------------------------
+class PathHistoryMomentumState(NamedTuple):
+    """State for the path-history-momentum oracle.
+    Attributes:
+        delta_history: buffer of realized per-iteration deltas Δx = x_new − x,
+            shape ``(history_size, n)``, most-recent-first (index 0 = newest).
+        step_count: number of valid entries currently stored.
+    """
+
+    delta_history: jnp.ndarray
+    step_count: jnp.ndarray
+
+
+def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Oracle:
+    """Momentum oracle that integrates the *actual accepted iteration history*.
+    Unlike :func:`MomentumOracle`, which keeps a single running decaying
+    average of the realized deltas, this oracle stores an explicit buffer of
+    the last ``history_size`` accepted parameter deltas Δx = x_new − x and
+    reconstructs the momentum by re-weighting the *whole* stored path::
+        v = Σ_k  β^k · Δx_k                 (k = 0 newest .. m-1 oldest)
+        direction = -∇f + v
+    Because the momentum is recomputed from the genuine accepted trajectory
+    (not folded destructively into a scalar EMA), the oracle can weight the
+    real path geometry directly — recent steps dominate while older steps
+    decay, but every stored step contributes exactly its geometric weight.
+    On the very first step the buffer is empty and the endpoint reduces to
+    plain steepest descent, preserving the ``d'(0)`` anchor.
+    """
+
+    def init(params):
+        n = params.shape[0]
+        return PathHistoryMomentumState(
+            delta_history=jnp.zeros((history_size, n), dtype=params.dtype),
+            step_count=jnp.asarray(0, dtype=jnp.int32),
+        )
+
+    def direction(params, grad, state):
+        # Reconstruct the momentum from the stored path history: weight each
+        # realized delta by β^k (newest first). Unfilled slots are zero and
+        # contribute nothing. Do NOT mutate state here.
+        m = state.delta_history.shape[0]
+        weights = beta ** jnp.arange(m, dtype=grad.dtype)  # (m,)
+        # Mask slots beyond the currently-filled history.
+        active = jnp.arange(m) < state.step_count
+        weights = jnp.where(active, weights, 0.0)
+        v = jnp.tensordot(weights, state.delta_history, axes=(0, 0))  # (n,)
+        d = -grad + v
+        return d, state
+
+    def update(state, info):
+        # Push the freshly-realized delta into the front of the circular
+        # buffer (most-recent-first), dropping the oldest.
+        delta = info.new_params - info.params
+        shifted = jnp.concatenate([delta[None], state.delta_history[:-1]], axis=0)
+        new_count = jnp.minimum(state.step_count + 1, history_size)
+        return PathHistoryMomentumState(delta_history=shifted, step_count=new_count)
 
     return Oracle(init=init, direction=direction, update=update)
 
@@ -525,6 +663,10 @@ def resolve_oracle(oracle, history_size: int = 10, max_probe_replay: int = 2) ->
     if isinstance(oracle, str):
         if oracle == "momentum":
             return MomentumOracle()
+        if oracle == "adam":
+            return AdamOracle()
+        if oracle == "path_momentum":
+            return PathHistoryMomentumOracle(history_size=history_size)
         if oracle == "shampoo":
             return ShampooOracle()
         if oracle == "secant":
@@ -549,8 +691,9 @@ def resolve_oracle(oracle, history_size: int = 10, max_probe_replay: int = 2) ->
             )
         raise ValueError(
             f"Unknown oracle: {oracle!r}. "
-            "Available: 'lbfgs', 'momentum', 'shampoo', 'secant', 'anderson', "
-            "'anderson+secant', 'lbfgs+secant' or an Oracle instance."
+            "Available: 'lbfgs', 'momentum', 'adam', 'path_momentum', "
+            "'shampoo', 'secant', 'anderson', 'anderson+secant', "
+            "'lbfgs+secant' or an Oracle instance."
         )
     if isinstance(oracle, Oracle):
         return oracle
@@ -562,6 +705,8 @@ __all__ = [
     "OracleInfo",
     "LBFGSOracle",
     "MomentumOracle",
+    "AdamOracle",
+    "PathHistoryMomentumOracle",
     "ShampooOracle",
     "SecantOracle",
     "AndersonOracle",
