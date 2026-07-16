@@ -17,15 +17,17 @@ def converged(value, gnorm, f_target, gtol):
     return False
 
 
-def update_milestones(milestones, hit, value, it, now, evals=None):
+def update_milestones(milestones, hit, value, it, now, evals=None, fwd=None, bwd=None):
     """Record the first iteration/time/evals each loss milestone is crossed.
 
-    Each recorded hit is a tuple ``(iteration, wall_time, evals)`` so the
-    convergence-rate profile can report not just *when* but *how long* and
-    *how much work* it took to first cross each loss level.
+     Each recorded hit is a tuple ``(iteration, wall_time, evals, fwd, bwd)``
+     so the convergence-rate profile can report not just *when* but *how long*
+     and *how much work* (combined value+grad calls, plus the separate forward
+     value evals and backward gradient evals) it took to first cross each loss
+     level.
     """
     if not milestones:
         return
     for m in milestones:
         if hit.get(m) is None and value <= m:
-            hit[m] = (it, now, evals)
+             hit[m] = (it, now, evals, fwd, bwd)

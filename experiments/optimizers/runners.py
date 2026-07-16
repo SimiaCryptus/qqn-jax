@@ -35,11 +35,22 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
     # ``state.num_evals`` is the TRUE cumulative evaluation count (line-search
     # probes, spline probes, recovery evals, plus the init_state eval).
     eval_counts = [int(state.num_evals)]
+    # Each QQN value-and-grad call evaluates both f (forward) and ∇f
+    # (backward), so the forward/backward counts equal the combined count.
+    fwd_counts = [int(state.num_evals)]
+    bwd_counts = [int(state.num_evals)]
     iters_to_target = None
     time_to_target = None
     milestone_hits = {m: None for m in milestones}
     update_milestones(
-        milestones, milestone_hits, history[-1], 0, 0.0, int(state.num_evals)
+         milestones,
+         milestone_hits,
+         history[-1],
+         0,
+         0.0,
+         int(state.num_evals),
+         fwd=int(state.num_evals),
+         bwd=int(state.num_evals),
     )
     t0 = time.perf_counter()
     update = jax.jit(solver.update)
@@ -51,8 +62,17 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
         gnorm = float(state.error)
         cum_evals = int(state.num_evals)
         eval_counts.append(cum_evals)
+        fwd_counts.append(cum_evals)
+        bwd_counts.append(cum_evals)
         update_milestones(
-            milestones, milestone_hits, history[-1], it + 1, now, cum_evals
+             milestones,
+             milestone_hits,
+             history[-1],
+             it + 1,
+             now,
+             cum_evals,
+             fwd=cum_evals,
+             bwd=cum_evals,
         )
         if iters_to_target is None and converged(history[-1], gnorm, f_target, gtol):
             iters_to_target = it + 1
@@ -98,10 +118,14 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     history = [float(loss_fn(params))]
     times = [0.0]
     eval_counts = [0]
+    # A generic first-order Optax step is one value-and-grad call per step:
+    # exactly one forward (value) and one backward (grad) evaluation.
+    fwd_counts = [0]
+    bwd_counts = [0]
     iters_to_target = None
     time_to_target = None
     milestone_hits = {m: None for m in milestones}
-    update_milestones(milestones, milestone_hits, history[-1], 0, 0.0, 0)
+    update_milestones(milestones, milestone_hits, history[-1], 0, 0.0, 0, fwd=0, bwd=0)
     t0 = time.perf_counter()
     for it in range(maxiter):
         params, opt_state, value, gnorm = step(params, opt_state)
@@ -110,8 +134,17 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         times.append(now)
         cum_evals = it + 1  # one value+grad call per step
         eval_counts.append(cum_evals)
+        fwd_counts.append(cum_evals)
+        bwd_counts.append(cum_evals)
         update_milestones(
-            milestones, milestone_hits, history[-1], it + 1, now, cum_evals
+             milestones,
+             milestone_hits,
+             history[-1],
+             it + 1,
+             now,
+             cum_evals,
+             fwd=cum_evals,
+             bwd=cum_evals,
         )
         if iters_to_target is None and converged(
             history[-1], float(gnorm), f_target, gtol
@@ -173,12 +206,19 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     history = [float(loss_fn(params))]
     times = [0.0]
     eval_counts = [0]
+    # L-BFGS line-search probes evaluate the objective *value* only (forward),
+    # while each accepted step also computes a gradient (backward). Track the
+    # two separately: +1 backward per step, +(1 + ls_steps) forward per step.
+    fwd_counts = [0]
+    bwd_counts = [0]
+    cum_fwd = 0
+    cum_bwd = 0
     cum_evals = 0
     _ls_unavailable = False
     iters_to_target = None
     time_to_target = None
     milestone_hits = {m: None for m in milestones}
-    update_milestones(milestones, milestone_hits, history[-1], 0, 0.0, 0)
+    update_milestones(milestones, milestone_hits, history[-1], 0, 0.0, 0, fwd=0, bwd=0)
     t0 = time.perf_counter()
     for it in range(maxiter):
         params, opt_state, value, gnorm = step(params, opt_state)
@@ -189,11 +229,25 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
         if ls_steps is None:
             _ls_unavailable = True
             cum_evals += 3  # conservative fallback: ~2 probes/step + base call
+            cum_fwd += 3  # ~1 base value + ~2 line-search value probes
+            cum_bwd += 1  # one accepted-point gradient per step
         else:
             cum_evals += 1 + max(ls_steps, 0)
+            # 1 base value+grad call plus ``ls_steps`` value-only probes.
+            cum_fwd += 1 + max(ls_steps, 0)
+            cum_bwd += 1
         eval_counts.append(cum_evals)
+        fwd_counts.append(cum_fwd)
+        bwd_counts.append(cum_bwd)
         update_milestones(
-            milestones, milestone_hits, history[-1], it + 1, now, cum_evals
+             milestones,
+             milestone_hits,
+             history[-1],
+             it + 1,
+             now,
+             cum_evals,
+             fwd=cum_fwd,
+             bwd=cum_bwd,
         )
         if iters_to_target is None and converged(
             history[-1], float(gnorm), f_target, gtol

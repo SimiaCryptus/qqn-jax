@@ -1,0 +1,20 @@
+# variant: comparison_act_relu
+# report:  fashion_mnist_mlp_comparison
+# desc:    Activation sweep (comparison): relu on fashion_mnist_mlp_comparison with uniform sweep params.
+# started: 2026-07-16T00:40:31.207Z
+# command: N_TRAIN="8000" N_TEST="2000" HIDDEN="128" DEPTH="2" TIME_BUDGET="45" F_TARGET="0.01" DATASET="fashion_mnist" ACTIVATION="relu" python3 examples/fashion_mnist_mlp_comparison.py
+------------------------------------------------------------------------
+An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+=== 3-layer MLP comparison: QQN vs SGD vs Adam vs L-BFGS ===
+    dataset=fashion_mnist  hidden_sizes=[128, 128]  arch=x->128->128->10  activation=relu  (non-convex objective)
+  classes=10  n_train=8000  n_test=2000  maxiter=1000000
+
+  shared stop: f_target=1.0e-02  gtol=1.0e-08  time_budget=45.0s
+
+[data] Loaded fashion_mnist via tensorflow.keras.
+  l2=1.0e-04  sgd_lr=0.05  adam_lr=0.01  seed=42
+  n_classes=10  subset_seed=0
+  milestones=(1.0, 0.5, 0.2, 0.1)  target_profile=(0.2, 0.1, 0.06, 0.04, 0.02)
+
+  model parameters: 118282
+

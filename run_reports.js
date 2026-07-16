@@ -55,316 +55,112 @@ function ensureDir(dir) {
 
 const REPORTS_DIR = './examples';
 const RESULTS_DIR = 'results';
-
-const VARIANTS = {
-    // -------------------- fashion_mnist_mlp_comparison --------------------
-    fashion_default: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {},
-        args: [],
-        desc: 'Headline experiment: Fashion-MNIST, 256x3, tanh,gelu.',
-    },
-    fashion_rolling_atan2: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            // DATASET: 'mnist',
-            ACTIVATION: 'rolling_atan2',
-            HIDDEN: '256',
-            DEPTH: '2',
-            TIME_BUDGET: '45',  // seconds
-            F_TARGET: '0.001',
-        },
-        args: [],
-        desc: 'Rolling sine activation on Fashion-MNIST.',
-    },
-    fashion_rolling_sin: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            // DATASET: 'mnist',
-            ACTIVATION: 'rolling_sin',
-            HIDDEN: '256',
-            DEPTH: '3',
-            TIME_BUDGET: '45',  // seconds
-            F_TARGET: '0.001',
-        },
-        args: [],
-        desc: 'Rolling sine activation on Fashion-MNIST.',
-    },
-    fashion_rolling_sin_control: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            // DATASET: 'mnist',
-            ACTIVATION: 'sine',
-            HIDDEN: '256',
-            DEPTH: '3',
-            TIME_BUDGET: '45',  // seconds
-            F_TARGET: '0.001',
-        },
-        args: [],
-        desc: 'Rolling sine activation on Fashion-MNIST.',
-    },
-    fashion_mnist: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {DATASET: 'mnist'},
-        args: [],
-        desc: 'MLP comparison on plain MNIST.',
-    },
-    fashion_relu_deep: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {DEPTH: '5', HIDDEN: '128', ACTIVATION: 'relu'},
-        args: [],
-        desc: 'Deeper, narrower ReLU network (depth 5 x width 128).',
-    },
-    fashion_tapering: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {HIDDEN_SIZES: '256,128,64', ACTIVATION: 'tanh,gelu,gaussian'},
-        args: [],
-        desc: 'Tapering topology with mixed activations.',
-    },
-    fashion_lowvram: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {N_TRAIN: '8000', N_TEST: '2000', HIDDEN: '128', DEPTH: '2'},
-        args: [],
-        desc: 'Smaller problem sized for a low-VRAM GPU.',
-    },
-    fashion_qqn_deep_hessian: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '25000',
-            N_TEST: '5000',
-            HIDDEN: '256',
-            DEPTH: '4',
-            ACTIVATION: 'tanh,gelu',
-        },
-        args: [],
-        desc:
-            'Richer/more anisotropic Hessian (256x4) where the deep-memory ' +
-            'curvature lever stays monotone — QQN`s strongest regime.',
-    },
-    fashion_qqn_wide: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '25000',
-            N_TEST: '5000',
-            HIDDEN: '512',
-            DEPTH: '3',
-            ACTIVATION: 'tanh,gelu,tanh',
-        },
-        args: [],
-        desc:
-            'Wider network (512x3): even richer curvature, amplifying the ' +
-            'second-order advantage of QQN`s L-BFGS oracle.',
-    },
-    fashion_alt_linear: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '25000',
-            N_TEST: '5000',
-            HIDDEN: '128',
-            DEPTH: '2',
-            ACTIVATION: 'identity',
-            F_TARGET: '0.35',
-        },
-        args: [],
-        desc: 'Linear hidden layers (convex) where first-order accelerators (Anderson, Momentum) should excel.',
-    },
-    // ---- Profiling-enabled variants -------------------------------------
-    // These mirror the headline config but switch on the integrated
-    // profilers (JAX Profiler API + Perfetto traces, and Scalene hints).
-    fashion_profile_jax: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '8000',
-            N_TEST: '2000',
-            HIDDEN: '128',
-            DEPTH: '2',
-            ACTIVATION: 'tanh,gelu',
-            PROFILE: 'jax,perfetto',
-            PROFILE_DIR: 'profiles',
-            PROFILE_NAME: 'fashion_jax',
-        },
-        args: [],
-        desc:
-            'JAX Profiler + Perfetto trace capture on a small config. ' +
-            'Load profiles/** in ui.perfetto.dev or TensorBoard Trace Viewer.',
-    },
-    fashion_profile_simple_fast: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            // DATASET: 'fashion_mnist',
-            DATASET: 'mnist',
-            N_TRAIN: '8000',
-            N_TEST: '2000',
-            HIDDEN: '64',
-            DEPTH: '2',
-            N_CLASSES: '10',
-            ACTIVATION: 'sine',
-            PROFILE: 'jax,perfetto',
-            PROFILE_DIR: 'profiles',
-            PROFILE_NAME: 'simple_fast',
-            TIME_BUDGET: '15',  // seconds
-            F_TARGET: '0.015',
-        },
-        args: [],
-        desc: 'Fast, Small.',
-    },
-    fashion_profile_scalene: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '8000',
-            N_TEST: '2000',
-            HIDDEN: '128',
-            DEPTH: '2',
-            ACTIVATION: 'relu',
-            PROFILE: 'scalene',
-        },
-        args: [],
-        scalene: true,   // invoke via `scalene <script>` instead of `python3 <script>`
-        desc:
-            'Runs under Scalene for CPU+GPU+memory profiling. ' +
-            'Outputs a live summary to the terminal.',
-    },
-    fashion_profile_all: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '8000',
-            N_TEST: '2000',
-            HIDDEN: '128',
-            DEPTH: '2',
-            ACTIVATION: 'tanh,gelu',
-            PROFILE: 'all',
-            PROFILE_DIR: 'profiles',
-            PROFILE_NAME: 'fashion_all',
-        },
-        args: [],
-        scalene: ['--html', '--outfile', 'profiles/scalene_fashion_all.html'],
-        desc: 'Enable every profiling backend (JAX/Perfetto + Scalene hint).',
-    },
-    fashion_profile_scalene_html: {
-        report: 'fashion_mnist_mlp_comparison',
-        env: {
-            DATASET: 'fashion_mnist',
-            N_TRAIN: '8000',
-            N_TEST: '2000',
-            HIDDEN: '128',
-            DEPTH: '2',
-            ACTIVATION: 'tanh,gelu',
-        },
-        args: [],
-        scalene: ['--html', '--outfile', 'profiles/scalene_fashion.html'],
-        desc:
-            'Scalene HTML report saved to profiles/scalene_fashion.html. ' +
-            'Open in a browser for an interactive CPU+GPU+memory breakdown.',
-    },
-
-
-    // ----------------------- mnist_comparison ----------------------------
-    mnist_default: {
-        report: 'mnist_comparison',
-        env: {},
-        args: [],
-        desc: 'Softmax MNIST optimizer comparison (default).',
-    },
-
-    // -------------------- mnist_sparse_benchmark -------------------------
-    sparse_default: {
-        report: 'mnist_sparse_benchmark',
-        env: {},
-        args: [],
-        desc: 'Sparse MNIST benchmark (OrthantRegion, default).',
-    },
-    sparse_fashion: {
-        report: 'mnist_sparse_benchmark',
-        env: {DATASET: 'fashion_mnist'},
-        args: [],
-        desc: 'Sparse benchmark on Fashion-MNIST (harder corpus).',
-    },
-    sparse_aggressive_l1: {
-        report: 'mnist_sparse_benchmark',
-        env: {L1_SCALE: '1e-3', HIDDEN: '128', DEPTH: '2'},
-        args: [],
-        desc:
-            'Aggressive L1 pressure (1e-3) on a 128x2 net — pushes harder ' +
-            'on sparsity; inspect the accuracy/sparsity Pareto trade-off.',
-    },
-    sparse_precision_8bit: {
-        report: 'mnist_sparse_benchmark',
-        env: {QBITS: '8', QUANT_SCALE: '1e-3'},
-        args: [],
-        desc:
-            'Precision-optimized to an 8-bit grid with a stronger quant ' +
-            'penalty — targets near-lossless 8-bit quantization (low ' +
-            'quant_err).',
-    },
-    sparse_precision_2bit: {
-        report: 'mnist_sparse_benchmark',
-        env: {QBITS: '2', QUANT_SCALE: '1e-3', HIDDEN: '128', DEPTH: '2'},
-        args: [],
-        desc:
-            'Extreme 2-bit precision target: stresses the quantization ' +
-            'region/penalty where the grid is coarsest.',
-    },
-    sparse_relu_deep: {
-        report: 'mnist_sparse_benchmark',
-        env: {ACTIVATION: 'relu', DEPTH: '3', HIDDEN: '128'},
-        args: [],
-        desc:
-            'Deeper ReLU network (128x3): He-init sparsity/precision ' +
-            'behavior vs. the default tanh baseline.',
-    },
-    sparse_mixed_taper: {
-        report: 'mnist_sparse_benchmark',
-        env: {
-            DATASET: 'fashion_mnist',
-            HIDDEN_SIZES: '256,128,64',
-            ACTIVATION: 'tanh,gelu,gaussian',
-            L1_SCALE: '1e-4',
-        },
-        args: [],
-        desc:
-            'Tapering 256->128->64 net with mixed activations on ' +
-            'Fashion-MNIST — richer model for sparsity + precision study.',
-    },
-    sparse_fast: {
-        report: 'mnist_sparse_benchmark',
-        env: {
-            N_TRAIN: '4000',
-            N_TEST: '1000',
-            HIDDEN: '64',
-            DEPTH: '1',
-            MAXITER: '2000',
-        },
-        args: [],
-        desc:
-            'Fast smoke-test config (small data, short budget) for quickly ' +
-            'validating the base+polish pipeline end-to-end.',
-    },
-};
-
-// Default set of variants to run when none are specified.
-const DEFAULT_VARIANTS = [
-    "sparse_default",
-    // "sparse_fast",            // quick end-to-end smoke test
-    // "sparse_fashion",         // harder corpus
-    // "sparse_aggressive_l1",   // sparsity trade-off study
-    // "sparse_precision_8bit",  // near-lossless 8-bit precision
-
-    // 'fashion_default',
-    // 'fashion_rolling_atan2',
-    // 'fashion_rolling_sin',
-    // 'fashion_qqn_deep_hessian', // Demonstrates value and the test runs fast
-    // 'fashion_alt_linear', // Interesting since it shows contrast - deeper lbfgs history hurts. NEEDS STOP TUNING.
-
-    'fashion_rolling_sin_control',
-    "fashion_profile_simple_fast",
-    'fashion_qqn_wide', // Successfully shows a wider advantage for QQN
+// ---------------------------------------------------------------------------
+// Activation sweep configuration
+//
+// The canonical list of activation names mirrors the registry in
+// experiments/models/activations.py. Each activation is exercised exactly
+// once per report (sparse + comparison) with uniform parameters controlled
+// by the global knobs below.
+// ---------------------------------------------------------------------------
+const ACTIVATION_TYPES = [
+     'relu',
+     'sigmoid',
+     'sine',
+     'gaussian',
+     'triangle',
+     'logabs',
+     'tanh',
+     'gelu',
+     'swish',
+     'softplus',
+     'sawtooth',
+     'abs',
+     'identity',
+     'rolling_sin',
+     'rolling_atan2',
 ];
+// Uniform parameters applied to every generated activation-sweep variant.
+// Tune these once to change the whole sweep consistently.
+const SWEEP_PARAMS = {
+     N_TRAIN: '8000',
+     N_TEST: '2000',
+     HIDDEN: '128',
+     DEPTH: '2',
+     TIME_BUDGET: '45',   // seconds
+     F_TARGET: '0.01',
+};
+// The reports to sweep and their default dataset.
+const SWEEP_REPORTS = {
+     comparison: {
+         report: 'fashion_mnist_mlp_comparison',
+         env: {DATASET: 'fashion_mnist'},
+     },
+     sparse: {
+         report: 'mnist_sparse_benchmark',
+         env: {DATASET: 'mnist'},
+     },
+};
+// Build one variant per (report, activation) pair.
+function buildActivationVariants() {
+     const variants = {};
+     for (const [tag, cfg] of Object.entries(SWEEP_REPORTS)) {
+         for (const act of ACTIVATION_TYPES) {
+             const name = `${tag}_act_${act}`;
+             variants[name] = {
+                 report: cfg.report,
+                 env: {
+                     ...SWEEP_PARAMS,
+                     ...cfg.env,
+                     ACTIVATION: act,
+                 },
+                 args: [],
+                 desc:
+                     `Activation sweep (${tag}): ${act} on ` +
+                     `${cfg.report} with uniform sweep params.`,
+             };
+         }
+     }
+     return variants;
+}
+
+
+const VARIANTS = {};
+
+Object.assign(VARIANTS, buildActivationVariants());
+const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
+    [
+        "comparison_act_relu",
+        "comparison_act_sigmoid",
+        "comparison_act_sine",
+        "comparison_act_gaussian",
+        "comparison_act_triangle",
+        "comparison_act_logabs",
+        "comparison_act_tanh",
+        "comparison_act_gelu",
+        "comparison_act_swish",
+        "comparison_act_softplus",
+        "comparison_act_sawtooth",
+        "comparison_act_abs",
+        "comparison_act_identity",
+        "comparison_act_rolling_sin",
+        "comparison_act_rolling_atan2",
+        // "sparse_act_relu",
+        "sparse_act_sigmoid",
+        // "sparse_act_sine",
+        // "sparse_act_gaussian",
+        // "sparse_act_triangle",
+        // "sparse_act_logabs",
+        // "sparse_act_tanh",
+        // "sparse_act_gelu",
+        // "sparse_act_swish",
+        // "sparse_act_softplus",
+        // "sparse_act_sawtooth",
+        // "sparse_act_abs",
+        // "sparse_act_identity",
+        // "sparse_act_rolling_sin",
+        // "sparse_act_rolling_atan2"
+    ];
 
 // ---------------------------------------------------------------------------
 // Execution
