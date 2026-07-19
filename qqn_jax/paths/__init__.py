@@ -9,8 +9,8 @@ so every consumer — regardless of which curve it traverses or which line
 search wraps it — constructs probe points identically.
 """
 
-from qqn_jax.paths.base import PathStrategy, make_evaluator, path_search
-from qqn_jax.paths.linear import LINEAR_PATH
+from qqn_jax.paths.base import PathStrategy, make_evaluator, quadratic_path
+from qqn_jax.paths.linear import LINEAR_PATH, linear_path
 from qqn_jax.paths.quadratic import (
     QUADRATIC_PATH,
     quadratic_path,
@@ -20,9 +20,12 @@ from qqn_jax.paths.quadratic import (
 __all__ = [
     "PathStrategy",
     "make_evaluator",
-     "path_search",
+    "quadratic_path",
+    "linear_path",
+    "spline_path",
     "LINEAR_PATH",
     "QUADRATIC_PATH",
-    "quadratic_path",
     "quadratic_path_derivative",
 ]
+
+from qqn_jax.paths.spline import spline_path

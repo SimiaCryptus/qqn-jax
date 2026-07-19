@@ -31,10 +31,9 @@ from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.line_search import LINE_SEARCHES
 from qqn_jax.paths import (
     PathStrategy,
-    QUADRATIC_PATH,
-    LINEAR_PATH,
+    QUADRATIC_PATH, quadratic_path,
+    LINEAR_PATH, spline_path, linear_path,
 )
-from qqn_jax.paths.base import path_search
 from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
@@ -216,15 +215,11 @@ class QQN:
         inner = partial(base_ls, **opts) if opts else base_ls
 
         if self.spline:
-            from qqn_jax.paths.spline import spline_wrap
-            self._path_search = spline_wrap(inner, path=self.path)
+            self._path_search = spline_path(inner, path=self.path)
         elif self.linear:
-            from qqn_jax.paths.linear import linear_wrap
-            self._path_search = linear_wrap(inner, path=self.path)
+            self._path_search = linear_path(inner, path=self.path)
         else:
-            # No refinement: the plain path is just the raw scalar search
-            # adapted to the unified path-search signature.
-            self._path_search = path_search(inner, path=self.path)
+            self._path_search = quadratic_path(inner, path=self.path)
 
     def _eval(self, params, *args):
         """Evaluate value and grad, splitting off aux if present."""

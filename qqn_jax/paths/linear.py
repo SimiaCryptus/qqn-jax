@@ -48,7 +48,7 @@ def _linear_velocity(t, grad_dir, direction):
 LINEAR_PATH = PathStrategy(offset=_linear_offset, velocity=_linear_velocity)
 
 
-def linear_wrap(
+def linear_path(
     inner_search: Callable,
     num_samples: int = 8,
     path: PathStrategy = LINEAR_PATH,

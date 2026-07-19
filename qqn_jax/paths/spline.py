@@ -138,7 +138,7 @@ def _segment_stationary_candidates(t0, t1, f0, m0, f1, m1):
     return t_cands, val_cands, valid
 
 
-def spline_wrap(
+def spline_path(
     inner_search: Callable, path: PathStrategy = QUADRATIC_PATH
 ) -> Callable:
     """Augment ``inner_search`` with a cubic Hermite spline refinement.
@@ -372,5 +372,5 @@ def spline_wrap(
     return wrapped
 
 
-spline_search = spline_wrap(backtracking_search)
-__all__ = ["spline_wrap", "spline_search"]
+spline_search = spline_path(backtracking_search)
+__all__ = ["spline_path", "spline_search"]

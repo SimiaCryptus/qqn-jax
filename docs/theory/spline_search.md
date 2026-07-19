@@ -171,7 +171,7 @@ spurious feature into the model.
 > descent-preserving guarantee is given here. Safety in practice rests entirely
 > on the outer line search: the spline only ever *proposes* candidates, and a
 > candidate is accepted **only if it strictly improves fitness** (see
-> `spline_wrap`'s `improves = cf < bv` gate). The descent guarantee of QQN is
+> `spline_path`'s `improves = cf < bv` gate). The descent guarantee of QQN is
 > therefore inherited from the inner search's sufficient-decrease test, not from
 > the reflection rule. Treat the reflection as an unproven refinement pending a
 > rigorous justification.

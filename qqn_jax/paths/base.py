@@ -76,7 +76,7 @@ def make_evaluator(
     return eval_at
 
 
-def path_search(inner_search: Callable, path: "PathStrategy") -> Callable:
+def quadratic_path(inner_search: Callable, path: "PathStrategy") -> Callable:
      """Adapt a raw *scalar* line search to the unified *path* signature.
 
      Every path consumer in QQN (the plain path, and the spline/linear
@@ -132,4 +132,4 @@ def path_search(inner_search: Callable, path: "PathStrategy") -> Callable:
      return wrapped
 
 
-__all__ = ["PathStrategy", "make_evaluator", "path_search"]
+__all__ = ["PathStrategy", "make_evaluator", "quadratic_path"]

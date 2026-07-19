@@ -130,7 +130,7 @@ const VARIANTS = {};
 Object.assign(VARIANTS, buildActivationVariants());
 const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
     [
-        "comparison_act_relu",
+        // "comparison_act_relu",
         "comparison_act_sigmoid",
         "comparison_act_tanh",
         "comparison_act_sine",

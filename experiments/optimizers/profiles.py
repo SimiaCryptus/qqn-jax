@@ -147,7 +147,7 @@ def _spline_axis():
     """
     return {
         "": {},
-        "S": {"path_strategy": "spline"},
+        # "S": {"path_strategy": "spline"},
         "L": {"path_strategy": "linear"},
     }
 
