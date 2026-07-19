@@ -122,11 +122,9 @@ def _line_search_axis():
         # "": {},
         # --- Permissive family (the usual role) --------------------------
         # "Null": {"line_search": "null"},
-        # "BT": {"line_search": "backtracking"},
+        "BT": {"line_search": "backtracking"},
         "Arm": {"line_search": "armijo"},
         "AW": {"line_search": "armijo_wolfe"},
-        # Same Armijo search, but with the sufficient-decrease constant tuned
-        # via ``line_search_options`` to emphasize the permissiveness dial:
         "ArmLoose": {
             "line_search": "armijo",
             "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
@@ -135,16 +133,13 @@ def _line_search_axis():
         #     "line_search": "armijo",
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
         # },
-        # "Fix": {"line_search": "fixed"},
+        "Fix": {"line_search": "fixed"},
         "SW": {"line_search": "strong_wolfe"},
-        "HZ": {"line_search": "hager_zhang"},
-        # "Spl": {"line_search": "spline"},
-        # --- Exacting extreme: find a true along-path minimum (special
-        #     cases only) ------------------------------------------------
-        "Bisect": {
-            "line_search": "bisection",
-            # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
-        },
+        # "HZ": {"line_search": "hager_zhang"},
+        # "Bisect": {
+        #     "line_search": "bisection",
+        #     # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
+        # },
     }
 
 
@@ -198,7 +193,7 @@ def _partition_axis():
     """
     return {
         "": {},
-        "Part": {"_per_layer": True},
+        # "Part": {"_per_layer": True},
     }
 
 

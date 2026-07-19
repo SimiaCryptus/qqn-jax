@@ -527,6 +527,7 @@ def fixed_step_search(
         params,
         direction,
         value,
+         grad,
         *args,
         step_size: float = 1.0,
         temperature: float = 0.0,
