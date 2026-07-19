@@ -9,15 +9,6 @@ blending the steepest-descent direction (``-∇f``) with the L-BFGS direction
 
 The solver follows the JAXopt-style ``init_state`` / ``update`` / ``run``
 interface and keeps all state in JIT-compatible NamedTuples.
-
-Note on parameterization:
-    The line search traverses the path parameter ``t`` directly. The points
-    ``x + d(t)`` along the curve are *states*, not directions to be
-    re-scaled by a separate inner line search. Importantly, rescaling the
-    gradient (or the oracle direction) does **not** change the geometric
-    path traced by ``d(t)`` — it only distorts the parameterization (i.e.
-    how ``t`` maps onto arc length along the curve). The curve itself, and
-    therefore the set of candidate states, is invariant to such rescaling.
 """
 
 from functools import partial
@@ -49,12 +40,17 @@ class QQNState(NamedTuple):
         iter: iteration counter.
         value: current objective value.
         grad: current gradient.
-         oracle_state: state of the oracle (e.g. L-BFGS history).
+        oracle_state: state of the oracle (e.g. L-BFGS history).
         step_size: last accepted step size ``α`` (the path parameter ``t``).
         error: gradient norm (convergence metric).
         done: whether convergence has been reached.
         aux: optional auxiliary output of the objective.
-         region_state: optional state for the projective region.
+        region_state: optional state for the projective region.
+        num_evals: cumulative number of objective/gradient evaluations.
+        qn_slope: directional derivative ``∇f·(-H∇f)`` of the quasi-Newton
+            direction at the current iterate.
+        ls_success: whether the last line search reported success.
+        last_reduction: objective reduction achieved by the last accepted step.
     """
 
     iter: jnp.ndarray
@@ -81,26 +77,17 @@ class QQN:
         maxiter: maximum number of iterations.
         tol: convergence tolerance on the gradient L2 norm.
         history_size: L-BFGS memory size ``m``.
-        line_search: name of the line-search strategy. One of
-             ``"armijo"`` (default), ``"backtracking"``, ``"strong_wolfe"``,
-             ``"hager_zhang"``, ``"fixed"``, ``"null"`` or ``"bisection"``.
+        line_search: name of the line-search strategy.
              The line search's role in QQN is *generally permissive*: since the
              quadratic path ``d(t)`` already encodes the curvature, the search
              only needs to pick a step that makes sufficient progress along the
-             curve rather than solve the 1-D subproblem exactly. ``"null"`` is
-             the maximally permissive extreme (accept ``t = 1`` unconditionally)
-             and ``"bisection"`` is the exacting special case that drives the
-             along-path slope to zero to find a *true* minimum. Empirically (see
-             ``docs/results.md``) the backtracking/Armijo family is the robust
-             efficiency winner on smooth full-batch problems; ``"strong_wolfe"``
-             can over-restrict the quadratic-path step and fail to converge.
+             curve rather than solve the 1-D subproblem exactly.
         line_search_options: optional dict of keyword arguments forwarded to
              the chosen line-search function (e.g. ``c1``, ``c2``, ``max_iter``,
              ``init_step``, ``shrink``, ``step_size``). These override the
              line-search defaults.
         path_strategy: string selector for the curve/refinement the solver
              traverses. One of:
-
                * ``"quadratic"`` (default) — the canonical quadratic path
                  (``qqn_jax.paths.quadratic.QUADRATIC_PATH``) with no extra
                  line-search refinement.
@@ -113,25 +100,32 @@ class QQN:
                  path is reused as a control point and the spline's stationary
                  points guide the search. It composes with any chosen line
                  search.
-        path: optional explicit ``PathStrategy`` (see ``qqn_jax.paths.base``)
-             overriding the curve the solver traverses. Defaults to the
-             canonical quadratic path (``qqn_jax.paths.quadratic.QUADRATIC_PATH``)
-            or, when ``path_strategy="linear"``, the straight chord
-             (``qqn_jax.paths.linear.LINEAR_PATH``). This is the single source
-             of truth threaded through the *selected* line search itself
-             (as an explicit ``path`` keyword, first-class, unconditionally
-             — not only when ``spline``/``linear`` is enabled), the
-             line-search refinements (``spline``/``linear``) and the
-             along-path predicted-reduction model used by the trust-region
-             update, so none of the three can silently drift out of sync
-             with the curve actually traversed.
-        has_aux: whether ``fun`` returns auxiliary data.
 
-    Note:
-        The line search traverses the path parameter ``t ∈ [0, 1]`` directly.
-        Each evaluated point ``x + d(t)`` is a *state* on the quadratic curve,
-        not a direction to be independently re-scaled. Rescaling the gradient
-        does not change the path geometry — only its parameterization.
+        region: optional trust-region / projective-region strategy selector.
+             Passed to ``qqn_jax.regions.strategy.resolve_region``. When
+             ``None`` an identity (no-op) region is used. The region can
+             rescale or project the path offset before evaluation and is
+             updated each iteration from the predicted vs. actual reduction.
+        oracle: string selector (or object) for the quasi-Newton oracle that
+             supplies the ``-H∇f`` endpoint of the path. Defaults to
+             ``"lbfgs"``. Resolved via
+             ``qqn_jax.oracles.strategy.resolve_oracle`` using
+             ``history_size`` as the L-BFGS memory.
+        feed_probes_to_oracle: when ``True`` the line-search probe points
+             (and their gradients) along the path are recorded and fed back to
+             the oracle's ``update``, enriching its curvature history beyond
+             the single accepted step. Only probes on the accepted side of the
+             step (``alpha <= step_size``) are marked valid.
+        max_probes: maximum number of probe points buffered per iteration when
+             ``feed_probes_to_oracle`` is enabled.
+        max_t: upper bound on the path/line-search parameter ``t`` (forwarded
+             to the line search as ``max_step``). Defaults to ``1000.0``.
+        partition_sizes: optional tuple of contiguous segment sizes that
+             partition a flat ``(n,)`` parameter vector. When set, the oracle
+             is driven independently on each segment (a block-diagonal
+             quasi-Newton approximation) and the per-segment endpoints are
+             concatenated back into the full direction.
+        has_aux: whether ``fun`` returns auxiliary data.
     """
 
     def __init__(
@@ -208,7 +202,10 @@ class QQN:
             raise ValueError(f"Unknown path_strategy: {path_strategy!r}. ")
 
     def _eval(self, params, *args):
-        """Evaluate value and grad, splitting off aux if present."""
+        """Evaluate objective value, gradient and auxiliary output.
+        Returns ``(value, grad, aux)`` where ``aux`` is ``None`` when the
+        solver was constructed with ``has_aux=False``.
+        """
         if self.has_aux:
             (value, aux), grad = self._value_and_grad(params, *args)
         else:
@@ -288,7 +285,10 @@ class QQN:
         )
 
     def _plain_value_and_grad(self, params, *args):
-        """Value-and-grad returning only ``(value, grad)`` for line search."""
+        """Value-and-grad returning only ``(value, grad)``.
+        Drops any auxiliary output so the callable matches the signature
+        expected by the line search / path evaluator.
+        """
         if self.has_aux:
             (value, _aux), grad = self._value_and_grad(params, *args)
         else:
@@ -325,6 +325,21 @@ class QQN:
         directions to be re-searched: the search selects one ``t`` (the step
         size along the curve) and the corresponding state ``x + d(t)`` is the
         accepted iterate.
+        The step proceeds as follows:
+          1. Query the oracle for the quasi-Newton endpoint ``-H∇f`` (the
+             ``t=1`` point of the path), respecting any partitioning.
+          2. Build the scalar 1-D subproblem ``φ(t) = f(x + d(t))`` via the
+             configured path and (optional) region projection.
+          3. Run the inner line search over ``t``; if ``path_strategy`` is
+             ``"linear"`` apply the value-only chord refinement.
+          4. Update the oracle (optionally with recorded probe points) and the
+             region state from the predicted vs. actual reduction.
+          5. Recompute the gradient norm and convergence / finiteness flags.
+        Args:
+            params: current iterate.
+            state: current :class:`QQNState`.
+            *args: extra positional arguments forwarded to ``fun``.
+
 
         Returns ``(new_params, new_state)``.
         """
@@ -454,6 +469,14 @@ class QQN:
 
         Uses ``lax.while_loop`` so the whole optimization is JIT/vmap
         compatible.
+        Args:
+            init_params: starting iterate.
+            *args: extra positional arguments forwarded to ``fun``.
+        Returns:
+            ``(final_params, final_state)`` where ``final_state`` is the
+            terminal :class:`QQNState`. Iteration stops when the gradient norm
+            falls below ``tol`` (or a non-finite value/error is encountered),
+            or after ``maxiter`` iterations.
         """
         state = self.init_state(init_params, *args)
 
