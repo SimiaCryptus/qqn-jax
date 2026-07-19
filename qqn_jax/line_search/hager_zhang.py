@@ -10,6 +10,8 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
+from qqn_jax.paths import QUADRATIC_PATH
+from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot
 
@@ -31,6 +33,7 @@ def hager_zhang_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
+    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
     The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use

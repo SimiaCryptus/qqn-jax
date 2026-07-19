@@ -35,6 +35,7 @@ import optax
 __all__ = ["ENABLED", "build_runners"]
 
 from qqn_jax import AdamOracle, LBFGSOracle
+from qqn_jax.oracles import AnchoredMultiSecantOracle
 
 ENABLED = [
     "QQN",
@@ -57,10 +58,11 @@ def _oracle_axis():
     return {
         # "": {},
         # "Mom": {"oracle": MomentumOracle(beta=0.9)},
-        "Adam": {"oracle": AdamOracle()},
         # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
+        "Adam": {"oracle": AdamOracle()},
         # "Sec": {"oracle": SecantOracle()},
         # "And": {"oracle": AndersonOracle(window=5)},
+        "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
         "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
         # "L20": {"oracle": LBFGSOracle(history_size=20)},
         # "L50": {"oracle": LBFGSOracle(history_size=50)},
@@ -112,16 +114,16 @@ def _line_search_axis():
         # "Null": {"line_search": "null"},
         "BT": {"line_search": "backtracking"},
         "AW": {"line_search": "armijo_wolfe"},
-        "ArmLoose": {
-            "line_search": "backtracking",
-            "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
-        },
+        "Fix": {"line_search": "fixed"},
+        "SW": {"line_search": "strong_wolfe"},
+        # "ArmLoose": {
+        #     "line_search": "backtracking",
+        #     "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
+        # },
         # "ArmTight": {
         #     "line_search": "backtracking",
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
         # },
-        "Fix": {"line_search": "fixed"},
-        "SW": {"line_search": "strong_wolfe"},
         # "HZ": {"line_search": "hager_zhang"},
         # "Bisect": {
         #     "line_search": "bisection",
@@ -199,10 +201,10 @@ def _temperature_axis():
     return {
         "": {},
         # "T1": {"line_search_options": {"temperature": 1.0}},
-        "T001": {"line_search_options": {"temperature": 0.01}},
+        # "T001": {"line_search_options": {"temperature": 0.01}},
         # "T01": {"line_search_options": {"temperature": 0.1}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
-        "T100": {"line_search_options": {"temperature": 100.0}},
+        # "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 

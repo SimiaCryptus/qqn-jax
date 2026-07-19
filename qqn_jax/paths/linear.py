@@ -70,6 +70,11 @@ def linear_wrap(
             Defaults to ``LINEAR_PATH`` (the straight chord); overriding
             this is mostly useful for testing other curves against the
             same value-only sampling scheme.
+     ``path`` is forwarded explicitly to ``inner_search`` (as a first-class
+     ``path=path`` keyword), not merely relied upon as a convention that the
+     inner search happens to default to the same curve. This keeps the
+     chord this wrapper samples and the curve the inner search itself
+     traverses structurally in sync.
     """
 
     def wrapped(
@@ -107,6 +112,7 @@ def linear_wrap(
             *args,
             region=region,
             region_state=region_state,
+            path=path,
             **inner_kwargs,
         )
 

@@ -180,7 +180,12 @@ def spline_wrap(
     Because every probe lies on the *same* path (built through the shared
     ``PathStrategy`` component — ``QUADRATIC_PATH`` by default, matching the
     curve the wrapped inner search itself traverses), this composes
-    correctly with any underlying line search.
+     correctly with any underlying line search. To keep that invariant
+     structural rather than conventional, ``path`` is also forwarded
+     explicitly to ``inner_search`` itself (as a first-class ``path=path``
+     keyword), so the inner search's own probing — if it accepts a ``path``
+     argument — can never silently drift from the curve the refinement
+     layer probes.
 
     Args:
         inner_search: any registered line-search strategy to seed the
@@ -235,6 +240,7 @@ def spline_wrap(
             *args,
             region=region,
             region_state=region_state,
+            path=path,
             **inner_kwargs,
         )
 

@@ -7,6 +7,8 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
+from qqn_jax.paths import QUADRATIC_PATH
+from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 
@@ -28,6 +30,7 @@ def null_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
+    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """ "Null" line search: unconditionally accept the ``t = 1`` oracle point.
     The ``direction`` handed to the line search is the oracle endpoint

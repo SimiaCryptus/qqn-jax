@@ -30,6 +30,9 @@ from qqn_jax.oracles.strategy import resolve_oracle
 from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.line_search import LINE_SEARCHES
 from qqn_jax.paths import (
+    PathStrategy,
+    QUADRATIC_PATH,
+    LINEAR_PATH,
     spline_wrap,
     linear_wrap,
 )
@@ -37,6 +40,7 @@ from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
     tree_l2_norm,
+    tree_negative,
     tree_vdot,
 )
 
@@ -101,6 +105,21 @@ class QQN:
              is orthogonal to ``line_search``: every probe along the (consistent)
              path is reused as a control point and the spline's stationary points
              guide the search. It composes with any chosen line search.
+        linear: when ``True``, wrap the chosen line search with the value-only
+             linear-chord refinement (see ``qqn_jax.paths.linear``). Mutually
+             exclusive with ``spline``.
+        path: optional explicit ``PathStrategy`` (see ``qqn_jax.paths.base``)
+             overriding the curve the solver traverses. Defaults to the
+             canonical quadratic path (``qqn_jax.paths.quadratic.QUADRATIC_PATH``)
+             or, when ``linear=True``, the straight chord
+             (``qqn_jax.paths.linear.LINEAR_PATH``). This is the single source
+             of truth threaded through the *selected* line search itself
+             (as an explicit ``path`` keyword, first-class, unconditionally
+             — not only when ``spline``/``linear`` is enabled), the
+             line-search refinements (``spline``/``linear``) and the
+             along-path predicted-reduction model used by the trust-region
+             update, so none of the three can silently drift out of sync
+             with the curve actually traversed.
         has_aux: whether ``fun`` returns auxiliary data.
 
     Note:
@@ -120,6 +139,7 @@ class QQN:
         line_search_options: Optional[Dict[str, Any]] = None,
         spline: bool = False,
         linear: bool = False,
+        path: Optional[PathStrategy] = None,
         has_aux: bool = False,
         region=None,
         oracle="lbfgs",
@@ -137,6 +157,17 @@ class QQN:
         self.line_search_options = dict(line_search_options or {})
         self.spline = spline
         self.linear = linear
+        # The path strategy is the shared component (``qqn_jax.paths.base.
+        # PathStrategy``) that remaps the scalar line-search parameter ``t``
+        # into the probe offset ``d(t)`` and its velocity ``d'(t)``. It is a
+        # first-class, explicit solver attribute — used both to seed the
+        # ``spline``/``linear`` refinements below *and* to derive the
+        # along-path predicted-reduction model in ``update`` — rather than an
+        # assumption re-derived by hand (and potentially inconsistently) in
+        # each consumer.
+        self.path: PathStrategy = (
+            path if path is not None else (LINEAR_PATH if linear else QUADRATIC_PATH)
+        )
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
@@ -205,6 +236,15 @@ class QQN:
         # ``line_search_options``.
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
+        # The path strategy is a first-class, cross-cutting parameter of
+        # *every* selected line search — not only the ``spline``/``linear``
+        # refinements wrapped below. Threading it here means the base
+        # search itself builds its probes through ``self.path`` (matching
+        # the along-path predicted-reduction model in ``update``), instead
+        # of silently assuming the canonical quadratic curve while a
+        # different ``path`` is honored only by an optional wrapper.
+        if "path" not in opts:
+            opts = {**opts, "path": self.path}
         # When feeding probes to the oracle, size the line-search probe buffers
         # to ``max_probes`` so they match the oracle's replay capacity.
         if self.feed_probes_to_oracle:
@@ -220,9 +260,9 @@ class QQN:
         # samples the straight chord to the oracle endpoint (throwing out
         # gradient/curvature information) and keeps the best feasible point.
         if self.spline:
-            self._ls = spline_wrap(base_ls)
+            self._ls = spline_wrap(base_ls, path=self.path)
         elif self.linear:
-            self._ls = linear_wrap(base_ls)
+            self._ls = linear_wrap(base_ls, path=self.path)
         else:
             self._ls = base_ls
 
@@ -478,30 +518,25 @@ class QQN:
         new_oracle_state = self._oracle_update(state.oracle_state, oracle_info)
         # Update region state (e.g. adaptive trust-region radius).
         actual_reduction = state.value - new_value
-        # Honest predicted reduction from the along-path quadratic model.
+        # Honest predicted reduction from the along-path model.
         #
-        # The QQN quadratic path has the *exact* directional model
-        #   slope(τ) = ⟨∇f, d'(τ)⟩ = (1-2τ)·m_g + 2τ·m_q,
-        # whose integral gives the model's reduction in closed form:
-        #   pred(t) = -∫₀ᵗ slope(τ) dτ = -[(t - t²)·m_g + t²·m_q].
-        # Crucially, this integral is *identically* −⟨∇f, d(t)⟩ because
-        # d(t) = t(1-t)·grad_dir + t²·qn_dir. There is therefore NO separate
-        # curvature term to add: the path's curvature is already fully encoded
-        # in d(t). The previous code added a spurious second-order term and a
-        # deflating floor, which double-counted curvature and drove ρ negative
-        # near convergence — the documented adaptive trust-region stall. We
-        # now use the geometrically exact along-path model directly.
-        # pred(t) = −⟨∇f, d(t)⟩ with d(t) = t(1−t)·grad_dir + t²·qn_dir.
-        # Expand analytically to avoid materializing the full path vector:
-        #   −⟨∇f, d(t)⟩ = −[t(1−t)·⟨∇f, grad_dir⟩ + t²·⟨∇f, qn_dir⟩].
-        # Each ⟨∇f, ·⟩ is a single O(n) dot rather than an O(n) tree_map plus
-        # a second O(n) dot over the materialized blend.
-        # m_g = ⟨∇f, -∇f⟩ = -‖∇f‖² (avoids materializing grad_dir entirely).
-        m_g = -tree_vdot(grad, grad)
-        m_q = tree_vdot(grad, qn_dir)
-        a_t = best_t * (1.0 - best_t)
-        b_t = best_t * best_t
-        pred_reduction = -(a_t * m_g + b_t * m_q)
+        # For *any* differentiable path ``d(t)`` with ``d(0) = 0``, the model
+        # that holds the gradient fixed at its ``t = 0`` value gives
+        #   pred(t) = -∫₀ᵗ ⟨∇f, d'(τ)⟩ dτ = -⟨∇f, d(t)⟩
+        # by the fundamental theorem of calculus — independent of the
+        # specific curve. Rather than re-deriving (and hand-expanding) this
+        # per path, as before, we materialize ``d(t)`` through
+        # ``self.path.offset`` — the same first-class ``PathStrategy``
+        # component (``qqn_jax.paths.quadratic.QUADRATIC_PATH`` by default)
+        # that built every probe the line search actually evaluated. This
+        # keeps the trust-region model exactly in sync with whichever curve
+        # the solver is configured to traverse, instead of hard-coding the
+        # quadratic path's closed form here (which silently diverged from
+        # the accepted point whenever ``linear=True`` routed the step
+        # through a different curve).
+        grad_dir = tree_negative(grad)
+        d_t = self.path.offset(best_t, grad_dir, qn_dir)
+        pred_reduction = jnp.asarray(-tree_vdot(grad, d_t))
         # The model reduction is non-negative whenever the step descends along
         # the path (which the line search guarantees via sufficient decrease).
         # A tiny positive epsilon avoids a 0/0 ρ when the step is degenerate.

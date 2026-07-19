@@ -9,6 +9,7 @@ from qqn_jax.oracles.path_history import (
 )
 from qqn_jax.oracles.secant import SecantOracle, SecantState
 from qqn_jax.oracles.anderson import AndersonOracle, AndersonState
+from qqn_jax.oracles.ams_qn import AnchoredMultiSecantOracle, AnchoredMultiSecantState
 from qqn_jax.oracles.shampoo import ShampooOracle, ShampooState
 from qqn_jax.oracles.fallback import Fallback
 
@@ -27,6 +28,8 @@ __all__ = [
     "SecantState",
     "AndersonOracle",
     "AndersonState",
+    "AnchoredMultiSecantOracle",
+    "AnchoredMultiSecantState",
     "ShampooOracle",
     "ShampooState",
     "Fallback",

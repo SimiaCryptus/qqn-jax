@@ -10,6 +10,8 @@ from qqn_jax.line_search.util import (
     _metropolis_accept,
 )
 from qqn_jax.line_search.result import LineSearchResult
+from qqn_jax.paths import QUADRATIC_PATH
+from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 
@@ -33,6 +35,7 @@ def armijo_wolfe_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
+    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """Combined Armijo–Wolfe line search (the classic L-BFGS scheme).
     This is the textbook two-phase *bracketing + zoom* line search (Nocedal &
