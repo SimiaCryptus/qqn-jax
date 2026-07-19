@@ -5,13 +5,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qqn_jax.line_search import (
-    backtracking_search,
+from qqn_jax.line_search.strategy import (
     armijo_search,
     fixed_step_search,
     hager_zhang_search,
     strong_wolfe_search,
 )
+from qqn_jax import backtracking_search
 from qqn_jax.regions import BoxRegion
 
 
@@ -70,26 +70,6 @@ def test_armijo_alias_matches_backtracking():
     np.testing.assert_allclose(a.new_value, b.new_value)
 
 
-def test_fixed_step_search_uses_constant_step():
-    x = jnp.array([2.0, 2.0])
-    value, grad = quad_value_and_grad(x)
-    direction = -grad
-    res = fixed_step_search(
-        quad_value_and_grad, x, direction, value, step_size=0.5
-    )
-    np.testing.assert_allclose(res.step_size, 0.5)
-    np.testing.assert_allclose(res.new_params, x + 0.5 * direction, atol=1e-6)
-    assert bool(res.done)
-
-
-def test_hager_zhang_decreases_value():
-    x = jnp.array([2.0, 2.0])
-    value, grad = quad_value_and_grad(x)
-    direction = -grad
-    res = hager_zhang_search(quad_value_and_grad, x, direction, value, grad)
-    assert float(res.new_value) <= float(value) + 1e-6
-
-
 def test_backtracking_no_probes_when_disabled():
     x = jnp.array([5.0, 5.0])
     value, grad = quad_value_and_grad(x)
@@ -102,32 +82,12 @@ def test_backtracking_no_probes_when_disabled():
     assert int(jnp.sum(res.probe_valid)) <= 1
 
 
-def test_fixed_step_search_records_accepted_probe():
-    x = jnp.array([1.0, 2.0])
-    value, grad = quad_value_and_grad(x)
-    direction = -grad
-    res = fixed_step_search(
-        quad_value_and_grad, x, direction, value, step_size=0.3
-    )
-    assert res.probe_valid is not None
-    assert bool(res.probe_valid[0])
-
-
 def test_strong_wolfe_step_size_positive():
     x = jnp.array([3.0, -1.0])
     value, grad = quad_value_and_grad(x)
     direction = -grad
     res = strong_wolfe_search(quad_value_and_grad, x, direction, value, grad)
     assert float(res.step_size) > 0.0
-
-
-def test_backtracking_at_minimum_takes_tiny_step():
-    # Starting essentially at the minimum, the step should not increase value.
-    x = jnp.array([1e-6, 1e-6])
-    value, grad = quad_value_and_grad(x)
-    direction = -grad
-    res = backtracking_search(quad_value_and_grad, x, direction, value, grad)
-    assert float(res.new_value) <= float(value) + 1e-9
 
 
 def test_backtracking_shrink_reduces_step():

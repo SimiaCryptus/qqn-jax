@@ -9,30 +9,24 @@ and uses a line search over this path to select the optimal blend of
 gradient and quasi-Newton directions.
 """
 
+from qqn_jax.line_search.strong_wolfe import strong_wolfe_search
+from qqn_jax.oracles.adam import AdamOracle
+from qqn_jax.oracles.fallback import Fallback
+from qqn_jax.oracles.lbfgs import LBFGSOracle
+from qqn_jax.oracles.momentum import MomentumOracle
+from qqn_jax.oracles.path_history import PathHistoryMomentumOracle
+from qqn_jax.oracles.secant import SecantOracle
+from qqn_jax.oracles.shampoo import ShampooOracle
+from qqn_jax.oracles.strategy import Oracle, OracleInfo
 from qqn_jax.rolling_window_activation import (
     make_rolling_window,
     rolling_sin_diff,
     rolling_atan2_ramp,
 )
 from qqn_jax.solver import QQN, QQNState
-from qqn_jax.line_search import (
-    strong_wolfe_search,
-    backtracking_search,
-    backtracking_temperature_search,
-)
+from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.spline_search import spline_wrap, spline_search
-from qqn_jax.oracles import (
-    Oracle,
-    OracleInfo,
-    LBFGSOracle,
-    MomentumOracle,
-    AdamOracle,
-    PathHistoryMomentumOracle,
-    ShampooOracle,
-    SecantOracle,
-    AndersonOracle,
-    Fallback,
-)
+from qqn_jax.oracles.anderson import AndersonOracle
 from qqn_jax.regions import (
     Region,
     RegionInfo,
@@ -50,7 +44,6 @@ __all__ = [
     "QQNState",
     "strong_wolfe_search",
     "backtracking_search",
-    "backtracking_temperature_search",
     "spline_wrap",
     "spline_search",
     "Oracle",

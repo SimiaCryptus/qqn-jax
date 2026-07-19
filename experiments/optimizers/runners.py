@@ -43,14 +43,14 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
     time_to_target = None
     milestone_hits = {m: None for m in milestones}
     update_milestones(
-         milestones,
-         milestone_hits,
-         history[-1],
-         0,
-         0.0,
-         int(state.num_evals),
-         fwd=int(state.num_evals),
-         bwd=int(state.num_evals),
+        milestones,
+        milestone_hits,
+        history[-1],
+        0,
+        0.0,
+        int(state.num_evals),
+        fwd=int(state.num_evals),
+        bwd=int(state.num_evals),
     )
     t0 = time.perf_counter()
     update = jax.jit(solver.update)
@@ -65,14 +65,14 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
         fwd_counts.append(cum_evals)
         bwd_counts.append(cum_evals)
         update_milestones(
-             milestones,
-             milestone_hits,
-             history[-1],
-             it + 1,
-             now,
-             cum_evals,
-             fwd=cum_evals,
-             bwd=cum_evals,
+            milestones,
+            milestone_hits,
+            history[-1],
+            it + 1,
+            now,
+            cum_evals,
+            fwd=cum_evals,
+            bwd=cum_evals,
         )
         if iters_to_target is None and converged(history[-1], gnorm, f_target, gtol):
             iters_to_target = it + 1
@@ -137,14 +137,14 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         fwd_counts.append(cum_evals)
         bwd_counts.append(cum_evals)
         update_milestones(
-             milestones,
-             milestone_hits,
-             history[-1],
-             it + 1,
-             now,
-             cum_evals,
-             fwd=cum_evals,
-             bwd=cum_evals,
+            milestones,
+            milestone_hits,
+            history[-1],
+            it + 1,
+            now,
+            cum_evals,
+            fwd=cum_evals,
+            bwd=cum_evals,
         )
         if iters_to_target is None and converged(
             history[-1], float(gnorm), f_target, gtol
@@ -240,14 +240,14 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
         fwd_counts.append(cum_fwd)
         bwd_counts.append(cum_bwd)
         update_milestones(
-             milestones,
-             milestone_hits,
-             history[-1],
-             it + 1,
-             now,
-             cum_evals,
-             fwd=cum_fwd,
-             bwd=cum_bwd,
+            milestones,
+            milestone_hits,
+            history[-1],
+            it + 1,
+            now,
+            cum_evals,
+            fwd=cum_fwd,
+            bwd=cum_bwd,
         )
         if iters_to_target is None and converged(
             history[-1], float(gnorm), f_target, gtol

@@ -26,12 +26,13 @@ from typing import Any, Callable, Dict, NamedTuple, Optional
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.line_search import _LINE_SEARCHES
+from qqn_jax.oracles.strategy import resolve_oracle
+from qqn_jax.oracles.strategy import OracleInfo
+from qqn_jax.line_search.strategy import _LINE_SEARCHES
 from qqn_jax.spline_search import (
     spline_wrap,
     linear_wrap,
 )
-from qqn_jax.oracles import OracleInfo, resolve_oracle
 from qqn_jax.regions import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
@@ -110,23 +111,23 @@ class QQN:
     """
 
     def __init__(
-            self,
-            fun: Callable,
-            maxiter: int = 100,
-            tol: float = 1e-5,
-            history_size: int = 10,
-            line_search: str = "armijo",
-            line_search_options: Optional[Dict[str, Any]] = None,
-            spline: bool = False,
-            linear: bool = False,
-            has_aux: bool = False,
-            region=None,
-            oracle="lbfgs",
-            feed_probes_to_oracle: bool = False,
-            probe_descent_gate: bool = True,
-            max_probes: int = 32,
-            max_t: float = 1000.0,
-            partition_sizes: Optional[tuple[int, ...]] = None
+        self,
+        fun: Callable,
+        maxiter: int = 100,
+        tol: float = 1e-5,
+        history_size: int = 10,
+        line_search: str = "armijo",
+        line_search_options: Optional[Dict[str, Any]] = None,
+        spline: bool = False,
+        linear: bool = False,
+        has_aux: bool = False,
+        region=None,
+        oracle="lbfgs",
+        feed_probes_to_oracle: bool = False,
+        probe_descent_gate: bool = True,
+        max_probes: int = 32,
+        max_t: float = 1000.0,
+        partition_sizes: Optional[tuple[int, ...]] = None,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -159,8 +160,7 @@ class QQN:
             # Static cumulative offsets delimiting each segment; kept as plain
             # Python ints so all slicing stays jit/vmap/grad friendly.
             self._partition_offsets = tuple(
-                int(o)
-                for o in jnp.cumsum(jnp.asarray((0,) + self.partition_sizes))
+                int(o) for o in jnp.cumsum(jnp.asarray((0,) + self.partition_sizes))
             )
         else:
             self._partition_offsets = None
@@ -203,7 +203,7 @@ class QQN:
         # Only inject it for those to avoid passing an unexpected kwarg to
         # searches that don't accept it. The user may still override via
         # ``line_search_options``.
-        if ("max_step" not in opts):
+        if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
         # When feeding probes to the oracle, size the line-search probe buffers
         # to ``max_probes`` so they match the oracle's replay capacity.
@@ -236,12 +236,16 @@ class QQN:
             value, grad = self._value_and_grad(params, *args)
             aux = None
         return value, grad, aux
+
     # --- Per-layer partitioning helpers -----------------------------------
     def _segments(self, x):
         """Split a flat ``(n,)`` array into the configured contiguous
         segments (static offsets -> jit/vmap/grad safe)."""
+        assert self.partition_sizes is not None
+        assert self._partition_offsets is not None
         off = self._partition_offsets
-        return [x[off[i]:off[i + 1]] for i in range(len(self.partition_sizes))]
+        return [x[off[i] : off[i + 1]] for i in range(len(self.partition_sizes))]
+
     def _oracle_init(self, params):
         """Initialize the oracle state, respecting partitioning.
         Returns a single oracle state when unpartitioned, or a tuple of
@@ -249,6 +253,7 @@ class QQN:
         if self.partition_sizes is None:
             return self.oracle.init(params)
         return tuple(self.oracle.init(seg) for seg in self._segments(params))
+
     def _oracle_direction(self, params, grad, oracle_state):
         """Compute the oracle's t=1 endpoint, respecting partitioning.
         When partitioned, the oracle is driven independently on each segment
@@ -265,18 +270,23 @@ class QQN:
             dirs.append(d_i)
             new_states.append(ns_i)
         return jnp.concatenate(dirs, axis=0), tuple(new_states)
+
     def _slice_oracle_info(self, info, i):
         """Project an ``OracleInfo`` onto segment ``i``.
         Flat per-iterate fields (params/new_params/grad/new_grad) are sliced
         to the segment; probe buffers (shape ``(k, n)``) are sliced along
         their parameter axis. Scalar / mask fields (t, step_size,
         probe_valid, probe_alphas) are shared verbatim."""
+        assert self._partition_offsets is not None
         off = self._partition_offsets
         lo, hi = off[i], off[i + 1]
+
         def seg(v):
             return None if v is None else v[lo:hi]
+
         def seg_probe(v):
             return None if v is None else v[:, lo:hi]
+
         return OracleInfo(
             params=seg(info.params),
             new_params=seg(info.new_params),
@@ -289,6 +299,7 @@ class QQN:
             probe_valid=info.probe_valid,
             probe_alphas=info.probe_alphas,
         )
+
     def _oracle_update(self, oracle_state, info):
         """Update the oracle state, respecting partitioning."""
         if self.partition_sizes is None:

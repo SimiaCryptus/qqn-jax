@@ -40,6 +40,8 @@ def param_layout(dim, hidden_sizes, n_classes):
         sizes.append(fan_in * fan_out)  # W block
         sizes.append(fan_out)  # b block
     return np.cumsum(sizes)
+
+
 def partition_sizes(dim, hidden_sizes, n_classes):
     """Per-block segment sizes of the flat vector (W_1, b_1, ..., W_L, b_L).
     Returns a tuple of contiguous segment lengths suitable for QQN's
@@ -52,8 +54,6 @@ def partition_sizes(dim, hidden_sizes, n_classes):
         sizes.append(fan_in * fan_out)  # W block
         sizes.append(fan_out)  # b block
     return tuple(int(s) for s in sizes)
-
-
 
 
 def init_params(dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid"):
@@ -157,11 +157,11 @@ class FlatMLP:
     @property
     def n_hidden_layers(self):
         return len(self.hidden_sizes)
+
     @property
     def partition_sizes(self):
         """Per-layer (W/b block) flat-vector segment sizes for QQN."""
         return partition_sizes(self.dim, self.hidden_sizes, self.n_classes)
-
 
     def init_params(self, key):
         return init_params(

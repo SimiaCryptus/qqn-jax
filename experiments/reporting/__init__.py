@@ -13,9 +13,9 @@ from experiments.reporting.sparse_plots import (
 __all__ = [
     "report_tables",
     "save_plots",
-     "write_results_json",
-     "axis_analysis",
-     "report_axis_analysis",
+    "write_results_json",
+    "axis_analysis",
+    "report_axis_analysis",
     "plot_convergence",
     "plot_pareto",
     "plot_metrics_bar",

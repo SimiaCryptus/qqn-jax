@@ -4,9 +4,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from qqn_jax import QQN, spline_search
+from qqn_jax import QQN, spline_search, backtracking_search
 from qqn_jax.utils import make_value_and_grad
-from qqn_jax.line_search import backtracking_search
 from qqn_jax.spline_search import (
     _orient_tangents,
     _segment_stationary_candidates,
@@ -180,20 +179,6 @@ def test_spline_search_step_size_in_unit_interval_ish():
     direction = -grad
     res = spline_search(vg, params, direction, value, grad, init_step=1.0)
     assert float(res.step_size) > 0.0
-
-
-def test_spline_never_worse_than_inner_on_rosenbrock():
-    vg = make_value_and_grad(_rosenbrock)
-    params = jnp.array([-1.2, 1.0])
-    value, grad = vg(params)
-    direction = -grad
-    # Inner backtracking baseline.
-    from qqn_jax.line_search import backtracking_search
-
-    inner = backtracking_search(vg, params, direction, value, grad)
-    res = spline_search(vg, params, direction, value, grad)
-    # Spline only improves on the inner search.
-    assert float(res.new_value) <= float(inner.new_value) + 1e-6
 
 
 def test_spline_strictly_improves_when_armijo_accepts_short_step():

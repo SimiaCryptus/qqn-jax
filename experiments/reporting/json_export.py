@@ -54,9 +54,7 @@ def _result_to_dict(name, r):
         f"{m:.6e}": (None if hit is None else list(hit))
         for m, hit in (r.milestone_hits or {}).items()
     }
-    target_iters = {
-        f"{t:.6e}": v for t, v in (r.target_iters or {}).items()
-    }
+    target_iters = {f"{t:.6e}": v for t, v in (r.target_iters or {}).items()}
     return _jsonify(
         {
             "name": name,
@@ -101,12 +99,12 @@ def write_results_json(results, config, *, extra=None, results_dir="results"):
     payload = {
         "timestamp": timestamp,
         "config": _config_to_dict(config),
-        "results": {
-            name: _result_to_dict(name, r) for name, r in results.items()
-        },
+        "results": {name: _result_to_dict(name, r) for name, r in results.items()},
     }
     if extra:
-        payload.update(_jsonify(extra))
+        extra_jsonified = _jsonify(extra)
+        if isinstance(extra_jsonified, dict):
+            payload.update(extra_jsonified)
 
     with open(out, "w") as fh:
         json.dump(payload, fh, indent=2)

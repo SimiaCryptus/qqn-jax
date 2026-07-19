@@ -32,21 +32,9 @@ import itertools
 
 import optax
 
-from qqn_jax.oracles import (
-    LBFGSOracle,
-    MomentumOracle,
-    AdamOracle,
-    PathHistoryMomentumOracle,
-    SecantOracle,
-    AndersonOracle,
-    Fallback,
-)
-from qqn_jax.regions import (
-    BoxRegion,
-    TrustRegion,
-)
-
 __all__ = ["ENABLED", "build_runners"]
+
+from qqn_jax import MomentumOracle, AdamOracle, PathHistoryMomentumOracle
 
 ENABLED = [
     "QQN",
@@ -360,9 +348,7 @@ def build_runners(ctx, enabled=None):
     # that enabling "QQN" pulls in the full set of currently-enabled axis
     # combinations, not just a single (non-existent) "QQN" profile.
     qqn_names = sorted(
-        name
-        for name in registry
-        if name == "QQN" or name.startswith("QQN-")
+        name for name in registry if name == "QQN" or name.startswith("QQN-")
     )
     resolved = []
     for name in names:

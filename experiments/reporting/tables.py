@@ -91,16 +91,16 @@ def _target_profile(results, config):
     target_profile = config.target_profile
     print("\nTarget-sensitivity profile (iterations to reach each loss target):")
     header = (
-            "  "
-            + f"{'optimizer':<14}"
-            + "".join(f"{f'<={t:.2e}':>14}" for t in target_profile)
+        "  "
+        + f"{'optimizer':<14}"
+        + "".join(f"{f'<={t:.2e}':>14}" for t in target_profile)
     )
     print(header)
     tightest = target_profile[-1]
 
     def _tgt_key(kv):
         v = kv[1].target_iters.get(tightest)
-        return v if v is not None else 10 ** 9
+        return v if v is not None else 10**9
 
     for name, r in sorted(results.items(), key=_tgt_key):
         cells = []
@@ -132,7 +132,7 @@ def _milestone_profiles(results, config):
 
     def _sort_key(kv):
         hit = kv[1].milestone_hits.get(tightest)
-        return hit[0] if hit is not None else 10 ** 9
+        return hit[0] if hit is not None else 10**9
 
     def _sort_key_time(kv):
         hit = kv[1].milestone_hits.get(tightest)
@@ -140,7 +140,7 @@ def _milestone_profiles(results, config):
 
     print("\nConvergence-rate profile (iteration first reaching each loss):")
     header = (
-            "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
+        "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
     )
     print(header)
     for name, r in sorted(results.items(), key=_sort_key):
@@ -180,7 +180,7 @@ def _milestone_profiles(results, config):
 
     print("\nConvergence-rate profile (wall-clock seconds first reaching each loss):")
     header = (
-            "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
+        "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
     )
     print(header)
     for name, r in sorted(results.items(), key=_sort_key_time):
@@ -195,14 +195,14 @@ def _milestone_profiles(results, config):
         "(estimated function/grad evals first reaching each loss):"
     )
     header = (
-            "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
+        "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
     )
     print(header)
 
     def _sort_key_evals(kv):
         hit = kv[1].milestone_hits.get(tightest)
         if hit is None or len(hit) < 3 or hit[2] is None:
-            return 10 ** 9
+            return 10**9
         return hit[2]
 
     for name, r in sorted(results.items(), key=_sort_key_evals):
@@ -214,19 +214,16 @@ def _milestone_profiles(results, config):
             else:
                 cells.append(f"{hit[2]}")
         print("  " + f"{name:<12}" + "".join(f"{c:>12}" for c in cells))
-    print(
-        "\nConvergence-rate profile "
-        "(forward value evals first reaching each loss):"
-    )
+    print("\nConvergence-rate profile (forward value evals first reaching each loss):")
     header = (
-            "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
+        "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
     )
     print(header)
 
     def _sort_key_fwd(kv):
         hit = kv[1].milestone_hits.get(tightest)
         if hit is None or len(hit) < 4 or hit[3] is None:
-            return 10 ** 9
+            return 10**9
         return hit[3]
 
     for name, r in sorted(results.items(), key=_sort_key_fwd):
@@ -239,18 +236,17 @@ def _milestone_profiles(results, config):
                 cells.append(f"{hit[3]}")
         print("  " + f"{name:<12}" + "".join(f"{c:>12}" for c in cells))
     print(
-        "\nConvergence-rate profile "
-        "(backward gradient evals first reaching each loss):"
+        "\nConvergence-rate profile (backward gradient evals first reaching each loss):"
     )
     header = (
-            "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
+        "  " + f"{'optimizer':<12}" + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
     )
     print(header)
 
     def _sort_key_bwd(kv):
         hit = kv[1].milestone_hits.get(tightest)
         if hit is None or len(hit) < 5 or hit[4] is None:
-            return 10 ** 9
+            return 10**9
         return hit[4]
 
     for name, r in sorted(results.items(), key=_sort_key_bwd):

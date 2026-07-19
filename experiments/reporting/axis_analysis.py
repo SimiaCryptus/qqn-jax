@@ -136,11 +136,13 @@ def axis_analysis(results):
             all_norms = []
             for key, _hb in _METRICS:
                 norms = [
-                    n for n in (_normalized(r, key) for _n, r in members)
+                    n
+                    for n in (_normalized(r, key) for _n, r in members)
                     if n is not None
                 ]
                 raws = [
-                    v for v in (_metric_value(r, key) for _n, r in members)
+                    v
+                    for v in (_metric_value(r, key) for _n, r in members)
                     if v is not None
                 ]
                 if norms:
@@ -171,15 +173,14 @@ def report_axis_analysis(results):
     for axis_idx in sorted(analysis):
         entry = analysis[axis_idx]
         print(f"\nAxis: {entry['axis_name']}")
-        header = (
-            f"  {'value':<12}{'n':>4}{'score':>9}"
-            + "".join(f"{k[:9]:>11}" for k in metric_keys)
+        header = f"  {'value':<12}{'n':>4}{'score':>9}" + "".join(
+            f"{k[:9]:>11}" for k in metric_keys
         )
         print(header)
         print("  " + "-" * (len(header) - 2))
         ordered = sorted(
             entry["values"].items(),
-            key=lambda kv: (kv[1]["score"] if kv[1]["score"] is not None else 9e9),
+            key=lambda kv: kv[1]["score"] if kv[1]["score"] is not None else 9e9,
         )
         for tok, stats in ordered:
             score = "—" if stats["score"] is None else f"{stats['score']:.3f}"
