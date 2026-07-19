@@ -207,9 +207,6 @@ class QQN:
         if self.spline:
             from qqn_jax.paths.spline import spline_wrap
 
-                                                                        
-                                                                       
-                                                            
             inner = partial(base_ls, **opts) if opts else base_ls
             self._ls = spline_wrap(inner, path=self.path)
             self._ls_is_wrapped = True
@@ -351,8 +348,6 @@ class QQN:
         qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
 
         if self._ls_is_wrapped:
-                                                                         
-                                                  
             res = self._ls(
                 self._plain_value_and_grad,
                 params,
@@ -364,9 +359,6 @@ class QQN:
                 region_state=state.region_state,
             )
         else:
-                                                                         
-                                                                          
-                                                        
             eval_at, slope0 = make_scalar_problem(
                 self._plain_value_and_grad,
                 params,

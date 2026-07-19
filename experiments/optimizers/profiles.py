@@ -46,7 +46,7 @@ ENABLED = [
 def _oracle_axis():
     """Oracle axis: token -> ``run_qqn`` kwargs selecting the oracle."""
     return {
-        "Adam": {"oracle": AdamOracle()},
+        "Adam": {"_adam_oracle": True},
         "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
         "L10": {"oracle": LBFGSOracle(history_size=10)},
     }
@@ -188,6 +188,10 @@ def _qqn_registry():
         def factory(ctx, _kwargs=kwargs, _display=display_kwargs):
 
             run_kwargs = dict(_kwargs)
+            if run_kwargs.pop("_adam_oracle", False):
+                run_kwargs["oracle"] = AdamOracle(
+                    learning_rate=getattr(ctx, "adam_lr", 1e-3)
+                )
             if run_kwargs.pop("_per_layer", False):
                 partition_sizes = getattr(ctx, "partition_sizes", None)
                 if not partition_sizes:

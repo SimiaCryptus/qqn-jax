@@ -23,6 +23,7 @@ def AdamOracle(
     beta1: float = 0.9,
     beta2: float = 0.999,
     epsilon: float = 1e-8,
+    learning_rate: float = 1e-3,
 ) -> Oracle:
     """ADAM (adaptive moment estimation) oracle.
     The ``t = 1`` endpoint is the classical ADAM update direction, formed by
@@ -33,11 +34,16 @@ def AdamOracle(
         v      = β2·v + (1 − β2)·∇f²
         m̂      = m / (1 − β1^t)
         v̂      = v / (1 − β2^t)
-        direction = − m̂ / (√v̂ + ε)
+         direction = − learning_rate · m̂ / (√v̂ + ε)
     The moments are integrated in ``update`` (committed once a step is
     accepted) so the persisted state accumulates across iterations. The very
     first step (before any accepted gradient) reduces to plain (scaled)
     steepest descent, preserving the ``d'(0)`` anchor.
+
+     The ``learning_rate`` scaling makes the ``t = 1`` oracle endpoint a
+     *genuine* ADAM step, so that a fixed unit step along the quadratic path
+     (``line_search="fixed"``) reproduces plain ADAM's per-iteration behavior
+     rather than an unscaled — and typically catastrophically large — update.
     """
 
     def init(params):
@@ -60,7 +66,7 @@ def AdamOracle(
         bc1 = 1.0 - beta1 ** t.astype(grad.dtype)
         bc2 = 1.0 - beta2 ** t.astype(grad.dtype)
         d = jax.tree_util.tree_map(
-            lambda mi, vi: -(mi / bc1) / (jnp.sqrt(vi / bc2) + epsilon),
+            lambda mi, vi: -learning_rate * (mi / bc1) / (jnp.sqrt(vi / bc2) + epsilon),
             m,
             v,
         )

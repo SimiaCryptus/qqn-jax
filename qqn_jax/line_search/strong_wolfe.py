@@ -45,7 +45,6 @@ def strong_wolfe_search(
         _, v, _, _ = eval_at(tvec[0])
         return v
 
-                                                             
     scalar_grad = jnp.asarray([slope0], dtype=dtype)
 
     ls = optax.scale_by_zoom_linesearch(
