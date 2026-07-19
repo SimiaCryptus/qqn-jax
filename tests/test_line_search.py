@@ -5,7 +5,6 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qqn_jax.regions.box import BoxRegion
 from qqn_jax.line_search import (
     fixed_step_search,
     hager_zhang_search,
@@ -102,7 +101,6 @@ def test_region_restricted_search_stays_feasible():
     x = jnp.array([2.0, 2.0])
     value, grad = quad_value_and_grad(x)
     direction = -grad
-    region = BoxRegion(lo=1.0, hi=5.0)
     for search in (backtracking_search, fixed_step_search):
         res = search(
             quad_value_and_grad,
@@ -110,8 +108,6 @@ def test_region_restricted_search_stays_feasible():
             direction,
             value,
             grad,
-            region=region,
-            region_state=(),
         )
         assert jnp.all(res.new_params >= 1.0 - 1e-6)
         assert jnp.all(res.new_params <= 5.0 + 1e-6)
@@ -150,15 +146,12 @@ def test_backtracking_respects_region():
     x = jnp.array([2.0, 2.0])
     value, grad = quad_value_and_grad(x)
     direction = -grad
-    region = BoxRegion(lo=1.5, hi=5.0)
     res = backtracking_search(
         quad_value_and_grad,
         x,
         direction,
         value,
         grad,
-        region=region,
-        region_state=(),
     )
     assert jnp.all(res.new_params >= 1.5 - 1e-6)
 

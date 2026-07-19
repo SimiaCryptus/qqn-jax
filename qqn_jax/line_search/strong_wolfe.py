@@ -10,49 +10,43 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.utils import tree_vdot
 
 
 def strong_wolfe_search(
-    value_and_grad_fn: Callable,
+    eval_at: Callable,
     params,
-    direction,
     value,
     grad,
-    *args,
+    slope0,
+    *,
     c1: float = 1e-3,
     c2: float = 0.7,
     max_iter: int = 10,
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
-    region=None,
-    region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 
-    Enforces Armijo sufficient decrease and the strong curvature
-    condition, which keeps the L-BFGS curvature updates well-conditioned.
-     The ``temperature`` meta-rule is applied to the *final* acceptance: even
-     if Optax's Wolfe step fails to descend, a Metropolis uphill move
-     (probability ``exp(−ΔE / T)``) may still mark the step ``done``.
-
-    Optax's zoom line search is a ``GradientTransformationExtraArgs`` whose
-    ``update`` step rescales the provided *updates* (here, ``direction``)
-    by the discovered step size. We wrap a value-only objective for it and
-    recompute value/grad at the accepted point.
-     When a ``region`` is supplied, the recovered step is projected onto the
-     region before value/grad are recomputed.
+    Path-agnostic: the whole multidimensional path/region is pre-baked into
+    ``eval_at``. We hand Optax a *scalar* 1-D problem — a single-element
+    parameter ``t`` with unit update and value function ``φ(t)`` — and let
+    it discover the step ``t`` satisfying Armijo + strong-curvature on
+    ``φ``, then recompute value/grad along the real path at that ``t``.
     """
-    region = resolve_region(region)
+    dtype = value.dtype
+    t0 = jnp.zeros((1,), dtype=dtype)
+    unit = jnp.ones((1,), dtype=dtype)
 
-    def fun_only(p):
-        v, _ = value_and_grad_fn(p, *args)
+    def phi(tvec):
+        _, v, _, _ = eval_at(tvec[0])
         return v
+
+    # φ'(0) as the "grad" Optax needs for the scalar problem.
+    scalar_grad = jnp.asarray([slope0], dtype=dtype)
 
     ls = optax.scale_by_zoom_linesearch(
         max_linesearch_steps=max_iter,
@@ -62,33 +56,25 @@ def strong_wolfe_search(
         initial_guess_strategy="one",
         max_learning_rate=float(max_step),
     )
-    ls_state = ls.init(params)
+    ls_state = ls.init(t0)
 
     scaled_updates, _new_state = ls.update(
-        updates=direction,
+        updates=unit,
         state=ls_state,
-        params=params,
+        params=t0,
         value=value,
-        grad=grad,
-        value_fn=fun_only,
+        grad=scalar_grad,
+        value_fn=phi,
     )
 
-    raw_params = optax.apply_updates(params, scaled_updates)
-    new_params = region.project(params, raw_params, region_state)
-    new_value, new_grad = value_and_grad_fn(new_params, *args)
+    step_size = jnp.asarray(scaled_updates)[0]
+    new_params, new_value, new_grad, _slope = eval_at(step_size)
 
     delta_e = new_value - value
     stochastic, _key = _metropolis_accept(
         delta_e, temperature, jax.random.PRNGKey(seed), new_value.dtype
     )
     done = jnp.logical_or(new_value < value, stochastic)
-
-    d_norm_sq = tree_vdot(direction, direction)
-    step_size = jnp.where(
-        d_norm_sq > 0.0,
-        tree_vdot(scaled_updates, direction) / d_norm_sq,
-        jnp.asarray(0.0, dtype=new_value.dtype),
-    )
 
     pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
     pp, pg, pv, pval, pa = _record_probe(

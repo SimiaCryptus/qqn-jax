@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable
 
 import jax
 from jax import numpy as jnp
@@ -9,58 +9,37 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.paths import PathStrategy, QUADRATIC_PATH
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.utils import tree_add_scaled, tree_negative
 
 
 def fixed_step_search(
-    value_and_grad_fn: Callable,
+    eval_at: Callable,
     params,
-    direction,
     value,
     grad,
-    *args,
+    slope0,
+    *,
     step_size: float = 1.0,
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
-    region=None,
-    region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
-    path: Optional[PathStrategy] = None,
 ) -> LineSearchResult:
-    """Trivial line search using a constant step size.
-    Useful for debugging, benchmarking against a baseline, or when the
-    quadratic path scaling already provides a sensible step. Always reports
-     ``done=True`` when ``temperature == 0``. When ``temperature > 0`` the
-     Metropolis meta-rule gates ``done`` on descent OR an accepted uphill
-     move (probability ``exp(−ΔE / T)``).
-    The ``max_step`` parameter is accepted for interface uniformity; the
-    fixed step is clipped to it so callers cannot overshoot the cap.
-     Likewise ``path`` is accepted for interface uniformity with every other
-     line search — the solver (``QQN.__init__``) unconditionally threads its
-     configured ``PathStrategy`` through the *selected* search, fixed-step
-     included. Honoring it here (rather than dropping the kwarg, which used
-     to raise a ``TypeError``) also keeps the point actually visited in sync
-     with the along-path predicted-reduction model built from the same
-     ``PathStrategy`` in ``QQN.update``. At the default ``step_size == 1.0``
-     this is a no-op: every supported path's ``t = 1`` endpoint is exactly
-     the raw oracle ``direction``.
+    """Trivial line search using a constant step size on the 1-D problem.
+
+    Evaluates ``φ(t)`` at a single fixed ``t = step_size`` (clipped to
+    ``max_step``). The path/region are already folded into ``eval_at`` by
+    the solver, so this is fully path-agnostic. Always reports ``done=True``
+    when ``temperature == 0``; otherwise the Metropolis meta-rule gates
+    ``done`` on descent OR an accepted uphill move.
     """
-    region = resolve_region(region)
-    path = path if path is not None else QUADRATIC_PATH
+    del slope0
     alpha = jnp.minimum(
         jnp.asarray(step_size, dtype=value.dtype),
         jnp.asarray(max_step, dtype=value.dtype),
     )
-    grad_dir = tree_negative(grad)
-    offset = path.offset(alpha, grad_dir, direction)
-    raw_params = tree_add_scaled(params, 1.0, offset)
-    new_params = region.project(params, raw_params, region_state)
-    new_val, new_g = value_and_grad_fn(new_params, *args)
+    new_params, new_val, new_g, _slope = eval_at(alpha)
 
     temp0 = jnp.asarray(temperature, dtype=value.dtype)
     stochastic, _key = _metropolis_accept(

@@ -23,7 +23,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import tree_scale
+from qqn_jax.utils import tree_scale, tree_negative, tree_vdot
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.paths.base import PathStrategy, make_evaluator
@@ -99,17 +99,17 @@ def linear_wrap(
         )
 
         dtype = value.dtype
+        grad_dir = tree_negative(grad)
+        slope0 = tree_vdot(
+            grad, path.velocity(jnp.asarray(0.0, dtype=dtype), grad_dir, direction)
+        )
 
         inner = inner_search(
-            value_and_grad_fn,
+            eval_at,
             params,
-            direction,
             value,
             grad,
-            *args,
-            region=region,
-            region_state=region_state,
-            path=path,
+            slope0,
             **inner_kwargs,
         )
 

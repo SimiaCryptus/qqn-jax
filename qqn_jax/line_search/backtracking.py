@@ -4,23 +4,20 @@ import jax
 from jax import numpy as jnp
 
 from qqn_jax.line_search.util import (
-    _make_projected_point,
     _empty_probes,
     _metropolis_accept,
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.utils import tree_vdot, tree_add_scaled
 
 
 def backtracking_search(
-    value_and_grad_fn: Callable,
+    eval_at: Callable,
     params,
-    direction,
     value,
     grad,
-    *args,
+    slope0,
+    *,
     init_step: float = 1.0,
     c1: float = 1e-2,
     shrink: float = 0.5,
@@ -28,44 +25,29 @@ def backtracking_search(
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
-    region=None,
-    region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
 ) -> LineSearchResult:
-    """Backtracking line search (Armijo), self-contained for Optax.
+    """Backtracking line search (Armijo) over a 1-D scalar problem.
 
-    Repeatedly shrinks the step size by ``shrink`` until the Armijo
-    sufficient-decrease condition ``f(x + α d) ≤ f(x) + c1 α gᵀd`` holds
-    or ``max_iter`` is reached. Implemented with ``lax.while_loop`` to stay
-    JIT/vmap compatible.
-     When ``max_step > init_step`` an *extrapolation* phase runs first: the
-     step is grown by ``1/shrink`` (capped at ``max_step``) while Armijo keeps
-     holding and the objective keeps improving, letting the search explore
-     ``t > 1`` (past the oracle endpoint). Once growth stops improving (or the
-     cap is hit) the usual backtracking shrink phase takes over.
-     If a ``region`` is supplied, the candidate point ``x + α·d`` is projected
-     onto the region before evaluation, so the search navigates the feasible
-     (projected) path.
-    When ``temperature > 0`` a Metropolis-style stochastic acceptance is
-    layered on top of the Armijo test: a step that fails Armijo may still be
-    accepted (an *uphill climb*) with probability ``exp(−ΔE / T)`` where
-    ``ΔE = f(x + α·d) − f(x)`` and ``T`` is the (geometrically cooled)
-    temperature. With the default ``temperature = 0.0`` this stochastic path
-    is disabled entirely and the search reduces to plain Armijo backtracking.
-    A ``seed`` seeds a deterministic PRNG so the search stays JIT/vmap
-    compatible and reproducible.
+    Operates purely on the scalar problem ``φ(t)`` exposed via
+    ``eval_at(t) -> (params, value, grad, slope)`` and the directional
+    derivative ``slope0 = φ'(0)``. It has *no* knowledge of the path,
+    direction or region — those were baked into ``eval_at`` by the solver.
+
+    Repeatedly shrinks the step by ``shrink`` until the Armijo condition
+    ``φ(t) ≤ φ(0) + c1·t·φ'(0)`` holds or ``max_iter`` is reached.
+    When ``max_step > init_step`` an extrapolation phase runs first,
+    growing ``t`` while Armijo holds and ``φ`` keeps improving. When
+    ``temperature > 0`` a Metropolis stochastic acceptance is layered on
+    top of the Armijo test.
     """
-    region = resolve_region(region)
-    project = _make_projected_point(region, region_state, params)
-    dg = tree_vdot(grad, direction)
+    dg = slope0
 
-    def eval_at(alpha):
-        raw = tree_add_scaled(params, alpha, direction)
-        projected = project(raw)
-        val, g = value_and_grad_fn(projected, *args)
-        return projected, val, g
+    def eval_pvg(alpha):
+        p, val, g, _slope = eval_at(alpha)
+        return p, val, g
 
     eff_probes = max_probes if record_probes else 1
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
@@ -116,7 +98,7 @@ def backtracking_search(
             pa,
         ) = carry
         alpha = alpha * shrink
-        new_params, new_val, new_g = eval_at(alpha)
+        new_params, new_val, new_g = eval_pvg(alpha)
         accepted, key = accept(alpha, new_val, temp, key)
         temp = temp * cooling
 
@@ -145,7 +127,7 @@ def backtracking_search(
     max_alpha = jnp.asarray(max_step, dtype=value.dtype)
     grow = jnp.asarray(1.0 / shrink, dtype=value.dtype)
 
-    init_params, init_val, init_g = eval_at(init_alpha)
+    init_params, init_val, init_g = eval_pvg(init_alpha)
     init_accepted, key1 = accept(init_alpha, init_val, temp0, key0)
     temp1 = temp0 * cooling
 
@@ -172,7 +154,7 @@ def backtracking_search(
     def extrap_body(carry):
         alpha, i, evals, prev_val, _g, _p, _acc, pp, pg, pv, pval, pa = carry
         new_alpha = alpha * grow
-        new_params, new_val, new_g = eval_at(new_alpha)
+        new_params, new_val, new_g = eval_pvg(new_alpha)
         armijo = new_val <= value + c1 * new_alpha * dg
         improved = new_val < prev_val
         keep = jnp.logical_and(armijo, improved)

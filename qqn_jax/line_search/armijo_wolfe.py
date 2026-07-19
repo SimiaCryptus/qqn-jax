@@ -4,23 +4,20 @@ import jax
 from jax import numpy as jnp
 
 from qqn_jax.line_search.util import (
-    _make_projected_point,
     _empty_probes,
     _record_probe,
     _metropolis_accept,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.utils import tree_vdot, tree_add_scaled
 
 
 def armijo_wolfe_search(
-    value_and_grad_fn: Callable,
+    eval_at: Callable,
     params,
-    direction,
     value,
     grad,
-    *args,
+    slope0,
+    *,
     init_step: float = 1.0,
     c1: float = 1e-4,
     c2: float = 0.9,
@@ -28,52 +25,25 @@ def armijo_wolfe_search(
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
-    region=None,
-    region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
 ) -> LineSearchResult:
-    """Combined Armijo–Wolfe line search (the classic L-BFGS scheme).
-    This is the textbook two-phase *bracketing + zoom* line search (Nocedal &
-    Wright, Alg. 3.5/3.6) that enforces both the Armijo sufficient-decrease
-    condition
-        φ(α) ≤ φ(0) + c1·α·φ'(0)
-    and the (strong) Wolfe curvature condition
-        |φ'(α)| ≤ c2·|φ'(0)|,
-    where ``φ(α) = f(x + α·d)`` and ``φ'(α) = ⟨∇f(x + α·d), d⟩``. Unlike the
-    permissive Armijo backtracking search, this scheme keeps the L-BFGS
-    curvature pairs well conditioned by guaranteeing the Wolfe condition.
-    Phase 1 (*bracket*) grows the trial step (capped at ``max_step``) until it
-    finds an interval known to contain a point satisfying the Wolfe
-    conditions. Phase 2 (*zoom*) shrinks that interval by bisection until the
-    conditions hold or the budget is exhausted. Implemented with
-    ``lax.while_loop`` to stay JIT/vmap compatible.
-     The ``temperature`` meta-rule is layered on the final acceptance: when no
-     Wolfe point is found, the best-value fallback may still be marked
-     ``done`` via a Metropolis uphill move (probability ``exp(−ΔE / T)``).
+    """Combined Armijo–Wolfe line search over a 1-D scalar problem.
+
+    Textbook two-phase bracketing + zoom (Nocedal & Wright, Alg. 3.5/3.6)
+    enforcing Armijo sufficient decrease and the strong Wolfe curvature
+    condition on ``φ(t) = f(x + d(t))``, ``φ'(t)`` where the path ``d(t)``
+    and region projection are pre-baked into ``eval_at`` by the solver.
+    This search is therefore fully path-agnostic.
     """
-    region = resolve_region(region)
-    project = _make_projected_point(region, region_state, params)
-    dg = tree_vdot(grad, direction)
+    dg = slope0
     max_alpha = jnp.asarray(max_step, dtype=value.dtype)
     zero = jnp.asarray(0.0, dtype=value.dtype)
-
-    def eval_at(alpha):
-        raw = tree_add_scaled(params, alpha, direction)
-        projected = project(raw)
-        val, g = value_and_grad_fn(projected, *args)
-        slope = tree_vdot(g, direction)
-        return projected, val, g, slope
 
     eff_probes = max_probes if record_probes else 1
     pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
     abs_dg = jnp.abs(dg)
-
-    def wolfe_ok(alpha, val, slope):
-        armijo = val <= value + c1 * alpha * dg
-        curv = jnp.abs(slope) <= c2 * abs_dg
-        return jnp.logical_and(armijo, curv)
 
     a0 = jnp.asarray(init_step, dtype=value.dtype)
     p0, v0, g0, s0 = eval_at(a0)

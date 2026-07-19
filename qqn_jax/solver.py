@@ -41,6 +41,7 @@ from qqn_jax.utils import (
     tree_negative,
     tree_vdot,
 )
+from qqn_jax.line_search.util import make_scalar_problem
 
 
 class QQNState(NamedTuple):
@@ -175,11 +176,10 @@ class QQN:
             )
         else:
             self._partition_offsets = None
-        self.feed_probes_to_oracle = feed_probes_to_oracle
 
+        self.feed_probes_to_oracle = feed_probes_to_oracle
         self.probe_descent_gate = probe_descent_gate
         self.max_probes = max_probes
-
         self.max_t = max_t
 
         if line_search not in LINE_SEARCHES:
@@ -196,8 +196,6 @@ class QQN:
         base_ls = LINE_SEARCHES[line_search]
         opts = self.line_search_options
 
-        opts = {**opts, "path": self.path}
-
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
 
@@ -205,19 +203,25 @@ class QQN:
             opts = {**opts, "max_probes": self.max_probes}
         else:
             opts = {**opts, "record_probes": False}
-        if opts:
-            base_ls = partial(base_ls, **opts)
 
         if self.spline:
             from qqn_jax.paths.spline import spline_wrap
 
-            self._ls = spline_wrap(base_ls, path=self.path)
+            # Wrappers take the multidimensional signature and build the
+            # scalar problem themselves; forward opts to the bare inner
+            # search only (path is threaded by the wrapper).
+            inner = partial(base_ls, **opts) if opts else base_ls
+            self._ls = spline_wrap(inner, path=self.path)
+            self._ls_is_wrapped = True
         elif self.linear:
             from qqn_jax.paths.linear import linear_wrap
 
-            self._ls = linear_wrap(base_ls, path=self.path)
+            inner = partial(base_ls, **opts) if opts else base_ls
+            self._ls = linear_wrap(inner, path=self.path)
+            self._ls_is_wrapped = True
         else:
-            self._ls = base_ls
+            self._ls = partial(base_ls, **opts) if opts else base_ls
+            self._ls_is_wrapped = False
 
     def _eval(self, params, *args):
         """Evaluate value and grad, splitting off aux if present."""
@@ -346,16 +350,40 @@ class QQN:
 
         qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
 
-        res = self._ls(
-            self._plain_value_and_grad,
-            params,
-            qn_dir,
-            state.value,
-            grad,
-            *args,
-            region=self.region,
-            region_state=state.region_state,
-        )
+        if self._ls_is_wrapped:
+            # Path wrappers still take the multidimensional interface and
+            # build the scalar problem internally.
+            res = self._ls(
+                self._plain_value_and_grad,
+                params,
+                qn_dir,
+                state.value,
+                grad,
+                *args,
+                region=self.region,
+                region_state=state.region_state,
+            )
+        else:
+            # Bare line searches receive *only* the prepared 1-D problem:
+            # the solver folds the path + region into ``eval_at`` here, so
+            # the line search is entirely path-agnostic.
+            eval_at, slope0 = make_scalar_problem(
+                self._plain_value_and_grad,
+                params,
+                grad,
+                qn_dir,
+                self.region,
+                state.region_state,
+                self.path,
+                *args,
+            )
+            res = self._ls(
+                eval_at,
+                params,
+                state.value,
+                grad,
+                slope0,
+            )
 
         new_params = res.new_params
         new_value = res.new_value

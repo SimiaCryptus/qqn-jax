@@ -48,7 +48,7 @@ def _load_mnist_numpy(n_train: int, n_test: int, n_classes: int):
     """
 
     try:
-        from tensorflow.keras.datasets import mnist # type: ignore
+        from tensorflow.keras.datasets import mnist  # type: ignore
 
         (xtr, ytr), (xte, yte) = mnist.load_data()
         xtr = xtr.reshape(xtr.shape[0], -1).astype(np.float32) / 255.0

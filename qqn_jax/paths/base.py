@@ -44,7 +44,8 @@ def make_evaluator(
 ):
     """Build an ``eval_at(t) -> (projected_params, value, grad, slope)``
     closure for a given path strategy, projecting every probe through
-    ``region``.
+     ``region``. This is exactly the scalar 1-D problem handed to the
+     line searches (which are otherwise entirely path-unaware).
 
     ``grad`` is the gradient measured at ``t = 0`` (i.e. at ``params``); it
     fixes ``grad_dir = -grad``, the path's steepest-descent tangent, which

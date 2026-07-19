@@ -207,17 +207,16 @@ def spline_wrap(
         grad_dir = tree_negative(grad)
 
         dtype = value.dtype
+        slope0 = tree_vdot(
+            grad, path.velocity(jnp.asarray(0.0, dtype=dtype), grad_dir, direction)
+        )
 
         inner = inner_search(
-            value_and_grad_fn,
+            eval_at,
             params,
-            direction,
             value,
             grad,
-            *args,
-            region=region,
-            region_state=region_state,
-            path=path,
+            slope0,
             **inner_kwargs,
         )
 

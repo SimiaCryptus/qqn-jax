@@ -10,42 +10,40 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.utils import tree_vdot
 
 
 def hager_zhang_search(
-    value_and_grad_fn: Callable,
+    eval_at: Callable,
     params,
-    direction,
     value,
     grad,
-    *args,
+    slope0,
+    *,
     c1: float = 0.1,
     max_iter: int = 30,
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
-    region=None,
-    region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
 ) -> LineSearchResult:
     """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
-    The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use
-    Optax's backtracking transformation parameterized to approximate it,
-    recomputing value/grad at the accepted point. Falls back gracefully if
-    the underlying transform is unavailable.
-     The ``temperature`` meta-rule is applied to the final acceptance: an
-     uphill step may still be marked ``done`` via a Metropolis move
-     (probability ``exp(−ΔE / T)``).
-    """
-    region = resolve_region(region)
 
-    def fun_only(p):
-        v, _ = value_and_grad_fn(p, *args)
+    Path-agnostic: operates on the scalar 1-D problem ``φ(t)`` exposed by
+    ``eval_at`` (the path/region were pre-baked by the solver). Optax
+    discovers the step ``t`` on this scalar problem; value/grad are then
+    recomputed along the real path at ``t``.
+    """
+    dtype = value.dtype
+    t0 = jnp.zeros((1,), dtype=dtype)
+    unit = jnp.ones((1,), dtype=dtype)
+
+    def phi(tvec):
+        _, v, _, _ = eval_at(tvec[0])
         return v
+
+    scalar_grad = jnp.asarray([slope0], dtype=dtype)
 
     ls = optax.scale_by_backtracking_linesearch(
         max_backtracking_steps=max_iter,
@@ -54,24 +52,17 @@ def hager_zhang_search(
         increase_factor=jnp.minimum(1.0, float(max_step)),
         store_grad=True,
     )
-    ls_state = ls.init(params)
+    ls_state = ls.init(t0)
     scaled_updates, _new_state = ls.update(
-        updates=direction,
+        updates=unit,
         state=ls_state,
-        params=params,
+        params=t0,
         value=value,
-        grad=grad,
-        value_fn=fun_only,
+        grad=scalar_grad,
+        value_fn=phi,
     )
-    raw_params = optax.apply_updates(params, scaled_updates)
-    new_params = region.project(params, raw_params, region_state)
-    new_value, new_grad = value_and_grad_fn(new_params, *args)
-    d_norm_sq = tree_vdot(direction, direction)
-    step_size = jnp.where(
-        d_norm_sq > 0.0,
-        tree_vdot(scaled_updates, direction) / d_norm_sq,
-        jnp.asarray(0.0, dtype=new_value.dtype),
-    )
+    step_size = jnp.asarray(scaled_updates)[0]
+    new_params, new_value, new_grad, _slope = eval_at(step_size)
 
     stochastic, _key = _metropolis_accept(
         new_value - value, temperature, jax.random.PRNGKey(seed), new_value.dtype

@@ -4,64 +4,39 @@ import jax
 from jax import numpy as jnp
 
 from qqn_jax.line_search.util import (
-    _make_projected_point,
     _empty_probes,
     _record_probe,
     _metropolis_accept,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.utils import tree_vdot, tree_add_scaled
 
 
 def bisection_search(
-    value_and_grad_fn: Callable,
+    eval_at: Callable,
     params,
-    direction,
     value,
     grad,
-    *args,
+    slope0,
+    *,
     init_step: float = 1.0,
     c1: float = 1e-4,
     max_iter: int = 25,
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
-    region=None,
-    region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
 ) -> LineSearchResult:
     """Bisection line search that seeks a *true* one-dimensional minimum.
-    Whereas the backtracking/Armijo family is deliberately *permissive* — it
-    accepts the first step that merely makes sufficient progress — this search
-    is the opposite: it bisects on the directional derivative
-    ``φ'(α) = ⟨∇f(x + α·d), d⟩`` to drive it toward zero, locating a genuine
-    stationary point of the objective *along the path*. Use it only in the
-    special cases where an accurate along-path minimizer is worth the extra
-    gradient evaluations (the cross-product profiles reserve it for exactly
-    that role).
-    The scheme first brackets a sign change of ``φ'`` by expanding from a small
-    lower bound; if no bracket is found within the expansion budget it falls
-    back to the best (lowest-value) point it evaluated, still reporting
-    ``done`` when the Armijo sufficient-decrease condition holds there.
-    Implemented with ``lax.while_loop`` to stay JIT/vmap compatible.
-     The ``temperature`` meta-rule is layered on the final acceptance: a
-     non-descending minimizer may still be marked ``done`` via a Metropolis
-     uphill move (probability ``exp(−ΔE / T)``).
-    """
-    region = resolve_region(region)
-    project = _make_projected_point(region, region_state, params)
-    dg = tree_vdot(grad, direction)
-    max_alpha = jnp.asarray(max_step, dtype=value.dtype)
 
-    def eval_at(alpha):
-        raw = tree_add_scaled(params, alpha, direction)
-        projected = project(raw)
-        val, g = value_and_grad_fn(projected, *args)
-        slope = tree_vdot(g, direction)
-        return projected, val, g, slope
+    Operates purely on the scalar problem ``φ(t)`` (with slope ``φ'(t)``)
+    exposed by ``eval_at``; it has no knowledge of the underlying path.
+    Bisects on ``φ'(t)`` to drive it toward zero, locating a genuine
+    stationary point of the objective along the (pre-baked) path.
+    """
+    dg = slope0
+    max_alpha = jnp.asarray(max_step, dtype=value.dtype)
 
     eff_probes = max_probes if record_probes else 1
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)

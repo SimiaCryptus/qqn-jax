@@ -76,7 +76,6 @@ def scalene_active():
 def _print_scalene_hint(script_argv):
     """Print the command to re-run the current script under Scalene."""
     try:
-
         have = True
     except Exception:
         have = False
