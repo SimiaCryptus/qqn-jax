@@ -1,28 +1,75 @@
-"""Cubic Hermite *spline* model over the QQN path parameter ``t``.
+"""Cubic Hermite *spline* path strategy over the QQN path parameter ``t``.
 
-Unlike ``qqn_jax.paths.linear`` (which discards gradient information)
-this module reuses every probe's measured fitness *and* directional
-derivative as reusable **control points** ``(t_i, f_i, m_i)``, building
-a piecewise cubic Hermite spline of the objective along the path. The
-spline is only ever used to *propose* candidate steps; acceptance is
-gated by the outer line search's sufficient-decrease test.
+This is a **distinct, stateful** :class:`~qqn_jax.paths.base.PathStrategy`
+— it is *not* an alias of, or a thin wrapper around, the quadratic path.
 
-The probes themselves are built on the shared ``PathStrategy`` remapping
-(defaulting to ``QUADRATIC_PATH``) so every spline probe stays on the
-exact curve traversed by the wrapped inner line search. See
-``docs/theory/spline_search.md`` for the full derivation.
+There are **two different curves** in play, and keeping them separate is the
+whole point:
+
+* The *parameter-space geometry* ``d(t)`` (``_spline_offset``) fixes where a
+  probe physically lands, ``x + d(t)``. Per ``docs/theory/spline_search.md``
+  every evaluation is taken *along* the QQN blend, so this mapping is the
+  blend. This is **not** the spline.
+* The *spline model itself* is the accumulating model of the objective as a
+  function of the scalar ``t``. It **begins** as a single cubic Hermite
+  segment spanning the two endpoints (which reproduces the quadratic-order
+  picture) and **becomes a genuine piecewise cubic Hermite spline** as
+  measurements accumulate: every probe's measured fitness *and* directional
+  derivative is retained as a reusable **control point** ``(t_i, f_i, m_i)``.
+
+The construct is intentionally unusual: proposing the next step means
+interpolating between two *accumulated* anchors with a cubic Hermite segment,
+solving that segment for its stationary point, and — crucially — **measuring
+that point and appending it as a new control point**, so the next proposal is
+drawn from a strictly richer spline. ``spline_refine`` runs exactly this
+accumulation loop.
+
+Because it accumulates control points, the spline path carries an explicit
+:class:`SplineState` (its control-point buffer) and implements the optional
+stateful hooks of ``PathStrategy`` (``init_state`` / ``observe`` /
+``propose``). The spline only ever *proposes* candidate steps; acceptance is
+gated by the outer line search's strict-improvement / sufficient-decrease
+test. See ``docs/theory/spline_search.md`` for the full derivation.
 """
+
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.paths.quadratic import QUADRATIC_PATH
-
-# Re-export the canonical curve the spline model lives on: the spline
-# reuses the *quadratic* path geometry and layers a Hermite model on top.
-SPLINE_PATH = QUADRATIC_PATH
+from qqn_jax.line_search.result import LineSearchResult
+from qqn_jax.paths.base import PathStrategy
+from qqn_jax.utils import tree_vdot
 
 
+# ---------------------------------------------------------------------------
+# Geometry: the spline path owns its own displacement/velocity. It maps the
+# scalar parameter ``t`` onto a probe point in parameter space. This mapping
+# is defined here (independently) so the spline path is a self-contained
+# strategy rather than an alias of another module's curve. NOTE: this is the
+# *parameter-space* curve where probes physically land -- it is deliberately
+# distinct from the accumulating cubic-Hermite *model* over ``t`` (below),
+# which is the actual "spline".
+# ---------------------------------------------------------------------------
+def _spline_offset(t, grad_dir, direction):
+    """Displacement ``d(t)`` blending the steepest-descent tangent with the
+    oracle endpoint, evaluated at ``t``."""
+    a = t * (1.0 - t)
+    b = t * t
+    return jax.tree_util.tree_map(lambda g, q: a * g + b * q, grad_dir, direction)
+
+
+def _spline_velocity(t, grad_dir, direction):
+    """Path tangent ``d'(t)`` used to project a measured gradient onto the
+    scalar directional derivative ``m = ⟨∇f, d'(t)⟩``."""
+    a = 1.0 - 2.0 * t
+    b = 2.0 * t
+    return jax.tree_util.tree_map(lambda g, q: a * g + b * q, grad_dir, direction)
+
+
+# ---------------------------------------------------------------------------
+# Hermite model math (value / stationary points).
+# ---------------------------------------------------------------------------
 def hermite_basis(s):
     """Cubic Hermite basis functions evaluated at ``s ∈ [0, 1]``.
 
@@ -144,23 +191,38 @@ def segment_candidates(t0, f0, m0, t1, f1, m1, eps=1e-12):
     return t_cand, f_cand, valid
 
 
-def propose_step(ts, fs, ms, eps=1e-12):
-    """Propose the next evaluation point from sorted control points.
+def propose_from_points(ts, fs, ms, valid, eps=1e-12):
+    """Propose the next evaluation point from a (possibly padded) buffer of
+    control points.
 
-    Scans every adjacent bracketing pair of control points, collects the
-    cubic stationary points, and returns the candidate ``t`` with the
-    lowest predicted fitness across all segments.
+    Control points may be stored in a fixed-capacity buffer with a
+    per-point ``valid`` mask (invalid slots are ignored). Points are sorted
+    by ``t``, and only segments whose *both* endpoints are valid contribute
+    candidate stationary points. Returns the candidate with the lowest
+    predicted fitness across all such segments.
 
     Args:
-        ts: sorted path parameters ``(n,)``.
+        ts: path parameters ``(n,)`` (need not be pre-sorted).
         fs: measured fitnesses ``(n,)``.
         ms: measured directional derivatives ``(n,)``.
+        valid: boolean mask ``(n,)`` marking populated control points.
 
     Returns:
         ``(t_best, f_best, found)`` — the proposed step, its predicted
-        fitness, and a boolean flag that is ``False`` when no segment
-        yielded an in-range stationary point.
+        fitness, and a flag that is ``False`` when no segment yielded an
+        in-range stationary point.
     """
+    # Push invalid points to the far end so they never bracket a real one.
+    finite_max = jnp.max(jnp.where(valid, ts, -jnp.inf))
+    big = jnp.where(jnp.any(valid), finite_max, 0.0) + 1.0
+    sort_key = jnp.where(valid, ts, big)
+    order = jnp.argsort(sort_key)
+
+    ts = ts[order]
+    fs = fs[order]
+    ms = ms[order]
+    valid = valid[order]
+
     t0 = ts[:-1]
     f0 = fs[:-1]
     m0 = ms[:-1]
@@ -168,14 +230,18 @@ def propose_step(ts, fs, ms, eps=1e-12):
     f1 = fs[1:]
     m1 = ms[1:]
 
-    t_cand, f_cand, valid = jax.vmap(
+    pair_ok = jnp.logical_and(valid[:-1], valid[1:])
+    pair_ok = jnp.logical_and(pair_ok, (t1 - t0) > eps)
+
+    t_cand, f_cand, cand_valid = jax.vmap(
         lambda a, b, c, d, e, g: segment_candidates(a, b, c, d, e, g, eps)
     )(t0, f0, m0, t1, f1, m1)
 
-    # Flatten (num_segments, 2) -> (num_segments*2,).
+    cand_valid = jnp.logical_and(cand_valid, pair_ok[:, None])
+
     t_flat = t_cand.reshape(-1)
     f_flat = f_cand.reshape(-1)
-    v_flat = valid.reshape(-1)
+    v_flat = cand_valid.reshape(-1)
 
     f_masked = jnp.where(v_flat, f_flat, jnp.inf)
     best = jnp.argmin(f_masked)
@@ -183,10 +249,262 @@ def propose_step(ts, fs, ms, eps=1e-12):
     return t_flat[best], f_flat[best], found
 
 
+def propose_step(ts, fs, ms, eps=1e-12):
+    """Propose the next evaluation point from *sorted, fully-valid* control
+    points.
+
+    Convenience wrapper over :func:`propose_from_points` for the case where
+    every entry of ``ts``/``fs``/``ms`` is a genuine control point.
+    """
+    valid = jnp.ones_like(ts, dtype=bool)
+    return propose_from_points(ts, fs, ms, valid, eps)
+
+
+# ---------------------------------------------------------------------------
+# Stateful control-point memory. This is what makes the spline path distinct
+# from every other path strategy: it accumulates measurements over the
+# course of a search rather than being a fixed analytic curve.
+# ---------------------------------------------------------------------------
+class SplineState(NamedTuple):
+    """The spline path's control-point memory.
+
+    Attributes:
+        ts: path parameters of stored control points ``(capacity,)``.
+        fs: measured fitnesses ``(capacity,)``.
+        ms: measured directional derivatives ``(capacity,)``.
+        valid: per-slot validity mask ``(capacity,)``.
+        num_points: number of control points recorded so far.
+    """
+
+    ts: jnp.ndarray
+    fs: jnp.ndarray
+    ms: jnp.ndarray
+    valid: jnp.ndarray
+    num_points: jnp.ndarray
+
+
+def spline_init(grad_dir, direction, capacity: int = 16, dtype=jnp.float32):
+    """Allocate an empty control-point buffer.
+
+    ``grad_dir`` / ``direction`` are accepted to match the stateful
+    ``PathStrategy.init_state`` signature; the buffer itself is geometry
+    agnostic (control points are scalar ``(t, f, m)`` triples).
+    """
+    del grad_dir, direction
+    return SplineState(
+        ts=jnp.zeros((capacity,), dtype),
+        fs=jnp.full((capacity,), jnp.inf, dtype),
+        ms=jnp.zeros((capacity,), dtype),
+        valid=jnp.zeros((capacity,), bool),
+        num_points=jnp.asarray(0, jnp.int32),
+    )
+
+
+def spline_observe(state: SplineState, t, f, m) -> SplineState:
+    """Record a measured control point ``(t, f, m)`` into the memory."""
+    i = jnp.minimum(state.num_points, state.ts.shape[0] - 1)
+    return SplineState(
+        ts=state.ts.at[i].set(t),
+        fs=state.fs.at[i].set(f),
+        ms=state.ms.at[i].set(m),
+        valid=state.valid.at[i].set(True),
+        num_points=state.num_points + 1,
+    )
+
+
+def spline_propose(state: SplineState):
+    """Propose the next candidate ``t`` from the accumulated control points."""
+    return propose_from_points(state.ts, state.fs, state.ms, state.valid)
+
+
+# ---------------------------------------------------------------------------
+# The distinct, stateful spline PathStrategy.
+# ---------------------------------------------------------------------------
+SPLINE_PATH = PathStrategy(
+    offset=_spline_offset,
+    velocity=_spline_velocity,
+    init_state=spline_init,
+    observe=spline_observe,
+    propose=spline_propose,
+    stateful=True,
+)
+
+
+def spline_refine(
+    inner,
+    eval_at,
+    path,
+    grad_dir,
+    direction,
+    f0,
+    slope0,
+    dtype,
+    rounds: int = 4,
+) -> LineSearchResult:
+    """Refine an inner line-search result by *accumulating* control points.
+
+    This runs the spline's defining loop: starting from the seed control
+    points (the origin ``t = 0``, every recorded probe, and the accepted
+    endpoint), it repeatedly
+
+      1. proposes a step from the lowest-predicted stationary point of the
+         current piecewise cubic Hermite model
+         (:func:`propose_from_points`),
+      2. **measures** that step (one evaluation), and
+      3. **appends** the measurement ``(t, f, m)`` as a brand-new control
+         point,
+
+    so each successive proposal is drawn from a strictly richer spline. The
+    best strictly-improving measurement over all rounds is returned (the
+    strict-improvement gate that keeps the heuristic reflection safe).
+
+    Args:
+        inner: baseline ``LineSearchResult`` (must carry recorded probes).
+        eval_at: shared scalar evaluator ``t -> (params, value, grad, slope)``.
+            ``slope`` is exactly the directional derivative ``m`` along the
+            path, so a measurement is a ready-made control point.
+        path: the spline ``PathStrategy`` (used for its velocity/tangent).
+        grad_dir: steepest-descent tangent ``-∇f`` at ``t = 0``.
+        direction: oracle endpoint direction ``-H∇f``.
+        f0: objective value at ``t = 0``.
+        slope0: directional derivative at ``t = 0``.
+        dtype: working dtype.
+        rounds: number of accumulate-and-repropose rounds (each costs one
+            evaluation and adds one control point).
+    """
+    inner_evals = inner.num_evals
+    if inner_evals is None:
+        inner_evals = jnp.asarray(1, jnp.int32)
+
+    p_alphas = inner.probe_alphas
+    p_values = inner.probe_values
+    p_grads = inner.probe_grads
+    p_valid = inner.probe_valid
+
+    def slope_of(alpha, g):
+        v = path.velocity(alpha, grad_dir, direction)
+        return tree_vdot(g, v)
+
+    p_slopes = jax.vmap(slope_of)(p_alphas, p_grads)
+
+    origin_t = jnp.asarray(0.0, dtype)
+    origin_f = jnp.asarray(f0, dtype)
+    origin_m = jnp.asarray(slope0, dtype)
+
+    end_t = inner.step_size
+    end_f = inner.new_value
+    end_m = slope_of(end_t, inner.new_grad)
+
+    # Seed control points: probes + origin + accepted endpoint.
+    seed_ts = jnp.concatenate([p_alphas, jnp.stack([origin_t, end_t])])
+    seed_fs = jnp.concatenate([p_values, jnp.stack([origin_f, end_f])])
+    seed_ms = jnp.concatenate([p_slopes, jnp.stack([origin_m, end_m])])
+    seed_valid = jnp.concatenate([p_valid, jnp.array([True, True])])
+    n_seed = seed_ts.shape[0]
+
+    # Reserve one fresh slot per refinement round: each round appends one
+    # newly-measured control point, growing the piecewise spline.
+    ts = jnp.concatenate([seed_ts, jnp.zeros((rounds,), dtype)])
+    fs = jnp.concatenate([seed_fs, jnp.full((rounds,), jnp.inf, dtype)])
+    ms = jnp.concatenate([seed_ms, jnp.zeros((rounds,), dtype)])
+    valid = jnp.concatenate([seed_valid, jnp.zeros((rounds,), bool)])
+    count = jnp.asarray(n_seed, jnp.int32)
+
+    init = (
+        ts,
+        fs,
+        ms,
+        valid,
+        count,
+        inner.step_size,  # best_t
+        inner.new_value,  # best_v
+        inner.new_params,  # best_p
+        inner.new_grad,  # best_g
+        jnp.asarray(False),  # best_found (strict improvement seen?)
+    )
+
+    def round_step(carry, _):
+        ts, fs, ms, valid, count, best_t, best_v, best_p, best_g, best_found = carry
+        t_prop, _f_pred, found = propose_from_points(ts, fs, ms, valid)
+        t_eval = jnp.where(found, t_prop, best_t)
+        p, v, g, slope = eval_at(t_eval)
+
+        i = count
+        ts = ts.at[i].set(t_eval)
+        fs = fs.at[i].set(v)
+        ms = ms.at[i].set(slope)
+        valid = valid.at[i].set(found)
+        count = count + jnp.where(
+            found, jnp.asarray(1, jnp.int32), jnp.asarray(0, jnp.int32)
+        )
+
+        improve = jnp.logical_and(found, v < best_v)
+        best_t = jnp.where(improve, t_eval, best_t)
+        best_v = jnp.where(improve, v, best_v)
+        best_p = jax.tree_util.tree_map(
+            lambda a, b: jnp.where(improve, a, b), p, best_p
+        )
+        best_g = jax.tree_util.tree_map(
+            lambda a, b: jnp.where(improve, a, b), g, best_g
+        )
+        best_found = jnp.logical_or(best_found, improve)
+
+        new_carry = (
+            ts,
+            fs,
+            ms,
+            valid,
+            count,
+            best_t,
+            best_v,
+            best_p,
+            best_g,
+            best_found,
+        )
+        return new_carry, None
+
+    (
+        (
+            ts,
+            fs,
+            ms,
+            valid,
+            count,
+            best_t,
+            best_v,
+            best_p,
+            best_g,
+            best_found,
+        ),
+        _,
+    ) = jax.lax.scan(round_step, init, None, length=rounds)
+
+    done = jnp.logical_or(inner.done, best_found)
+    return LineSearchResult(
+        step_size=best_t,
+        new_value=best_v,
+        new_grad=best_g,
+        new_params=best_p,
+        done=done,
+        probe_params=inner.probe_params,
+        probe_grads=inner.probe_grads,
+        probe_valid=inner.probe_valid,
+        probe_values=inner.probe_values,
+        probe_alphas=inner.probe_alphas,
+        num_evals=inner_evals + jnp.asarray(rounds, jnp.int32),
+    )
+
+
 __all__ = [
     "SPLINE_PATH",
+    "SplineState",
+    "spline_init",
+    "spline_observe",
+    "spline_propose",
     "hermite_basis",
     "segment_eval",
     "segment_candidates",
+    "propose_from_points",
     "propose_step",
+    "spline_refine",
 ]

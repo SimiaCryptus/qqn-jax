@@ -11,7 +11,7 @@ so that, regardless of which curve is being traversed, every consumer
 identically.
 """
 
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Optional
 
 from qqn_jax.utils import tree_add_scaled, tree_negative, tree_vdot
 
@@ -26,10 +26,25 @@ class PathStrategy(NamedTuple):
             tangent at ``t``. Used to project a measured gradient into the
             directional derivative ``⟨∇f, d'(t)⟩`` without needing to
             re-derive the curve's analytic derivative at each call site.
+        init_state: optional ``(grad_dir, direction, ...) -> path_state``.
+            *Stateful* paths (e.g. the spline) use this to allocate their
+            control-point memory. ``None`` for stateless paths.
+        observe: optional ``(path_state, t, value, slope) -> path_state``.
+            Records a measured control point ``(t, f, m)`` into the path's
+            memory. ``None`` for stateless paths.
+        propose: optional ``(path_state) -> (t, found)``. Uses the accumulated
+            control points to propose the next candidate ``t``. ``None`` for
+            stateless paths.
+        stateful: ``True`` when the path carries and updates its own state
+            (control-point memory). Stateless paths leave this ``False``.
     """
 
     offset: Callable
     velocity: Callable
+    init_state: Optional[Callable] = None
+    observe: Optional[Callable] = None
+    propose: Optional[Callable] = None
+    stateful: bool = False
 
 
 def make_evaluator(

@@ -21,6 +21,7 @@ from qqn_jax.oracles.strategy import resolve_oracle
 from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.line_search import LINE_SEARCHES
 from qqn_jax.paths import SPLINE_PATH
+from qqn_jax.paths.spline import spline_refine
 from qqn_jax.paths.base import make_evaluator
 from qqn_jax.paths.linear import LINEAR_PATH, linear_refine
 from qqn_jax.paths.quadratic import QUADRATIC_PATH
@@ -144,6 +145,7 @@ class QQN:
         max_probes: int = 32,
         max_t: float = 1000.0,
         partition_sizes: Optional[tuple[int, ...]] = None,
+        spline_refine_rounds: int = 4,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -172,6 +174,7 @@ class QQN:
         self.feed_probes_to_oracle = feed_probes_to_oracle
         self.max_probes = max_probes
         self.max_t = max_t
+        self.spline_refine_rounds = int(spline_refine_rounds)
         if line_search not in LINE_SEARCHES:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
@@ -182,13 +185,18 @@ class QQN:
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
 
-        if self.feed_probes_to_oracle:
+        # The spline path reconstructs its control points from the recorded
+        # probes, so it needs probe recording enabled regardless of whether the
+        # oracle also consumes them.
+        need_probes = self.feed_probes_to_oracle or path_strategy == "spline"
+        if need_probes:
             opts = {**opts, "max_probes": self.max_probes}
         else:
             opts = {**opts, "record_probes": False}
         inner = partial(base_ls, **opts) if opts else base_ls
         self._inner_search = inner
 
+        self._spline = False
         if path_strategy == "linear":
             self.path = LINEAR_PATH
             self._refine = True
@@ -198,6 +206,7 @@ class QQN:
         elif path_strategy == "spline":
             self.path = SPLINE_PATH
             self._refine = False
+            self._spline = True
         else:
             raise ValueError(f"Unknown path_strategy: {path_strategy!r}. ")
 
@@ -375,6 +384,18 @@ class QQN:
         )
         if self._refine:
             res = linear_refine(res, eval_at, dtype)
+        elif self._spline:
+            res = spline_refine(
+                res,
+                eval_at,
+                self.path,
+                grad_dir,
+                qn_dir,
+                state.value,
+                slope0,
+                dtype,
+                rounds=self.spline_refine_rounds,
+            )
 
         new_params = res.new_params
         new_value = res.new_value
