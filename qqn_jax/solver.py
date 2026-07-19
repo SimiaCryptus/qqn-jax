@@ -34,6 +34,7 @@ from qqn_jax.paths import (
     QUADRATIC_PATH,
     LINEAR_PATH,
 )
+from qqn_jax.paths.base import path_search
 from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
@@ -41,7 +42,6 @@ from qqn_jax.utils import (
     tree_negative,
     tree_vdot,
 )
-from qqn_jax.line_search.util import make_scalar_problem
 
 
 class QQNState(NamedTuple):
@@ -100,17 +100,25 @@ class QQN:
              the chosen line-search function (e.g. ``c1``, ``c2``, ``max_iter``,
              ``init_step``, ``shrink``, ``step_size``). These override the
              line-search defaults.
-        spline: when ``True``, enable the cubic Hermite spline refinement. This
-             is orthogonal to ``line_search``: every probe along the (consistent)
-             path is reused as a control point and the spline's stationary points
-             guide the search. It composes with any chosen line search.
-        linear: when ``True``, wrap the chosen line search with the value-only
-             linear-chord refinement (see ``qqn_jax.paths.linear``). Mutually
-             exclusive with ``spline``.
+        path_strategy: string selector for the curve/refinement the solver
+             traverses. One of:
+
+               * ``"quadratic"`` (default) — the canonical quadratic path
+                 (``qqn_jax.paths.quadratic.QUADRATIC_PATH``) with no extra
+                 line-search refinement.
+               * ``"linear"`` — the straight chord
+                 (``qqn_jax.paths.linear.LINEAR_PATH``); the chosen line search
+                 is wrapped with the value-only linear-chord refinement (see
+                 ``qqn_jax.paths.linear``).
+               * ``"spline"`` — the quadratic path with the cubic Hermite
+                 spline refinement enabled: every probe along the (consistent)
+                 path is reused as a control point and the spline's stationary
+                 points guide the search. It composes with any chosen line
+                 search.
         path: optional explicit ``PathStrategy`` (see ``qqn_jax.paths.base``)
              overriding the curve the solver traverses. Defaults to the
              canonical quadratic path (``qqn_jax.paths.quadratic.QUADRATIC_PATH``)
-             or, when ``linear=True``, the straight chord
+            or, when ``path_strategy="linear"``, the straight chord
              (``qqn_jax.paths.linear.LINEAR_PATH``). This is the single source
              of truth threaded through the *selected* line search itself
              (as an explicit ``path`` keyword, first-class, unconditionally
@@ -129,24 +137,22 @@ class QQN:
     """
 
     def __init__(
-        self,
-        fun: Callable,
-        maxiter: int = 100,
-        tol: float = 1e-5,
-        history_size: int = 10,
-        line_search: str = "backtracking",
-        line_search_options: Optional[Dict[str, Any]] = None,
-        spline: bool = False,
-        linear: bool = False,
-        path: Optional[PathStrategy] = None,
-        has_aux: bool = False,
-        region=None,
-        oracle="lbfgs",
-        feed_probes_to_oracle: bool = False,
-        probe_descent_gate: bool = True,
-        max_probes: int = 32,
-        max_t: float = 1000.0,
-        partition_sizes: Optional[tuple[int, ...]] = None,
+            self,
+            fun: Callable,
+            maxiter: int = 100,
+            tol: float = 1e-5,
+            history_size: int = 10,
+            line_search: str = "backtracking",
+            line_search_options: Optional[Dict[str, Any]] = None,
+            path_strategy: str = "quadratic",
+            path: Optional[PathStrategy] = None,
+            has_aux: bool = False,
+            region=None,
+            oracle="lbfgs",
+            feed_probes_to_oracle: bool = False,
+            max_probes: int = 32,
+            max_t: float = 1000.0,
+            partition_sizes: Optional[tuple[int, ...]] = None,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -154,11 +160,21 @@ class QQN:
         self.history_size = history_size
         self.line_search = line_search
         self.line_search_options = dict(line_search_options or {})
-        self.spline = spline
-        self.linear = linear
+
+        valid_strategies = {"linear", "quadratic", "spline"}
+        if path_strategy not in valid_strategies:
+            raise ValueError(
+                f"Unknown path_strategy: {path_strategy!r}. "
+                f"Available: {sorted(valid_strategies)}."
+            )
+        self.path_strategy = path_strategy
+        self.spline = path_strategy == "spline"
+        self.linear = path_strategy == "linear"
 
         self.path: PathStrategy = (
-            path if path is not None else (LINEAR_PATH if linear else QUADRATIC_PATH)
+            path
+            if path is not None
+            else (LINEAR_PATH if self.linear else QUADRATIC_PATH)
         )
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
@@ -178,7 +194,6 @@ class QQN:
             self._partition_offsets = None
 
         self.feed_probes_to_oracle = feed_probes_to_oracle
-        self.probe_descent_gate = probe_descent_gate
         self.max_probes = max_probes
         self.max_t = max_t
 
@@ -186,11 +201,6 @@ class QQN:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
                 f"Available: {sorted(LINE_SEARCHES)}."
-            )
-        if self.spline and self.linear:
-            raise ValueError(
-                "spline and linear are mutually exclusive path refinements; "
-                "enable at most one."
             )
 
         base_ls = LINE_SEARCHES[line_search]
@@ -203,22 +213,18 @@ class QQN:
             opts = {**opts, "max_probes": self.max_probes}
         else:
             opts = {**opts, "record_probes": False}
+        inner = partial(base_ls, **opts) if opts else base_ls
 
         if self.spline:
             from qqn_jax.paths.spline import spline_wrap
-
-            inner = partial(base_ls, **opts) if opts else base_ls
-            self._ls = spline_wrap(inner, path=self.path)
-            self._ls_is_wrapped = True
+            self._path_search = spline_wrap(inner, path=self.path)
         elif self.linear:
             from qqn_jax.paths.linear import linear_wrap
-
-            inner = partial(base_ls, **opts) if opts else base_ls
-            self._ls = linear_wrap(inner, path=self.path)
-            self._ls_is_wrapped = True
+            self._path_search = linear_wrap(inner, path=self.path)
         else:
-            self._ls = partial(base_ls, **opts) if opts else base_ls
-            self._ls_is_wrapped = False
+            # No refinement: the plain path is just the raw scalar search
+            # adapted to the unified path-search signature.
+            self._path_search = path_search(inner, path=self.path)
 
     def _eval(self, params, *args):
         """Evaluate value and grad, splitting off aux if present."""
@@ -235,7 +241,7 @@ class QQN:
         assert self.partition_sizes is not None
         assert self._partition_offsets is not None
         off = self._partition_offsets
-        return [x[off[i] : off[i + 1]] for i in range(len(self.partition_sizes))]
+        return [x[off[i]: off[i + 1]] for i in range(len(self.partition_sizes))]
 
     def _oracle_init(self, params):
         """Initialize the oracle state, respecting partitioning.
@@ -347,35 +353,16 @@ class QQN:
 
         qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
 
-        if self._ls_is_wrapped:
-            res = self._ls(
-                self._plain_value_and_grad,
-                params,
-                qn_dir,
-                state.value,
-                grad,
-                *args,
-                region=self.region,
-                region_state=state.region_state,
-            )
-        else:
-            eval_at, slope0 = make_scalar_problem(
-                self._plain_value_and_grad,
-                params,
-                grad,
-                qn_dir,
-                self.region,
-                state.region_state,
-                self.path,
-                *args,
-            )
-            res = self._ls(
-                eval_at,
-                params,
-                state.value,
-                grad,
-                slope0,
-            )
+        res = self._path_search(
+            self._plain_value_and_grad,
+            params,
+            qn_dir,
+            state.value,
+            grad,
+            *args,
+            region=self.region,
+            region_state=state.region_state,
+        )
 
         new_params = res.new_params
         new_value = res.new_value
@@ -391,21 +378,9 @@ class QQN:
         extra_recovery_evals = jnp.asarray(0, jnp.int32)
         if self.feed_probes_to_oracle and res.probe_params is not None:
             probe_valid = res.probe_valid
-
             if res.probe_alphas is not None:
                 on_accepted_side = res.probe_alphas <= step_size
                 probe_valid = jnp.logical_and(probe_valid, on_accepted_side)
-            if self.probe_descent_gate and res.probe_values is not None:
-                descends = res.probe_values < state.value
-                probe_valid = jnp.logical_and(probe_valid, descends)
-            elif self.probe_descent_gate:
-                probe_values = jax.vmap(
-                    lambda p: self._plain_value_and_grad(p, *args)[0]
-                )(res.probe_params)
-                descends = probe_values < state.value
-                probe_valid = jnp.logical_and(probe_valid, descends)
-
-                extra_recovery_evals = jnp.asarray(res.probe_params.shape[0], jnp.int32)
             oracle_info = OracleInfo(
                 params=params,
                 new_params=new_params,

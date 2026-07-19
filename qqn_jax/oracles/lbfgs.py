@@ -26,7 +26,6 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
     """
 
     def init(params):
-
         grad = jax.tree_util.tree_map(jnp.zeros_like, params)
         return init_lbfgs_state(params, grad, history_size)
 
@@ -35,13 +34,11 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
         return d, state
 
     def update(state, info):
-
         points = publish(info, max_replay=max_probe_replay)
         if points is None:
             return update_lbfgs_history(
                 state, info.new_params, info.new_grad, history_size
             )
-
         params_seq = points.params_seq
         grad_seq = points.grad_seq
         valid_seq = points.valid_seq

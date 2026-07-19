@@ -40,6 +40,7 @@ from qqn_jax.oracles import AnchoredMultiSecantOracle
 ENABLED = [
     "QQN",
     "Adam",
+    "L-BFGS"
 ]
 
 
@@ -104,7 +105,7 @@ def _line_search_axis():
         # "Null": {"line_search": "null"},
         "BT": {"line_search": "backtracking"},
         "AW": {"line_search": "armijo_wolfe"},
-        # "Fix": {"line_search": "fixed"},
+        "Fix": {"line_search": "fixed"},
         # "SW": {"line_search": "strong_wolfe"},
         # "ArmLoose": {
         #     "line_search": "backtracking",
@@ -136,17 +137,18 @@ def _spline_axis():
     """Spline/linear axis: token -> ``run_qqn`` kwargs toggling the path
     refinement.
 
-    ``"S"`` enables the cubic Hermite *spline* refinement (reuses every
-    probe's gradient as a control point). ``"L"`` selects the *linear*
-    refinement — the deliberate opposite of the spline: it interpolates
+    ``"S"`` selects ``path_strategy="spline"`` — the cubic Hermite *spline*
+    refinement (reuses every probe's gradient as a control point). ``"L"``
+    selects ``path_strategy="linear"`` — the deliberate opposite of the
+    spline: it interpolates
     value-only between the origin and the oracle point, throwing out the
     gradient information entirely (falling back to the gradient ray only
     when there is no genuine oracle point).
     """
     return {
         "": {},
-        # "S": {"spline": True},
-        # "L": {"linear": True},
+        "S": {"path_strategy": "spline"},
+        "L": {"path_strategy": "linear"},
     }
 
 
@@ -209,7 +211,7 @@ _AXES = [
 ]
 
 
-_DISPLAY_KWARG_KEYS = ("line_search", "line_search_options", "spline")
+_DISPLAY_KWARG_KEYS = ("line_search", "line_search_options", "path_strategy")
 
 
 def _qqn_registry():

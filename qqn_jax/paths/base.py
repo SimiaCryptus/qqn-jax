@@ -14,6 +14,8 @@ identically.
 from typing import Callable, NamedTuple
 
 from qqn_jax.utils import tree_add_scaled, tree_negative, tree_vdot
+import jax.numpy as jnp
+from qqn_jax.regions.strategy import resolve_region
 
 
 class PathStrategy(NamedTuple):
@@ -74,4 +76,60 @@ def make_evaluator(
     return eval_at
 
 
-__all__ = ["PathStrategy", "make_evaluator"]
+def path_search(inner_search: Callable, path: "PathStrategy") -> Callable:
+     """Adapt a raw *scalar* line search to the unified *path* signature.
+
+     Every path consumer in QQN (the plain path, and the spline/linear
+     refinements) shares one signature:
+
+         search(value_and_grad_fn, params, direction, value, grad, *args,
+                region=..., region_state=..., **inner_kwargs) -> LineSearchResult
+
+     A raw registered line search, however, speaks the *scalar* 1-D problem
+     (``eval_at``, ``params``, ``value``, ``grad``, ``slope0``). This adapter
+     builds that scalar problem through the shared ``make_evaluator`` for the
+     given ``path`` and delegates, so the solver can treat *all* path searches
+     identically — the plain quadratic path is simply ``path_search`` with no
+     refinement layered on top.
+     """
+
+     def wrapped(
+         value_and_grad_fn: Callable,
+         params,
+         direction,
+         value,
+         grad,
+         *args,
+         region=None,
+         region_state=None,
+         **inner_kwargs,
+     ):
+         region = resolve_region(region)
+         eval_at = make_evaluator(
+             value_and_grad_fn,
+             params,
+             grad,
+             direction,
+             region,
+             region_state,
+             path,
+             *args,
+         )
+         grad_dir = tree_negative(grad)
+         slope0 = tree_vdot(
+             grad,
+             path.velocity(jnp.asarray(0.0, dtype=value.dtype), grad_dir, direction),
+         )
+         return inner_search(
+             eval_at,
+             params,
+             value,
+             grad,
+             slope0,
+             **inner_kwargs,
+         )
+
+     return wrapped
+
+
+__all__ = ["PathStrategy", "make_evaluator", "path_search"]

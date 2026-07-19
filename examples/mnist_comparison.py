@@ -201,7 +201,6 @@ def _run_qqn_configured(
         line_search_options=line_search_options,
         oracle=oracle,
         region=region,
-        spline=spline,
     )
 
     state = solver.init_state(params0)
