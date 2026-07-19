@@ -21,6 +21,22 @@ from qqn_jax.utils import tree_add_scaled, tree_vdot
 from qqn_jax.regions import resolve_region
 
 
+def _metropolis_accept(delta_e, temp, key, dtype):
+    """Metropolis-style stochastic acceptance meta-rule.
+    Returns ``(accepted, new_key)`` where ``accepted`` is True with
+    probability ``exp(−ΔE / T)`` (clipped to [0, 1]). Disabled (returns
+    False) when ``temp <= 0``. JIT/vmap-safe and deterministic given ``key``.
+    """
+    temp = jnp.asarray(temp, dtype=dtype)
+    use_temp = temp > 0.0
+    safe_t = jnp.maximum(temp, jnp.asarray(1e-12, dtype=dtype))
+    p = jnp.clip(jnp.exp(-delta_e / safe_t), 0.0, 1.0)
+    key, subkey = jax.random.split(key)
+    u = jax.random.uniform(subkey, dtype=dtype)
+    accepted = jnp.logical_and(use_temp, u < p)
+    return accepted, key
+
+
 class LineSearchResult(NamedTuple):
     """Result of a line search.
 
@@ -165,22 +181,13 @@ def backtracking_search(
     eff_probes = max_probes if record_probes else 1
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
     temp0 = jnp.asarray(temperature, dtype=value.dtype)
-    # Temperature is enabled only when strictly positive.
-    use_temp = temp0 > 0.0
     key0 = jax.random.PRNGKey(seed)
 
     def accept(alpha, val, temp, key):
         """Return (accepted, new_key). Armijo OR (optional) Metropolis test."""
         armijo = val <= value + c1 * alpha * dg
         delta_e = val - value
-        # Safe temperature guards against divide-by-zero when T collapses.
-        safe_t = jnp.maximum(temp, jnp.asarray(1e-12, dtype=value.dtype))
-        p = jnp.exp(-delta_e / safe_t)
-        p = jnp.clip(p, 0.0, 1.0)
-        key, subkey = jax.random.split(key)
-        u = jax.random.uniform(subkey, dtype=value.dtype)
-        # Only allow the stochastic uphill move when temperature is active.
-        stochastic = jnp.logical_and(use_temp, u < p)
+        stochastic, key = _metropolis_accept(delta_e, temp, key, value.dtype)
         return jnp.logical_or(armijo, stochastic), key
 
     def cond(carry):
@@ -421,18 +428,21 @@ def strong_wolfe_search(
         c2: float = 0.7,
         max_iter: int = 10,
         temperature: float = 0.0,
+        cooling: float = 0.95,
+        seed: int = 0,
         region=None,
         region_state=None,
         max_probes: int = 32,
         record_probes: bool = True,
+        max_step: float = 1.0,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 
     Enforces Armijo sufficient decrease and the strong curvature
     condition, which keeps the L-BFGS curvature updates well-conditioned.
-    The ``temperature`` parameter is accepted for interface uniformity with
-    the backtracking searches but is ignored here: Optax's zoom search does
-    not expose a stochastic-acceptance hook.
+     The ``temperature`` meta-rule is applied to the *final* acceptance: even
+     if Optax's Wolfe step fails to descend, a Metropolis uphill move
+     (probability ``exp(−ΔE / T)``) may still mark the step ``done``.
 
     Optax's zoom line search is a ``GradientTransformationExtraArgs`` whose
     ``update`` step rescales the provided *updates* (here, ``direction``)
@@ -443,7 +453,7 @@ def strong_wolfe_search(
     """
     region = resolve_region(region)
 
-    def fun_only(p, *fa, **fkw):
+    def fun_only(p):
         v, _ = value_and_grad_fn(p, *args)
         return v
 
@@ -453,6 +463,7 @@ def strong_wolfe_search(
         slope_rtol=c1,  # sufficient decrease (Armijo) constant
         tol=c1,  # sufficient decrease tolerance
         initial_guess_strategy="one",
+        max_learning_rate=float(max_step),
     )
     ls_state = ls.init(params)
 
@@ -471,6 +482,13 @@ def strong_wolfe_search(
     raw_params = optax.apply_updates(params, scaled_updates)
     new_params = region.project(params, raw_params, region_state)
     new_value, new_grad = value_and_grad_fn(new_params, *args)
+    # Temperature meta-rule: even if the Wolfe step failed to descend, a
+    # Metropolis uphill move may still accept it.
+    delta_e = new_value - value
+    stochastic, _key = _metropolis_accept(
+        delta_e, temperature, jax.random.PRNGKey(seed), new_value.dtype
+    )
+    done = jnp.logical_or(new_value < value, stochastic)
 
     # Recover the step size from the scaling of the direction.
     d_norm_sq = tree_vdot(direction, direction)
@@ -491,7 +509,7 @@ def strong_wolfe_search(
         new_value=new_value,
         new_grad=new_grad,
         new_params=new_params,
-        done=new_value < value,
+        done=done,
         probe_params=pp,
         probe_grads=pg,
         probe_valid=pv,
@@ -509,27 +527,44 @@ def fixed_step_search(
         params,
         direction,
         value,
-        grad,
         *args,
         step_size: float = 1.0,
         temperature: float = 0.0,
+        cooling: float = 0.95,
+        seed: int = 0,
         region=None,
         region_state=None,
         max_probes: int = 32,
         record_probes: bool = True,
+        max_step: float = 1.0,
 ) -> LineSearchResult:
     """Trivial line search using a constant step size.
     Useful for debugging, benchmarking against a baseline, or when the
     quadratic path scaling already provides a sensible step. Always reports
-    ``done=True`` (it makes no acceptance test).
-    The ``temperature`` parameter is accepted for interface uniformity but
-    has no effect (this search makes no acceptance test).
+     ``done=True`` when ``temperature == 0``. When ``temperature > 0`` the
+     Metropolis meta-rule gates ``done`` on descent OR an accepted uphill
+     move (probability ``exp(−ΔE / T)``).
+    The ``max_step`` parameter is accepted for interface uniformity; the
+    fixed step is clipped to it so callers cannot overshoot the cap.
     """
     region = resolve_region(region)
-    alpha = jnp.asarray(step_size, dtype=value.dtype)
+    alpha = jnp.minimum(
+        jnp.asarray(step_size, dtype=value.dtype),
+        jnp.asarray(max_step, dtype=value.dtype),
+    )
     raw_params = tree_add_scaled(params, alpha, direction)
     new_params = region.project(params, raw_params, region_state)
     new_val, new_g = value_and_grad_fn(new_params, *args)
+    # Temperature meta-rule: gate on descent OR Metropolis when active.
+    temp0 = jnp.asarray(temperature, dtype=value.dtype)
+    stochastic, _key = _metropolis_accept(
+        new_val - value, temp0, jax.random.PRNGKey(seed), value.dtype
+    )
+    done = jnp.where(
+        temp0 > 0.0,
+        jnp.logical_or(new_val < value, stochastic),
+        jnp.asarray(True),
+    )
     pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, max_probes
@@ -539,7 +574,7 @@ def fixed_step_search(
         new_value=new_val,
         new_grad=new_g,
         new_params=new_params,
-        done=jnp.asarray(True),
+        done=done,
         probe_params=pp,
         probe_grads=pg,
         probe_valid=pv,
@@ -605,8 +640,9 @@ def bisection_search(
         init_step: float = 1.0,
         c1: float = 1e-4,
         max_iter: int = 25,
-        slope_tol: float = 1e-8,
         temperature: float = 0.0,
+        cooling: float = 0.95,
+        seed: int = 0,
         region=None,
         region_state=None,
         max_probes: int = 32,
@@ -627,8 +663,9 @@ def bisection_search(
     back to the best (lowest-value) point it evaluated, still reporting
     ``done`` when the Armijo sufficient-decrease condition holds there.
     Implemented with ``lax.while_loop`` to stay JIT/vmap compatible.
-    The ``temperature`` parameter is accepted for interface uniformity but has
-    no effect (this search makes a deterministic minimizing test).
+     The ``temperature`` meta-rule is layered on the final acceptance: a
+     non-descending minimizer may still be marked ``done`` via a Metropolis
+     uphill move (probability ``exp(−ΔE / T)``).
     """
     region = resolve_region(region)
     project = _make_projected_point(region, region_state, params)
@@ -674,8 +711,6 @@ def bisection_search(
         )
         return new_hi, s, v, i + 1, evals + 1, pp, pg, pv, pval, pa
 
-
-
     (
         hi,
         s_hi_final,
@@ -705,13 +740,11 @@ def bisection_search(
     )
     bracketed = s_hi_final >= 0.0
 
-
     # --- Phase 2: bisect within [lo, hi] to drive φ'(α) -> 0. ------------
     # lo starts at 0 (slope dg < 0); hi is the bracketing high endpoint.
     def bisect_cond(carry):
         (lo, hi, i, evals, best_a, best_v, best_p, best_g, pp, pg, pv, pval, pa) = carry
         return i < max_iter
-
 
     def bisect_body(carry):
         (lo, hi, i, evals, best_a, best_v, best_p, best_g, pp, pg, pv, pval, pa) = carry
@@ -745,7 +778,6 @@ def bisection_search(
             pval,
             pa,
         )
-
 
     # Seed the "best" tracker with the bracketing high point (a valid,
     # already-projected candidate) so we always have something to return.
@@ -790,7 +822,12 @@ def bisection_search(
     # returned point (a minimizer that also descends), or when we successfully
     # bracketed a stationary point.
     armijo = best_value <= value + c1 * best_alpha * dg
-    done = jnp.logical_or(armijo, bracketed)
+    # Temperature meta-rule: a non-descent minimizer may still be accepted
+    # via a Metropolis uphill move.
+    stochastic, _key = _metropolis_accept(
+        best_value - value, temperature, jax.random.PRNGKey(seed), value.dtype
+    )
+    done = jnp.logical_or(jnp.logical_or(armijo, bracketed), stochastic)
     return LineSearchResult(
         step_size=best_alpha,
         new_value=best_value,
@@ -816,10 +853,13 @@ def null_search(
         step_size: float = 1.0,
         grad_scale: float = 1.0,
         temperature: float = 0.0,
+        cooling: float = 0.95,
+        seed: int = 0,
         region=None,
         region_state=None,
         max_probes: int = 32,
         record_probes: bool = True,
+        max_step: float = 1.0,
 ) -> LineSearchResult:
     """"Null" line search: unconditionally accept the ``t = 1`` oracle point.
     The ``direction`` handed to the line search is the oracle endpoint
@@ -831,9 +871,9 @@ def null_search(
     rescale that case: it is applied as an *additional* multiplier when the
     supplied direction is (anti-)parallel to the gradient (i.e. no genuine
     curvature was available).
-    The ``temperature`` parameter is accepted for interface uniformity but
-    has no effect (this search makes no acceptance test).
-    Always reports ``done=True`` (it makes no acceptance test).
+     When ``temperature == 0`` this always reports ``done=True``. When
+     ``temperature > 0`` the Metropolis meta-rule gates ``done`` on descent
+     OR an accepted uphill move (probability ``exp(−ΔE / T)``).
     """
     region = resolve_region(region)
     base_alpha = jnp.asarray(step_size, dtype=value.dtype)
@@ -847,10 +887,20 @@ def null_search(
     cos_sim = jnp.where(denom > 0.0, dg / denom, jnp.asarray(0.0, dtype=value.dtype))
     is_grad = jnp.abs(cos_sim) >= (1.0 - 1e-6)
     scale = jnp.where(is_grad, jnp.asarray(grad_scale, dtype=value.dtype), 1.0)
-    alpha = base_alpha * scale
+    alpha = jnp.minimum(base_alpha * scale, jnp.asarray(max_step, dtype=value.dtype))
     raw_params = tree_add_scaled(params, alpha, direction)
     new_params = region.project(params, raw_params, region_state)
     new_val, new_g = value_and_grad_fn(new_params, *args)
+    # Temperature meta-rule: gate on descent OR Metropolis when active.
+    temp0 = jnp.asarray(temperature, dtype=value.dtype)
+    stochastic, _key = _metropolis_accept(
+        new_val - value, temp0, jax.random.PRNGKey(seed), value.dtype
+    )
+    done = jnp.where(
+        temp0 > 0.0,
+        jnp.logical_or(new_val < value, stochastic),
+        jnp.asarray(True),
+    )
     pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, max_probes
@@ -920,6 +970,7 @@ def backtracking_temperature_search(
         region_state=region_state,
         max_probes=max_probes,
         record_probes=record_probes,
+        max_step=max_step,
     )
 
 
@@ -933,22 +984,26 @@ def hager_zhang_search(
         c1: float = 0.1,
         max_iter: int = 30,
         temperature: float = 0.0,
+        cooling: float = 0.95,
+        seed: int = 0,
         region=None,
         region_state=None,
         max_probes: int = 32,
         record_probes: bool = True,
+        max_step: float = 1.0,
 ) -> LineSearchResult:
     """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
     The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use
     Optax's backtracking transformation parameterized to approximate it,
     recomputing value/grad at the accepted point. Falls back gracefully if
     the underlying transform is unavailable.
-    The ``temperature`` parameter is accepted for interface uniformity but
-    is ignored (Optax's backtracking transform exposes no stochastic hook).
+     The ``temperature`` meta-rule is applied to the final acceptance: an
+     uphill step may still be marked ``done`` via a Metropolis move
+     (probability ``exp(−ΔE / T)``).
     """
     region = resolve_region(region)
 
-    def fun_only(p, *fa, **fkw):
+    def fun_only(p):
         v, _ = value_and_grad_fn(p, *args)
         return v
 
@@ -956,7 +1011,7 @@ def hager_zhang_search(
         max_backtracking_steps=max_iter,
         slope_rtol=c1,
         decrease_factor=0.8,
-        increase_factor=1.0,
+        increase_factor=jnp.minimum(1.0, float(max_step)),
         store_grad=True,
     )
     ls_state = ls.init(params)
@@ -977,6 +1032,12 @@ def hager_zhang_search(
         tree_vdot(scaled_updates, direction) / d_norm_sq,
         jnp.asarray(0.0, dtype=new_value.dtype),
     )
+    # Temperature meta-rule: an uphill step may still be marked done via a
+    # Metropolis move.
+    stochastic, _key = _metropolis_accept(
+        new_value - value, temperature, jax.random.PRNGKey(seed), new_value.dtype
+    )
+    done = jnp.logical_or(new_value < value, stochastic)
     pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, max_probes
@@ -986,7 +1047,7 @@ def hager_zhang_search(
         new_value=new_value,
         new_grad=new_grad,
         new_params=new_params,
-        done=new_value < value,
+        done=done,
         probe_params=pp,
         probe_grads=pg,
         probe_valid=pv,
@@ -994,3 +1055,302 @@ def hager_zhang_search(
         probe_alphas=pa,
         num_evals=jnp.asarray(max_iter + 1, dtype=jnp.int32),
     )
+
+
+def armijo_wolfe_search(
+        value_and_grad_fn: Callable,
+        params,
+        direction,
+        value,
+        grad,
+        *args,
+        init_step: float = 1.0,
+        c1: float = 1e-4,
+        c2: float = 0.9,
+        max_iter: int = 20,
+        temperature: float = 0.0,
+        cooling: float = 0.95,
+        seed: int = 0,
+        region=None,
+        region_state=None,
+        max_probes: int = 32,
+        record_probes: bool = True,
+        max_step: float = 1.0,
+) -> LineSearchResult:
+    """Combined Armijo–Wolfe line search (the classic L-BFGS scheme).
+    This is the textbook two-phase *bracketing + zoom* line search (Nocedal &
+    Wright, Alg. 3.5/3.6) that enforces both the Armijo sufficient-decrease
+    condition
+        φ(α) ≤ φ(0) + c1·α·φ'(0)
+    and the (strong) Wolfe curvature condition
+        |φ'(α)| ≤ c2·|φ'(0)|,
+    where ``φ(α) = f(x + α·d)`` and ``φ'(α) = ⟨∇f(x + α·d), d⟩``. Unlike the
+    permissive Armijo backtracking search, this scheme keeps the L-BFGS
+    curvature pairs well conditioned by guaranteeing the Wolfe condition.
+    Phase 1 (*bracket*) grows the trial step (capped at ``max_step``) until it
+    finds an interval known to contain a point satisfying the Wolfe
+    conditions. Phase 2 (*zoom*) shrinks that interval by bisection until the
+    conditions hold or the budget is exhausted. Implemented with
+    ``lax.while_loop`` to stay JIT/vmap compatible.
+     The ``temperature`` meta-rule is layered on the final acceptance: when no
+     Wolfe point is found, the best-value fallback may still be marked
+     ``done`` via a Metropolis uphill move (probability ``exp(−ΔE / T)``).
+    """
+    region = resolve_region(region)
+    project = _make_projected_point(region, region_state, params)
+    dg = tree_vdot(grad, direction)  # φ'(0)
+    max_alpha = jnp.asarray(max_step, dtype=value.dtype)
+    zero = jnp.asarray(0.0, dtype=value.dtype)
+
+    def eval_at(alpha):
+        raw = tree_add_scaled(params, alpha, direction)
+        projected = project(raw)
+        val, g = value_and_grad_fn(projected, *args)
+        slope = tree_vdot(g, direction)
+        return projected, val, g, slope
+
+    eff_probes = max_probes if record_probes else 1
+    pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
+    abs_dg = jnp.abs(dg)
+
+    def wolfe_ok(alpha, val, slope):
+        armijo = val <= value + c1 * alpha * dg
+        curv = jnp.abs(slope) <= c2 * abs_dg
+        return jnp.logical_and(armijo, curv)
+
+    # --- Phase 1: bracket an interval [lo, hi] containing a Wolfe point. --
+    # We track a "previous" trial (alpha_prev, phi_prev, slope_prev) and a
+    # current trial; the classic conditions decide when a bracket is found.
+    a0 = jnp.asarray(init_step, dtype=value.dtype)
+    p0, v0, g0, s0 = eval_at(a0)
+    pp, pg, pv, pval, pa = _record_probe(
+        pp, pg, pv, pval, pa, 0, p0, g0, v0, a0, eff_probes
+    )
+
+    # Bracket carry:
+    #  alpha_prev, phi_prev, slope_prev  : previous trial
+    #  alpha_cur,  phi_cur,  slope_cur   : current trial
+    #  found      : a Wolfe point already satisfied at the current trial
+    #  lo/hi + associated phi/slope/params/grad : the bracket, once set
+    #  bracketed  : whether a bracket was produced
+    #  best_*     : lowest-value probe seen (fallback return)
+    def bracket_cond(carry):
+        (a_prev, phi_prev, s_prev, a_cur, phi_cur, s_cur, g_cur, p_cur,
+         found, bracketed, lo, hi, phi_lo, s_lo, phi_hi, s_hi,
+         p_lo, g_lo, p_hi, g_hi,
+         best_a, best_v, best_p, best_g,
+         i, evals, pp, pg, pv, pval, pa) = carry
+        stop = jnp.logical_or(found, bracketed)
+        can_grow = jnp.logical_and(i < max_iter, a_cur < max_alpha)
+        return jnp.logical_and(jnp.logical_not(stop), can_grow)
+
+    def bracket_body(carry):
+        (a_prev, phi_prev, s_prev, a_cur, phi_cur, s_cur, g_cur, p_cur,
+         found, bracketed, lo, hi, phi_lo, s_lo, phi_hi, s_hi,
+         p_lo, g_lo, p_hi, g_hi,
+         best_a, best_v, best_p, best_g,
+         i, evals, pp, pg, pv, pval, pa) = carry
+        # Track best-value point for graceful fallback.
+        improved = phi_cur < best_v
+        best_a = jnp.where(improved, a_cur, best_a)
+        best_v = jnp.where(improved, phi_cur, best_v)
+        best_p = jnp.where(improved, p_cur, best_p)
+        best_g = jnp.where(improved, g_cur, best_g)
+        # Condition A: Armijo violated, or (i>0 and phi_cur >= phi_prev)
+        #  => bracket = [prev, cur]
+        armijo_cur = phi_cur <= value + c1 * a_cur * dg
+        cond_a = jnp.logical_or(
+            jnp.logical_not(armijo_cur),
+            jnp.logical_and(i > 0, phi_cur >= phi_prev),
+        )
+        # Condition B: Wolfe curvature already satisfied => done (found).
+        cond_found = jnp.abs(s_cur) <= c2 * abs_dg
+        # Condition C: slope non-negative => bracket = [cur, prev]
+        cond_c = s_cur >= 0.0
+        # Decide the bracket (only relevant when we stop this iteration).
+        # cond_a -> [prev, cur]; cond_c -> [cur, prev].
+        use_a = cond_a
+        use_c = jnp.logical_and(jnp.logical_not(cond_a),
+                                jnp.logical_and(jnp.logical_not(cond_found), cond_c))
+        new_bracketed = jnp.logical_or(use_a, use_c)
+        new_found = jnp.logical_and(jnp.logical_not(cond_a), cond_found)
+        # [prev, cur] bracket
+        lo_a, hi_a = a_prev, a_cur
+        phi_lo_a, phi_hi_a = phi_prev, phi_cur
+        s_lo_a, s_hi_a = s_prev, s_cur
+        # For prev endpoint we do not retain params/grad; zoom re-evaluates
+        # midpoints, so endpoint params/grad are only used as fallback. Reuse
+        # current point as a safe placeholder.
+        # [cur, prev] bracket
+        lo_c, hi_c = a_cur, a_prev
+        phi_lo_c, phi_hi_c = phi_cur, phi_prev
+        s_lo_c, s_hi_c = s_cur, s_prev
+        new_lo = jnp.where(use_a, lo_a, jnp.where(use_c, lo_c, lo))
+        new_hi = jnp.where(use_a, hi_a, jnp.where(use_c, hi_c, hi))
+        new_phi_lo = jnp.where(use_a, phi_lo_a, jnp.where(use_c, phi_lo_c, phi_lo))
+        new_phi_hi = jnp.where(use_a, phi_hi_a, jnp.where(use_c, phi_hi_c, phi_hi))
+        new_s_lo = jnp.where(use_a, s_lo_a, jnp.where(use_c, s_lo_c, s_lo))
+        new_s_hi = jnp.where(use_a, s_hi_a, jnp.where(use_c, s_hi_c, s_hi))
+        # Grow the current step for the next iteration (only used if not stopped).
+        next_alpha = jnp.minimum(a_cur * 2.0, max_alpha)
+        p_n, v_n, g_n, s_n = eval_at(next_alpha)
+        pp, pg, pv, pval, pa = _record_probe(
+            pp, pg, pv, pval, pa, i + 1, p_n, g_n, v_n, next_alpha, eff_probes
+        )
+        stop_now = jnp.logical_or(new_found, new_bracketed)
+        # If we stop, freeze the current trial as the "best found" candidate.
+        best_a = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), a_cur, best_a)
+        best_v = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), phi_cur, best_v)
+        best_p = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), p_cur, best_p)
+        best_g = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), g_cur, best_g)
+        # Advance the trial window when not stopping.
+        out_a_prev = jnp.where(stop_now, a_prev, a_cur)
+        out_phi_prev = jnp.where(stop_now, phi_prev, phi_cur)
+        out_s_prev = jnp.where(stop_now, s_prev, s_cur)
+        out_a_cur = jnp.where(stop_now, a_cur, next_alpha)
+        out_phi_cur = jnp.where(stop_now, phi_cur, v_n)
+        out_s_cur = jnp.where(stop_now, s_cur, s_n)
+        out_g_cur = jnp.where(stop_now, g_cur, g_n)
+        out_p_cur = jnp.where(stop_now, p_cur, p_n)
+        return (
+            out_a_prev, out_phi_prev, out_s_prev,
+            out_a_cur, out_phi_cur, out_s_cur, out_g_cur, out_p_cur,
+            new_found, new_bracketed,
+            new_lo, new_hi, new_phi_lo, new_s_lo, new_phi_hi, new_s_hi,
+            p_cur, g_cur, p_cur, g_cur,
+            best_a, best_v, best_p, best_g,
+            i + 1, evals + 1, pp, pg, pv, pval, pa,
+        )
+
+    (
+        _a_prev, _phi_prev, _s_prev,
+        a_cur, phi_cur, s_cur, g_cur, p_cur,
+        found, bracketed,
+        lo, hi, phi_lo, s_lo, phi_hi, s_hi,
+        p_lo, g_lo, p_hi, g_hi,
+        best_a, best_v, best_p, best_g,
+        bracket_iters, bracket_evals, pp, pg, pv, pval, pa,
+    ) = jax.lax.while_loop(
+        bracket_cond,
+        bracket_body,
+        (
+            zero, value, dg,
+            a0, v0, s0, g0, p0,
+            jnp.asarray(False), jnp.asarray(False),
+            zero, a0, value, dg, v0, s0,
+            p0, g0, p0, g0,
+            a0, v0, p0, g0,
+            jnp.asarray(1), jnp.asarray(1, jnp.int32), pp, pg, pv, pval, pa,
+        ),
+    )
+    # If the current trial already satisfied Wolfe during bracketing, adopt it.
+    found_a = a_cur
+    found_v = phi_cur
+    found_p = p_cur
+    found_g = g_cur
+
+    # --- Phase 2: zoom within [lo, hi] via bisection. --------------------
+    def zoom_cond(carry):
+        (lo, hi, phi_lo, s_lo, i, evals, z_found,
+         z_a, z_v, z_p, z_g, best_a, best_v, best_p, best_g,
+         pp, pg, pv, pval, pa) = carry
+        keep = jnp.logical_and(jnp.logical_not(z_found), i < max_iter)
+        # Only zoom if we actually bracketed and haven't already found a point.
+        return jnp.logical_and(keep, bracketed)
+
+    def zoom_body(carry):
+        (lo, hi, phi_lo, s_lo, i, evals, z_found,
+         z_a, z_v, z_p, z_g, best_a, best_v, best_p, best_g,
+         pp, pg, pv, pval, pa) = carry
+        mid = 0.5 * (lo + hi)
+        p, v, g, s = eval_at(mid)
+        pp, pg, pv, pval, pa = _record_probe(
+            pp, pg, pv, pval, pa, bracket_iters + i, p, g, v, mid, eff_probes
+        )
+        improved = v < best_v
+        best_a = jnp.where(improved, mid, best_a)
+        best_v = jnp.where(improved, v, best_v)
+        best_p = jnp.where(improved, p, best_p)
+        best_g = jnp.where(improved, g, best_g)
+        armijo = v <= value + c1 * mid * dg
+        higher = v >= phi_lo
+        # If Armijo fails or value not below lo endpoint, shrink from the right.
+        shrink_hi = jnp.logical_or(jnp.logical_not(armijo), higher)
+        curv_ok = jnp.abs(s) <= c2 * abs_dg
+        this_found = jnp.logical_and(armijo, curv_ok)
+        # Standard zoom update of the bracket.
+        # If not shrinking hi, mid becomes new lo; if slope*(hi-lo) >= 0 flip hi->lo.
+        flip = jnp.logical_and(jnp.logical_not(shrink_hi),
+                               s * (hi - lo) >= 0.0)
+        new_hi = jnp.where(shrink_hi, mid, jnp.where(flip, lo, hi))
+        new_lo = jnp.where(shrink_hi, lo, mid)
+        new_phi_lo = jnp.where(shrink_hi, phi_lo, v)
+        new_s_lo = jnp.where(shrink_hi, s_lo, s)
+        z_a = jnp.where(this_found, mid, z_a)
+        z_v = jnp.where(this_found, v, z_v)
+        z_p = jnp.where(this_found, p, z_p)
+        z_g = jnp.where(this_found, g, z_g)
+        return (
+            new_lo, new_hi, new_phi_lo, new_s_lo, i + 1, evals + 1,
+            jnp.logical_or(z_found, this_found),
+            z_a, z_v, z_p, z_g, best_a, best_v, best_p, best_g,
+            pp, pg, pv, pval, pa,
+        )
+
+    (
+        _lo, _hi, _phi_lo, _s_lo, zoom_iters, total_evals, zoom_found,
+        z_a, z_v, z_p, z_g, best_a, best_v, best_p, best_g,
+        pp, pg, pv, pval, pa,
+    ) = jax.lax.while_loop(
+        zoom_cond,
+        zoom_body,
+        (
+            lo, hi, phi_lo, s_lo, jnp.asarray(0), bracket_evals,
+            jnp.asarray(False),
+            best_a, best_v, best_p, best_g,
+            best_a, best_v, best_p, best_g,
+            pp, pg, pv, pval, pa,
+        ),
+    )
+    # Resolve the returned point:
+    #  1. a Wolfe point found during bracketing, else
+    #  2. a Wolfe point found during zoom, else
+    #  3. the best-value probe seen (graceful fallback).
+    use_found = found
+    use_zoom = jnp.logical_and(jnp.logical_not(found), zoom_found)
+    out_a = jnp.where(use_found, found_a, jnp.where(use_zoom, z_a, best_a))
+    out_v = jnp.where(use_found, found_v, jnp.where(use_zoom, z_v, best_v))
+    out_p = jnp.where(use_found, found_p, jnp.where(use_zoom, z_p, best_p))
+    out_g = jnp.where(use_found, found_g, jnp.where(use_zoom, z_g, best_g))
+    # Temperature meta-rule: if no Wolfe point was found, the best-value
+    # fallback may still be accepted via a Metropolis uphill move.
+    stochastic, _key = _metropolis_accept(
+        out_v - value, temperature, jax.random.PRNGKey(seed), value.dtype
+    )
+    done = jnp.logical_or(jnp.logical_or(use_found, use_zoom), stochastic)
+    return LineSearchResult(
+        step_size=out_a,
+        new_value=out_v,
+        new_grad=out_g,
+        new_params=out_p,
+        done=done,
+        probe_params=pp,
+        probe_grads=pg,
+        probe_valid=pv,
+        probe_values=pval,
+        probe_alphas=pa,
+        num_evals=total_evals,
+    )
+
+
+# Registry mapping line-search names to their implementations.
+_LINE_SEARCHES = {
+    "strong_wolfe": strong_wolfe_search,
+    "backtracking": backtracking_search,
+    "armijo": armijo_search,
+    "armijo_wolfe": armijo_wolfe_search,
+    "hager_zhang": hager_zhang_search,
+    "fixed": fixed_step_search,
+    "null": null_search,
+    "bisection": bisection_search,
+}

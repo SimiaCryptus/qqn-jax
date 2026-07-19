@@ -26,21 +26,10 @@ from typing import Any, Callable, Dict, NamedTuple, Optional
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.line_search import (
-    armijo_search,
-    backtracking_search,
-    fixed_step_search,
-    hager_zhang_search,
-    strong_wolfe_search,
-    backtracking_temperature_search,
-    null_search,
-    bisection_search,
-)
+from qqn_jax.line_search import _LINE_SEARCHES
 from qqn_jax.spline_search import (
     spline_wrap,
-    spline_search,
     linear_wrap,
-    linear_search,
 )
 from qqn_jax.oracles import OracleInfo, resolve_oracle
 from qqn_jax.regions import RegionInfo, resolve_region
@@ -49,20 +38,6 @@ from qqn_jax.utils import (
     tree_l2_norm,
     tree_vdot,
 )
-
-
-# Registry mapping line-search names to their implementations.
-_LINE_SEARCHES = {
-    "strong_wolfe": strong_wolfe_search,
-    "backtracking": backtracking_search,
-    "armijo": armijo_search,
-    "hager_zhang": hager_zhang_search,
-    "fixed": fixed_step_search,
-    "spline": spline_search,
-    "backtracking_temperature": backtracking_temperature_search,
-    "null": null_search,
-    "bisection": bisection_search,
-}
 
 
 class QQNState(NamedTuple):
@@ -89,13 +64,6 @@ class QQNState(NamedTuple):
     done: jnp.ndarray
     aux: Any = None
     region_state: Any = ()
-    # --- Diagnostics / accounting ---------------------------------------
-    # num_evals: cumulative value-and-grad evaluations (line-search probes,
-    #   spline probes, aux recomputes, probe-value recoveries, init).
-    # qn_slope: directional derivative ⟨∇f, -H∇f⟩ at the t=1 endpoint. A
-    #   non-negative value flags a non-descent (degenerate) oracle direction.
-    # ls_success: whether the inner line search met its acceptance test.
-    # last_reduction: actual objective decrease on the last accepted step.
     num_evals: jnp.ndarray = jnp.asarray(0, jnp.int32)
     qn_slope: jnp.ndarray = jnp.asarray(0.0)
     ls_success: jnp.ndarray = jnp.asarray(True)
@@ -142,22 +110,22 @@ class QQN:
     """
 
     def __init__(
-        self,
-        fun: Callable,
-        maxiter: int = 100,
-        tol: float = 1e-5,
-        history_size: int = 10,
-        line_search: str = "armijo",
-        line_search_options: Optional[Dict[str, Any]] = None,
-        spline: bool = False,
-        linear: bool = False,
-        has_aux: bool = False,
-        region=None,
-        oracle="lbfgs",
-        feed_probes_to_oracle: bool = False,
-        probe_descent_gate: bool = True,
-        max_probes: int = 32,
-         max_t: float = 10.0,
+            self,
+            fun: Callable,
+            maxiter: int = 100,
+            tol: float = 1e-5,
+            history_size: int = 10,
+            line_search: str = "armijo",
+            line_search_options: Optional[Dict[str, Any]] = None,
+            spline: bool = False,
+            linear: bool = False,
+            has_aux: bool = False,
+            region=None,
+            oracle="lbfgs",
+            feed_probes_to_oracle: bool = False,
+            probe_descent_gate: bool = True,
+            max_probes: int = 32,
+            max_t: float = 10.0,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -171,8 +139,6 @@ class QQN:
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
         self.oracle = resolve_oracle(oracle, history_size=history_size)
-        # Opt-in: forward every gradient evaluated *during the line search*
-        # into the oracle's curvature memory, not just the accepted point.
         self.feed_probes_to_oracle = feed_probes_to_oracle
         # When feeding probes, only admit those that (a) strictly *decrease* the
         # objective relative to the current iterate and (b) lie on the accepted
@@ -212,17 +178,8 @@ class QQN:
         # Only inject it for those to avoid passing an unexpected kwarg to
         # searches that don't accept it. The user may still override via
         # ``line_search_options``.
-        _EXTRAP_LINE_SEARCHES = {
-         "backtracking",
-         "armijo",
-         "backtracking_temperature",
-         "bisection",
-        }
-        if (
-         line_search in _EXTRAP_LINE_SEARCHES
-         and "max_step" not in opts
-        ):
-             opts = {**opts, "max_step": self.max_t}
+        if ("max_step" not in opts):
+            opts = {**opts, "max_step": self.max_t}
         # When feeding probes to the oracle, size the line-search probe buffers
         # to ``max_probes`` so they match the oracle's replay capacity.
         if self.feed_probes_to_oracle:

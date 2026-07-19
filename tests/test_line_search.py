@@ -75,7 +75,7 @@ def test_fixed_step_search_uses_constant_step():
     value, grad = quad_value_and_grad(x)
     direction = -grad
     res = fixed_step_search(
-        quad_value_and_grad, x, direction, value, grad, step_size=0.5
+        quad_value_and_grad, x, direction, value, step_size=0.5
     )
     np.testing.assert_allclose(res.step_size, 0.5)
     np.testing.assert_allclose(res.new_params, x + 0.5 * direction, atol=1e-6)
@@ -107,7 +107,7 @@ def test_fixed_step_search_records_accepted_probe():
     value, grad = quad_value_and_grad(x)
     direction = -grad
     res = fixed_step_search(
-        quad_value_and_grad, x, direction, value, grad, step_size=0.3
+        quad_value_and_grad, x, direction, value, step_size=0.3
     )
     assert res.probe_valid is not None
     assert bool(res.probe_valid[0])

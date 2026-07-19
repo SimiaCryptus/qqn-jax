@@ -50,9 +50,8 @@ __all__ = ["ENABLED", "build_runners"]
 
 ENABLED = [
     "QQN",
-    "SGD",
     "Adam",
-    "L-BFGS",
+    # "L-BFGS",
 ]
 
 
@@ -70,11 +69,11 @@ def _oracle_axis():
     return {
         # "": {},
         "Mom": {"oracle": MomentumOracle(beta=0.9)},
-        "Adam": {"oracle": AdamOracle()},
+        # "Adam": {"oracle": AdamOracle()},
         # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
         # "Sec": {"oracle": SecantOracle()},
         # "And": {"oracle": AndersonOracle(window=5)},
-        "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
+        # "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
         # "L20": {"oracle": LBFGSOracle(history_size=20)},
         # "L50": {"oracle": LBFGSOracle(history_size=50)},
         # "L80": {"oracle": LBFGSOracle(history_size=80)},
@@ -125,6 +124,7 @@ def _line_search_axis():
         # "Null": {"line_search": "null"},
         # "BT": {"line_search": "backtracking"},
         "Arm": {"line_search": "armijo"},
+        "AW": {"line_search": "armijo_wolfe"},
         # Same Armijo search, but with the sufficient-decrease constant tuned
         # via ``line_search_options`` to emphasize the permissiveness dial:
         "ArmLoose": {
@@ -136,8 +136,8 @@ def _line_search_axis():
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
         # },
         # "Fix": {"line_search": "fixed"},
-        # "SW": {"line_search": "strong_wolfe"},
-        # "HZ": {"line_search": "hager_zhang"},
+        "SW": {"line_search": "strong_wolfe"},
+        "HZ": {"line_search": "hager_zhang"},
         # "Spl": {"line_search": "spline"},
         # --- Exacting extreme: find a true along-path minimum (special
         #     cases only) ------------------------------------------------
@@ -147,6 +147,15 @@ def _line_search_axis():
         },
     }
 
+
+def _region_axis():
+    """Region axis: token -> ``run_qqn`` kwargs selecting the trust region."""
+    return {
+        "": {},
+        # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
+        # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
+        # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
+    }
 
 def _spline_axis():
     """Spline/linear axis: token -> ``run_qqn`` kwargs toggling the path
@@ -165,15 +174,6 @@ def _spline_axis():
         # "L": {"linear": True},
     }
 
-
-def _region_axis():
-    """Region axis: token -> ``run_qqn`` kwargs selecting the trust region."""
-    return {
-        "": {},
-        # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
-        # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
-        # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
-    }
 
 
 def _probes_axis():
@@ -197,9 +197,10 @@ def _temperature_axis():
     """
     return {
         "": {},
-        "T1": {"line_search_options": {"temperature": 1.0}},
-        # "T01": {"line_search_options": {"temperature": 0.1}},
-        "T10": {"line_search_options": {"temperature": 10.0}},
+        # "T1": {"line_search_options": {"temperature": 1.0}},
+        "T01": {"line_search_options": {"temperature": 0.1}},
+        # "T10": {"line_search_options": {"temperature": 10.0}},
+        "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 
