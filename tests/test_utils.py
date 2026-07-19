@@ -5,10 +5,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from qqn_jax.paths.quadratic import _quadratic_path, quadratic_path_derivative
 from qqn_jax.utils import (
     make_value_and_grad,
-    quadratic_path,
-    quadratic_path_derivative,
     tree_add_scaled,
     tree_l2_norm,
     tree_negative,
@@ -21,10 +20,10 @@ def test_quadratic_path_endpoints():
     grad_dir = jnp.array([1.0, 2.0, 3.0])
     qn_dir = jnp.array([-1.0, 0.0, 1.0])
 
-    d0 = quadratic_path(0.0, grad_dir, qn_dir)
+    d0 = _quadratic_path(0.0, grad_dir, qn_dir)
     np.testing.assert_allclose(d0, jnp.zeros(3), atol=1e-7)
 
-    d1 = quadratic_path(1.0, grad_dir, qn_dir)
+    d1 = _quadratic_path(1.0, grad_dir, qn_dir)
     np.testing.assert_allclose(d1, qn_dir, atol=1e-7)
 
 
@@ -46,7 +45,7 @@ def test_quadratic_path_midpoint():
     grad_dir = jnp.array([1.0, 0.0])
     qn_dir = jnp.array([0.0, 1.0])
 
-    d = quadratic_path(0.5, grad_dir, qn_dir)
+    d = _quadratic_path(0.5, grad_dir, qn_dir)
     np.testing.assert_allclose(d, jnp.array([0.25, 0.25]), atol=1e-7)
 
 
@@ -87,8 +86,8 @@ def test_quadratic_path_equals_derivative_integral_endpoints():
     qn_dir = jnp.array([-0.5, 1.0, 2.0])
     eps = 1e-4
     for t in (0.1, 0.4, 0.9):
-        d_plus = quadratic_path(t + eps, grad_dir, qn_dir)
-        d_minus = quadratic_path(t - eps, grad_dir, qn_dir)
+        d_plus = _quadratic_path(t + eps, grad_dir, qn_dir)
+        d_minus = _quadratic_path(t - eps, grad_dir, qn_dir)
         numeric = (d_plus - d_minus) / (2 * eps)
         analytic = quadratic_path_derivative(t, grad_dir, qn_dir)
         np.testing.assert_allclose(numeric, analytic, atol=1e-3)
@@ -140,7 +139,7 @@ def test_make_value_and_grad_has_aux():
 def test_quadratic_path_is_jittable():
     grad_dir = jnp.array([1.0, 2.0])
     qn_dir = jnp.array([3.0, 4.0])
-    fn = jax.jit(quadratic_path)
+    fn = jax.jit(_quadratic_path)
     out = fn(0.5, grad_dir, qn_dir)
     np.testing.assert_allclose(out, jnp.array([1.0, 1.5]), atol=1e-6)
 

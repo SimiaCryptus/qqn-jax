@@ -135,11 +135,6 @@ def test_run_terminates_on_nonfinite():
     assert int(state.iter) <= 20
 
 
-
-
-
-
-
 def test_update_increments_iteration_count():
     solver = QQN(quadratic, maxiter=50)
     x0 = jnp.array([1.0, 1.0, 1.0])
@@ -161,7 +156,6 @@ def test_spline_in_solver_converges_quadratic():
     x0 = jnp.array([5.0, -3.0, 2.0])
     _, state = solver.run(x0)
     assert float(state.error) < 1e-3
-
 
 
 def test_init_state_error_matches_grad_norm():

@@ -37,11 +37,7 @@ __all__ = ["ENABLED", "build_runners"]
 from qqn_jax import AdamOracle, LBFGSOracle
 from qqn_jax.oracles import AnchoredMultiSecantOracle
 
-ENABLED = [
-    "QQN",
-    "Adam",
-    "L-BFGS"
-]
+ENABLED = ["QQN", "Adam", "L-BFGS"]
 
 
 def _oracle_axis():
@@ -147,7 +143,7 @@ def _spline_axis():
     """
     return {
         "": {},
-        # "S": {"path_strategy": "spline"},
+        "S": {"path_strategy": "spline"},
         "L": {"path_strategy": "linear"},
     }
 

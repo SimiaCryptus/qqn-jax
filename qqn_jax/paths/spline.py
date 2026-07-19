@@ -1,376 +1,192 @@
-"""Spline (cubic Hermite) augmentation for QQN line searches.
+"""Cubic Hermite *spline* model over the QQN path parameter ``t``.
 
-Each evaluation along the path ``d(t)`` yields both a fitness value
-``f(d(t))`` and a directional derivative ``m = ⟨∇f, d'(t)⟩``. The spline
-does *not* replace the line search; it is an **expanded definition of the
-curve** that reuses every measured point as a reusable *control point* of a
-piecewise cubic Hermite spline model of the objective along the
-(consistent) path.
+Unlike ``qqn_jax.paths.linear`` (which discards gradient information)
+this module reuses every probe's measured fitness *and* directional
+derivative as reusable **control points** ``(t_i, f_i, m_i)``, building
+a piecewise cubic Hermite spline of the objective along the path. The
+spline is only ever used to *propose* candidate steps; acceptance is
+gated by the outer line search's sufficient-decrease test.
 
-``spline_wrap(inner_search)`` returns a line-search-compatible callable
-that first runs ``inner_search`` (any registered strategy), then attempts
-to *improve* on its accepted point by probing the stationary points of the
-cubic Hermite spline fit through the control points gathered so far.
-Because every probe is built through the same shared ``PathStrategy``
-(``qqn_jax.paths.base.make_evaluator``) as the canonical quadratic path
-(``qqn_jax.paths.quadratic.QUADRATIC_PATH``) by default, every probe —
-regardless of the underlying line search — is a valid control point on the
-*same* curve.
-
-Candidate steps are proposed by locating stationary points of the cubic
-segments (closed-form roots of the quadratic derivative). Tangents are
-oriented via the upstream/downstream symmetry rule so spurious inflections
-do not mislead the search.
-
-See ``spline_search.md`` for the full specification.
+The probes themselves are built on the shared ``PathStrategy`` remapping
+(defaulting to ``QUADRATIC_PATH``) so every spline probe stays on the
+exact curve traversed by the wrapped inner line search. See
+``docs/theory/spline_search.md`` for the full derivation.
 """
-
-from typing import Callable
 
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import tree_negative, tree_vdot
-from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.line_search.backtracking import backtracking_search
-from qqn_jax.paths.base import PathStrategy, make_evaluator
 from qqn_jax.paths.quadratic import QUADRATIC_PATH
 
+# Re-export the canonical curve the spline model lives on: the spline
+# reuses the *quadratic* path geometry and layers a Hermite model on top.
+SPLINE_PATH = QUADRATIC_PATH
 
-def _orient_tangents(m0, m1):
-    """Orient synthetic tangents to agree with the path's forward direction.
 
-    Each tangent is a directional derivative ``m = ⟨∇f, d'(t)⟩`` — the
-    projection of the gradient onto the path's velocity vector ``d'(t)``.
-    When constructing the spline we are *not* seeking a low function value;
-    we are building the simplest curve consistent with the gradient
-    topology along the path. The orientation question is therefore purely
-    geometric: does the tangent agree with the forward direction of travel
-    along the path?
+def hermite_basis(s):
+    """Cubic Hermite basis functions evaluated at ``s ∈ [0, 1]``.
 
-    A tangent whose dot product against the forward path direction is
-    negative points "backwards" relative to the natural flow of the curve,
-    so it is reflected to agree. Because ``m`` is already the dot product of
-    the gradient with the forward velocity ``d'(t)``, the sign of ``m`` *is*
-    the sign of that dot product, and the reflection reduces to flipping the
-    sign of negative tangents.
+        h00(s) =  2s³ - 3s² + 1
+        h10(s) =      s³ - 2s² + s
+        h01(s) = -2s³ + 3s²
+        h11(s) =      s³ -  s²
 
-    This is intended for synthetic tangents (finite-difference or secant
-    estimates) whose sign convention may be ambiguous. It must NOT be
-    applied to genuine measured directional derivatives, which already carry
-    real curvature information.
+    Returns:
+        ``(h00, h10, h01, h11)``.
     """
-
-    bracketed = jnp.logical_and(m0 < 0.0, m1 > 0.0)
-    needs_orient = jnp.logical_not(bracketed)
-
-    disagrees = (m0 * m1) < 0.0
-    m0_dominates = jnp.abs(m0) > jnp.abs(m1)
-    reflect_m0 = jnp.logical_and(needs_orient, jnp.logical_and(disagrees, m0_dominates))
-    m0_oriented = jnp.where(reflect_m0, -m0, m0)
-    m1_oriented = m1
-    return m0_oriented, m1_oriented
-
-
-def _segment_value(s, h, f0, m0, f1, m1):
-    """Cubic Hermite interpolated fitness at normalized parameter ``s``."""
     s2 = s * s
     s3 = s2 * s
     h00 = 2.0 * s3 - 3.0 * s2 + 1.0
     h10 = s3 - 2.0 * s2 + s
     h01 = -2.0 * s3 + 3.0 * s2
     h11 = s3 - s2
-    return h00 * f0 + h10 * h * m0 + h01 * f1 + h11 * h * m1
+    return h00, h10, h01, h11
 
 
-def _segment_stationary_candidates(t0, t1, f0, m0, f1, m1):
-    """Return up to two candidate ``(t, predicted_value)`` stationary points.
+def _orient_tangents(m0, m1, delta):
+    """Apply the upstream/downstream symmetry correction.
 
-    Differentiating the cubic Hermite segment w.r.t. ``s`` gives a quadratic
-    ``A s² + B s + C = 0``. We solve it in closed form, mask roots outside
-    ``[0, 1]`` (or non-real ones), and map valid roots back to ``t``.
+    For each endpoint tangent ``m``, if it is oriented *against* the
+    segment secant slope ``delta`` (``sign(m) != sign(delta)`` and
+    ``delta != 0``) reflect it: ``m <- -m``. When ``delta == 0`` no
+    reflection is applied. See the "Gradient Orientation" section of the
+    theory doc — this is an unproven heuristic, kept safe by the outer
+    line search's strict-improvement gate.
+    """
 
-    Returns arrays ``(t_cands, val_cands, valid)`` each of length 2.
+    def reflect(m):
+        against = jnp.sign(m) != jnp.sign(delta)
+        flat = delta == 0.0
+        do_reflect = jnp.logical_and(against, jnp.logical_not(flat))
+        return jnp.where(do_reflect, -m, m)
+
+    return reflect(m0), reflect(m1)
+
+
+def segment_eval(t, t0, f0, m0, t1, f1, m1):
+    """Interpolated fitness of the Hermite segment at parameter ``t``.
+
+        f(s) = h00(s)·f_0 + h10(s)·h·m_0 + h01(s)·f_1 + h11(s)·h·m_1
+
+    where ``h = t_1 - t_0`` and ``s = (t - t_0) / h``. The tangents are
+    oriented via the upstream/downstream symmetry rule before use.
     """
     h = t1 - t0
-    m0o, m1o = _orient_tangents(m0, m1)
+    s = (t - t0) / h
+    delta = (f1 - f0) / h
+    cm0, cm1 = _orient_tangents(m0, m1, delta)
+    h00, h10, h01, h11 = hermite_basis(s)
+    return h00 * f0 + h10 * h * cm0 + h01 * f1 + h11 * h * cm1
 
-    hm0 = h * m0o
-    hm1 = h * m1o
+
+def segment_candidates(t0, f0, m0, t1, f1, m1, eps=1e-12):
+    """Closed-form stationary points of the Hermite segment.
+
+    Differentiating ``f(s)`` gives a quadratic ``f'(s) = A·s² + B·s + C``:
+
+        A =  6·f_0 + 3·h·m_0 - 6·f_1 + 3·h·m_1
+        B = -6·f_0 - 4·h·m_0 + 6·f_1 - 2·h·m_1
+        C =          h·m_0
+
+    Returns:
+        ``(t_cand, f_cand, valid)`` arrays of length 2, one entry per
+        root. ``valid`` marks roots that are real and lie in ``s ∈ [0, 1]``
+        (mapped back to ``t = t_0 + s·h``). Tangents are oriented before
+        the coefficients are formed.
+    """
+    h = t1 - t0
+    delta = (f1 - f0) / h
+    cm0, cm1 = _orient_tangents(m0, m1, delta)
+
+    hm0 = h * cm0
+    hm1 = h * cm1
+
     A = 6.0 * f0 + 3.0 * hm0 - 6.0 * f1 + 3.0 * hm1
     B = -6.0 * f0 - 4.0 * hm0 + 6.0 * f1 - 2.0 * hm1
     C = hm0
 
-    eps = jnp.asarray(1e-12, dtype=f0.dtype)
     disc = B * B - 4.0 * A * C
-    disc_ok = disc >= 0.0
-    sqrt_disc = jnp.sqrt(jnp.maximum(disc, 0.0))
+    # Guard: negative discriminant -> no real roots.
+    real = disc >= 0.0
+    sqrt_disc = jnp.sqrt(jnp.where(real, disc, 0.0))
 
-    denom = jnp.where(jnp.abs(A) > eps, 2.0 * A, 1.0)
-    root1 = (-B + sqrt_disc) / denom
-    root2 = (-B - sqrt_disc) / denom
+    quad_ok = jnp.abs(A) >= eps
+    lin_ok = jnp.abs(B) >= eps
 
-    lin_root = jnp.where(
-        jnp.abs(B) > eps, -C / jnp.where(jnp.abs(B) > eps, B, 1.0), -1.0
+    # Quadratic roots (jit-safe: denominator guarded).
+    denom = jnp.where(quad_ok, 2.0 * A, 1.0)
+    s_plus = (-B + sqrt_disc) / denom
+    s_minus = (-B - sqrt_disc) / denom
+
+    # Linear fallback ``s = -C / B`` when |A| < eps.
+    s_lin = jnp.where(lin_ok, -C / jnp.where(lin_ok, B, 1.0), jnp.nan)
+
+    s0 = jnp.where(quad_ok, s_plus, s_lin)
+    s1 = jnp.where(quad_ok, s_minus, jnp.nan)
+    s = jnp.stack([s0, s1])
+
+    # A root is usable when it is real (quadratic branch) and within [0, 1].
+    branch_real = jnp.stack(
+        [
+            jnp.logical_and(real, quad_ok)
+            | jnp.logical_and(lin_ok, jnp.logical_not(quad_ok)),
+            jnp.logical_and(real, quad_ok),
+        ]
     )
-    is_quad = jnp.abs(A) > eps
+    in_range = jnp.logical_and(s >= 0.0, s <= 1.0)
+    valid = jnp.logical_and(branch_real, in_range)
 
-    s1 = jnp.where(is_quad, root1, lin_root)
-    s2 = jnp.where(is_quad, root2, -1.0)
+    t_cand = t0 + s * h
+    # Evaluate predicted fitness at each candidate (garbage where invalid).
+    f_cand = segment_eval(t_cand, t0, f0, m0, t1, f1, m1)
+    f_cand = jnp.where(valid, f_cand, jnp.inf)
 
-    def finalize(s, extra_valid):
-        in_range = jnp.logical_and(s >= 0.0, s <= 1.0)
-        valid = jnp.logical_and(in_range, extra_valid)
-        s_clip = jnp.clip(s, 0.0, 1.0)
-        t = t0 + s_clip * h
-        val = _segment_value(s_clip, h, f0, m0o, f1, m1o)
-
-        val = jnp.where(valid, val, jnp.asarray(jnp.inf, dtype=f0.dtype))
-        return t, val, valid
-
-    t_c1, v_c1, ok1 = finalize(s1, jnp.logical_and(disc_ok, is_quad) | (~is_quad))
-    t_c2, v_c2, ok2 = finalize(s2, jnp.logical_and(disc_ok, is_quad))
-
-    t_cands = jnp.stack([t_c1, t_c2])
-    val_cands = jnp.stack([v_c1, v_c2])
-    valid = jnp.stack([ok1, ok2])
-    return t_cands, val_cands, valid
+    return t_cand, f_cand, valid
 
 
-def spline_path(
-    inner_search: Callable, path: PathStrategy = QUADRATIC_PATH
-) -> Callable:
-    """Augment ``inner_search`` with a cubic Hermite spline refinement.
+def propose_step(ts, fs, ms, eps=1e-12):
+    """Propose the next evaluation point from sorted control points.
 
-    Returns a line-search-compatible callable with the same signature as the
-    wrapped ``inner_search``. The spline is an *expanded definition of the
-    curve*, not a competing line search: it reuses the consistent path's
-    measured points as control points and probes the stationary points of
-    the resulting cubic Hermite spline to try to improve on the inner
-    search's accepted step.
-
-    The wrapped search:
-
-    1. Runs ``inner_search`` to obtain a baseline accepted point.
-    2. Forms control points from ``t = 0`` (current point, slope
-       ``⟨∇f, d'(0)⟩``) and ``t = t_inner`` (the inner search's accepted
-       point, with its measured slope ``⟨∇f, d'(t_inner)⟩``).
-    3. Probes the spline's stationary points, projecting through the region
-       and keeping the lowest-value feasible point found.
-    4. Returns the better of the inner result and the spline probes.
-
-    Because every probe lies on the *same* path (built through the shared
-    ``PathStrategy`` component — ``QUADRATIC_PATH`` by default, matching the
-    curve the wrapped inner search itself traverses), this composes
-     correctly with any underlying line search. To keep that invariant
-     structural rather than conventional, ``path`` is also forwarded
-     explicitly to ``inner_search`` itself (as a first-class ``path=path``
-     keyword), so the inner search's own probing — if it accepts a ``path``
-     argument — can never silently drift from the curve the refinement
-     layer probes.
+    Scans every adjacent bracketing pair of control points, collects the
+    cubic stationary points, and returns the candidate ``t`` with the
+    lowest predicted fitness across all segments.
 
     Args:
-        inner_search: any registered line-search strategy to seed the
-            baseline.
-        path: the ``PathStrategy`` used to remap ``t`` into a probe point
-            and its velocity ``d'(t)``. Defaults to ``QUADRATIC_PATH``, the
-            canonical QQN curve, so spline probes stay on the exact curve
-            the inner search traversed.
+        ts: sorted path parameters ``(n,)``.
+        fs: measured fitnesses ``(n,)``.
+        ms: measured directional derivatives ``(n,)``.
+
+    Returns:
+        ``(t_best, f_best, found)`` — the proposed step, its predicted
+        fitness, and a boolean flag that is ``False`` when no segment
+        yielded an in-range stationary point.
     """
+    t0 = ts[:-1]
+    f0 = fs[:-1]
+    m0 = ms[:-1]
+    t1 = ts[1:]
+    f1 = fs[1:]
+    m1 = ms[1:]
 
-    def wrapped(
-        value_and_grad_fn: Callable,
-        params,
-        direction,
-        value,
-        grad,
-        *args,
-        spline_max_iter: int = 6,
-        region=None,
-        region_state=None,
-        **inner_kwargs,
-    ) -> LineSearchResult:
-        region = resolve_region(region)
+    t_cand, f_cand, valid = jax.vmap(
+        lambda a, b, c, d, e, g: segment_candidates(a, b, c, d, e, g, eps)
+    )(t0, f0, m0, t1, f1, m1)
 
-        eval_at = make_evaluator(
-            value_and_grad_fn,
-            params,
-            grad,
-            direction,
-            region,
-            region_state,
-            path,
-            *args,
-        )
+    # Flatten (num_segments, 2) -> (num_segments*2,).
+    t_flat = t_cand.reshape(-1)
+    f_flat = f_cand.reshape(-1)
+    v_flat = valid.reshape(-1)
 
-        grad_dir = tree_negative(grad)
-
-        dtype = value.dtype
-        slope0 = tree_vdot(
-            grad, path.velocity(jnp.asarray(0.0, dtype=dtype), grad_dir, direction)
-        )
-
-        inner = inner_search(
-            eval_at,
-            params,
-            value,
-            grad,
-            slope0,
-            **inner_kwargs,
-        )
-
-        a0 = jnp.asarray(0.0, dtype=dtype)
-        f0 = value
-
-        m0 = tree_vdot(grad, path.velocity(a0, grad_dir, direction))
-
-        a1 = inner.step_size
-        f1 = inner.new_value
-        m1 = tree_vdot(inner.new_grad, path.velocity(a1, grad_dir, direction))
-
-        eps_t = jnp.asarray(1e-12, dtype=dtype)
-        a1_safe = jnp.where(
-            jnp.abs(a1) > eps_t, a1, jnp.where(a1 >= 0.0, eps_t, -eps_t)
-        )
-        secant = (f1 - f0) / a1_safe
-
-        ambiguous = jnp.logical_and(m1 <= 0.0, secant * m1 < 0.0)
-        m1 = jnp.where(ambiguous, -m1, m1)
-
-        descending_at_inner = m1 < 0.0
-        a_ext = jnp.where(descending_at_inner, 2.0 * a1, 0.5 * a1)
-
-        a_ext = jnp.where(a1 > 0.0, a_ext, jnp.asarray(1.0, dtype=dtype))
-        p_ext, f_ext, g_ext, m_ext = eval_at(a_ext)
-
-        inner_evals = inner.num_evals
-        if inner_evals is None:
-            inner_evals = jnp.asarray(1, jnp.int32)
-        base_evals = inner_evals + jnp.asarray(1, jnp.int32)
-
-        use_ext_segment = jnp.logical_and(descending_at_inner, f_ext < f1)
-        la = jnp.where(use_ext_segment, a1, a0)
-        lf = jnp.where(use_ext_segment, f1, f0)
-        lm = jnp.where(use_ext_segment, m1, m0)
-        ra = jnp.where(use_ext_segment, a_ext, a1)
-        rf = jnp.where(use_ext_segment, f_ext, f1)
-        rm = jnp.where(use_ext_segment, m_ext, m1)
-
-        cand_a = jnp.stack([a0, a1, a_ext])
-        cand_f = jnp.stack([f0, f1, f_ext])
-        best_idx = jnp.argmin(cand_f)
-        ba = cand_a[best_idx]
-        bv = cand_f[best_idx]
-
-        def _pick3(x0v, x1v, x2v):
-            return jax.lax.switch(best_idx, [lambda: x0v, lambda: x1v, lambda: x2v])
-
-        bp = jax.tree_util.tree_map(
-            lambda p0, p1, p2: _pick3(p0, p1, p2),
-            params,
-            inner.new_params,
-            p_ext,
-        )
-        bg = jax.tree_util.tree_map(
-            lambda g0, g1, g2: _pick3(g0, g1, g2),
-            grad,
-            inner.new_grad,
-            g_ext,
-        )
-
-        InitCarry = (
-            la,
-            lf,
-            lm,
-            ra,
-            rf,
-            rm,
-            ba,
-            bv,
-            bp,
-            bg,
-            jnp.asarray(0, jnp.int32),
-            jnp.asarray(0, jnp.int32),
-        )
-
-        def cond(carry):
-            (_, _, _, _, _, _, _, _, _, _, i, _ev) = carry
-            return i < spline_max_iter
-
-        def body(carry):
-            (la, lf, lm, ra, rf, rm, ba, bv, bp, bg, i, ev) = carry
-
-            t_cands, v_cands, valid = _segment_stationary_candidates(
-                la, ra, lf, lm, rf, rm
-            )
-
-            mid = 0.5 * (la + ra)
-            any_valid = jnp.any(valid)
-            best_c_idx = jnp.argmin(v_cands)
-            cand_alpha = jnp.where(any_valid, t_cands[best_c_idx], mid)
-
-            lo = jnp.minimum(la, ra)
-            hi = jnp.maximum(la, ra)
-            span = hi - lo
-            margin = 1e-3 * jnp.maximum(span, 1e-12)
-            cand_alpha = jnp.clip(cand_alpha, lo + margin, hi - margin)
-
-            cp, cf, cg, cm = eval_at(cand_alpha)
-
-            improves = cf < bv
-            n_ba = jnp.where(improves, cand_alpha, ba)
-            n_bv = jnp.where(improves, cf, bv)
-            n_bp = jax.tree_util.tree_map(
-                lambda new, old: jnp.where(improves, new, old), cp, bp
-            )
-            n_bg = jax.tree_util.tree_map(
-                lambda new, old: jnp.where(improves, new, old), cg, bg
-            )
-
-            min_to_right = cm < 0.0
-            n_la = jnp.where(min_to_right, cand_alpha, la)
-            n_lf = jnp.where(min_to_right, cf, lf)
-            n_lm = jnp.where(min_to_right, cm, lm)
-            n_ra = jnp.where(min_to_right, ra, cand_alpha)
-            n_rf = jnp.where(min_to_right, rf, cf)
-            n_rm = jnp.where(min_to_right, rm, cm)
-            return (
-                n_la,
-                n_lf,
-                n_lm,
-                n_ra,
-                n_rf,
-                n_rm,
-                n_ba,
-                n_bv,
-                n_bp,
-                n_bg,
-                i + 1,
-                ev + 1,
-            )
-
-        final = jax.lax.while_loop(cond, body, InitCarry)
-        (_, _, _, _, _, _, fa, fv, fp, fg, _, spline_evals) = final
-
-        done = jnp.logical_or(inner.done, fv < inner.new_value)
-
-        return LineSearchResult(
-            step_size=fa,
-            new_value=fv,
-            new_grad=fg,
-            new_params=fp,
-            done=done,
-            probe_params=inner.probe_params,
-            probe_grads=inner.probe_grads,
-            probe_valid=inner.probe_valid,
-            probe_values=inner.probe_values,
-            probe_alphas=inner.probe_alphas,
-            num_evals=base_evals + spline_evals,
-        )
-
-    return wrapped
+    f_masked = jnp.where(v_flat, f_flat, jnp.inf)
+    best = jnp.argmin(f_masked)
+    found = jnp.any(v_flat)
+    return t_flat[best], f_flat[best], found
 
 
-spline_search = spline_path(backtracking_search)
-__all__ = ["spline_path", "spline_search"]
+__all__ = [
+    "SPLINE_PATH",
+    "hermite_basis",
+    "segment_eval",
+    "segment_candidates",
+    "propose_step",
+]

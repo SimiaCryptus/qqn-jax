@@ -29,11 +29,10 @@ import jax.numpy as jnp
 from qqn_jax.oracles.strategy import resolve_oracle
 from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.line_search import LINE_SEARCHES
-from qqn_jax.paths import (
-    PathStrategy,
-    QUADRATIC_PATH, quadratic_path,
-    LINEAR_PATH, spline_path, linear_path,
-)
+from qqn_jax.paths import SPLINE_PATH
+from qqn_jax.paths.base import make_evaluator
+from qqn_jax.paths.linear import LINEAR_PATH, linear_refine
+from qqn_jax.paths.quadratic import QUADRATIC_PATH
 from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
@@ -136,22 +135,21 @@ class QQN:
     """
 
     def __init__(
-            self,
-            fun: Callable,
-            maxiter: int = 100,
-            tol: float = 1e-5,
-            history_size: int = 10,
-            line_search: str = "backtracking",
-            line_search_options: Optional[Dict[str, Any]] = None,
-            path_strategy: str = "quadratic",
-            path: Optional[PathStrategy] = None,
-            has_aux: bool = False,
-            region=None,
-            oracle="lbfgs",
-            feed_probes_to_oracle: bool = False,
-            max_probes: int = 32,
-            max_t: float = 1000.0,
-            partition_sizes: Optional[tuple[int, ...]] = None,
+        self,
+        fun: Callable,
+        maxiter: int = 100,
+        tol: float = 1e-5,
+        history_size: int = 10,
+        line_search: str = "backtracking",
+        line_search_options: Optional[Dict[str, Any]] = None,
+        path_strategy: str = "quadratic",
+        has_aux: bool = False,
+        region=None,
+        oracle="lbfgs",
+        feed_probes_to_oracle: bool = False,
+        max_probes: int = 32,
+        max_t: float = 1000.0,
+        partition_sizes: Optional[tuple[int, ...]] = None,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -159,22 +157,7 @@ class QQN:
         self.history_size = history_size
         self.line_search = line_search
         self.line_search_options = dict(line_search_options or {})
-
-        valid_strategies = {"linear", "quadratic", "spline"}
-        if path_strategy not in valid_strategies:
-            raise ValueError(
-                f"Unknown path_strategy: {path_strategy!r}. "
-                f"Available: {sorted(valid_strategies)}."
-            )
         self.path_strategy = path_strategy
-        self.spline = path_strategy == "spline"
-        self.linear = path_strategy == "linear"
-
-        self.path: PathStrategy = (
-            path
-            if path is not None
-            else (LINEAR_PATH if self.linear else QUADRATIC_PATH)
-        )
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
@@ -195,16 +178,13 @@ class QQN:
         self.feed_probes_to_oracle = feed_probes_to_oracle
         self.max_probes = max_probes
         self.max_t = max_t
-
         if line_search not in LINE_SEARCHES:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
                 f"Available: {sorted(LINE_SEARCHES)}."
             )
-
         base_ls = LINE_SEARCHES[line_search]
         opts = self.line_search_options
-
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
 
@@ -213,13 +193,19 @@ class QQN:
         else:
             opts = {**opts, "record_probes": False}
         inner = partial(base_ls, **opts) if opts else base_ls
+        self._inner_search = inner
 
-        if self.spline:
-            self._path_search = spline_path(inner, path=self.path)
-        elif self.linear:
-            self._path_search = linear_path(inner, path=self.path)
+        if path_strategy == "linear":
+            self.path = LINEAR_PATH
+            self._refine = True
+        elif path_strategy == "quadratic":
+            self.path = QUADRATIC_PATH
+            self._refine = False
+        elif path_strategy == "spline":
+            self.path = SPLINE_PATH
+            self._refine = False
         else:
-            self._path_search = quadratic_path(inner, path=self.path)
+            raise ValueError(f"Unknown path_strategy: {path_strategy!r}. ")
 
     def _eval(self, params, *args):
         """Evaluate value and grad, splitting off aux if present."""
@@ -236,7 +222,7 @@ class QQN:
         assert self.partition_sizes is not None
         assert self._partition_offsets is not None
         off = self._partition_offsets
-        return [x[off[i]: off[i + 1]] for i in range(len(self.partition_sizes))]
+        return [x[off[i] : off[i + 1]] for i in range(len(self.partition_sizes))]
 
     def _oracle_init(self, params):
         """Initialize the oracle state, respecting partitioning.
@@ -348,16 +334,32 @@ class QQN:
 
         qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
 
-        res = self._path_search(
+        # Build the shared scalar 1-D problem along the selected path.
+        dtype = state.value.dtype
+        eval_at = make_evaluator(
             self._plain_value_and_grad,
             params,
+            grad,
             qn_dir,
+            self.region,
+            state.region_state,
+            self.path,
+            *args,
+        )
+        grad_dir = tree_negative(grad)
+        slope0 = tree_vdot(
+            grad,
+            self.path.velocity(jnp.asarray(0.0, dtype=dtype), grad_dir, qn_dir),
+        )
+        res = self._inner_search(
+            eval_at,
+            params,
             state.value,
             grad,
-            *args,
-            region=self.region,
-            region_state=state.region_state,
+            slope0,
         )
+        if self._refine:
+            res = linear_refine(res, eval_at, dtype)
 
         new_params = res.new_params
         new_value = res.new_value
@@ -401,7 +403,6 @@ class QQN:
 
         actual_reduction = state.value - new_value
 
-        grad_dir = tree_negative(grad)
         d_t = self.path.offset(best_t, grad_dir, qn_dir)
         pred_reduction = jnp.asarray(-tree_vdot(grad, d_t))
 

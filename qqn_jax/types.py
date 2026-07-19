@@ -9,21 +9,12 @@ from typing import Any, Callable, Tuple
 import chex
 from jaxtyping import Array, Float
 
-
 Scalar = Float[Array, ""]
-
-
 Params = Float[Array, " n"]
 Grad = Float[Array, " n"]
 Direction = Float[Array, " n"]
-
-
 Value = Float[Array, ""]
-
-
 ObjectiveFn = Callable[..., Scalar]
-
-
 ValueAndGradFn = Callable[..., Tuple[Value, Grad]]
 
 __all__ = [

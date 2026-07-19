@@ -39,4 +39,3 @@ def tree_l2_norm(tree):
 def make_value_and_grad(fun: Callable, has_aux: bool = False) -> Callable:
     """Build a value-and-grad function, transparently handling ``has_aux``."""
     return jax.value_and_grad(fun, has_aux=has_aux)
-
