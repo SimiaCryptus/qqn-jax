@@ -10,8 +10,6 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.paths import QUADRATIC_PATH
-from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot
 
@@ -74,8 +72,7 @@ def hager_zhang_search(
         tree_vdot(scaled_updates, direction) / d_norm_sq,
         jnp.asarray(0.0, dtype=new_value.dtype),
     )
-    # Temperature meta-rule: an uphill step may still be marked done via a
-    # Metropolis move.
+
     stochastic, _key = _metropolis_accept(
         new_value - value, temperature, jax.random.PRNGKey(seed), new_value.dtype
     )

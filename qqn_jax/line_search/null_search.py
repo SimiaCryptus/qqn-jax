@@ -7,8 +7,6 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.paths import QUADRATIC_PATH
-from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 
@@ -47,9 +45,7 @@ def null_search(
     """
     region = resolve_region(region)
     base_alpha = jnp.asarray(step_size, dtype=value.dtype)
-    # Detect the "no oracle point" case: the direction is (anti-)parallel to
-    # the gradient, i.e. cos-similarity magnitude ~= 1. In that case apply the
-    # configurable ``grad_scale`` multiplier.
+
     dd = tree_vdot(direction, direction)
     gg = tree_vdot(grad, grad)
     dg = tree_vdot(direction, grad)

@@ -17,8 +17,7 @@ by the wrapped inner line search.
 from qqn_jax.utils import quadratic_path, quadratic_path_derivative
 from qqn_jax.paths.base import PathStrategy
 
-# The shared strategy object: remaps ``t`` to the quadratic path's offset
-# ``d(t)`` and velocity ``d'(t)``.
+
 QUADRATIC_PATH = PathStrategy(offset=quadratic_path, velocity=quadratic_path_derivative)
 
 __all__ = ["quadratic_path", "quadratic_path_derivative", "QUADRATIC_PATH"]

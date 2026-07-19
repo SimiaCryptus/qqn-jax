@@ -31,7 +31,7 @@ def estimate_evals_per_iter(method, qqn_kwargs=None):
         probes = min(ls_opts.get("max_iter", 10), 6)
     elif ls == "hager_zhang":
         probes = min(ls_opts.get("max_iter", 30), 5)
-    else:  # fixed
+    else:
         probes = 1
     base = 1.0 + float(probes)
     if qqn_kwargs.get("spline", False):

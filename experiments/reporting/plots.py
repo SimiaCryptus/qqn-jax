@@ -12,7 +12,7 @@ def save_plots(results, config, *, arch_str=None):
     Degrades gracefully when matplotlib is unavailable.
     """
     try:
-        import matplotlib.pyplot as plt  # type: ignore
+        import matplotlib.pyplot as plt
     except Exception:
         print("\n[plot] matplotlib not available; skipping plot.")
         return

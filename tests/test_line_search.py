@@ -15,14 +15,14 @@ from qqn_jax.line_search.backtracking import backtracking_search
 
 
 def quad_value_and_grad(x):
-    # f(x) = 0.5 * ||x||^2, grad = x.
+
     return 0.5 * jnp.vdot(x, x), x
 
 
 def test_backtracking_decreases_value():
     x = jnp.array([2.0, 2.0])
     value, grad = quad_value_and_grad(x)
-    direction = -grad  # steepest descent
+    direction = -grad
     res = backtracking_search(quad_value_and_grad, x, direction, value, grad)
     assert float(res.new_value) < float(value)
     assert bool(res.done)
@@ -37,12 +37,12 @@ def test_strong_wolfe_decreases_value():
 
 
 def test_strong_wolfe_finds_exact_step_for_quadratic():
-    # For f = 0.5||x||^2 along d = -x, the exact minimizer is alpha = 1.
+
     x = jnp.array([3.0, -1.0])
     value, grad = quad_value_and_grad(x)
     direction = -grad
     res = strong_wolfe_search(quad_value_and_grad, x, direction, value, grad)
-    # New params should be near the origin.
+
     assert float(jnp.linalg.norm(res.new_params)) < 0.5
 
 
@@ -66,7 +66,7 @@ def test_backtracking_no_probes_when_disabled():
     res = backtracking_search(
         quad_value_and_grad, x, direction, value, grad, record_probes=False
     )
-    # With recording disabled, no more than a single scratch slot is filled.
+
     assert res.probe_valid is not None
     assert int(jnp.sum(res.probe_valid)) <= 1
 
@@ -80,10 +80,10 @@ def test_strong_wolfe_step_size_positive():
 
 
 def test_backtracking_shrink_reduces_step():
-    # A poorly-scaled direction forces backtracking to shrink the step.
+
     x = jnp.array([1.0, 1.0])
     value, grad = quad_value_and_grad(x)
-    direction = -10.0 * grad  # overshoots; Armijo should shrink it
+    direction = -10.0 * grad
     res = backtracking_search(
         quad_value_and_grad,
         x,
@@ -140,13 +140,13 @@ def test_backtracking_records_probes():
     res = backtracking_search(
         quad_value_and_grad, x, direction, value, grad, record_probes=True
     )
-    # At least one probe slot should be filled.
+
     assert res.probe_valid is not None
     assert bool(jnp.any(res.probe_valid))
 
 
 def test_backtracking_respects_region():
-    # Box restricts the step so the projected point is clipped.
+
     x = jnp.array([2.0, 2.0])
     value, grad = quad_value_and_grad(x)
     direction = -grad

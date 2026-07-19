@@ -12,7 +12,7 @@ import os
 import jax
 import jax.numpy as jnp
 
-try:  # rolling-window activations are optional (qqn_jax extra)
+try:
     from qqn_jax.experimental.rolling_window_activation import (
         rolling_sin_diff,
         rolling_atan2_ramp,
@@ -22,7 +22,7 @@ try:  # rolling-window activations are optional (qqn_jax extra)
         "rolling_sin": rolling_sin_diff,
         "rolling_atan2": rolling_atan2_ramp,
     }
-except Exception:  # pragma: no cover - graceful degradation
+except Exception:
     _ROLLING_ACTIVATIONS = {}
 
 __all__ = ["ACTIVATIONS", "resolve_activation", "parse_activation"]
@@ -30,20 +30,16 @@ ACTIVATIONS = {
     "relu": jax.nn.relu,
     "sigmoid": jax.nn.sigmoid,
     "sine": jnp.sin,
-    # Gaussian "bump" activation, exp(-x^2): localized, smooth, RBF-like.
     "gaussian": lambda x: jnp.exp(-(x**2)),
-    # Triangle waveform: periodic, piecewise-linear in [-1, 1].
     "triangle": lambda x: (
         2.0 * jnp.abs(2.0 * (x / (2.0 * jnp.pi) - jnp.floor(x / (2.0 * jnp.pi) + 0.5)))
         - 1.0
     ),
-    # Symmetric logarithm of |x|: ln(|x|+1) * sign(x).
     "logabs": lambda x: jnp.sign(x) * jnp.log1p(jnp.abs(x)),
     "tanh": jnp.tanh,
     "gelu": jax.nn.gelu,
     "swish": jax.nn.swish,
     "softplus": jax.nn.softplus,
-    # Sawtooth waveform: periodic ramp in [-1, 1).
     "sawtooth": lambda x: (
         2.0 * (x / (2.0 * jnp.pi) - jnp.floor(x / (2.0 * jnp.pi) + 0.5))
     ),

@@ -10,8 +10,6 @@ from qqn_jax.line_search.util import (
     _record_probe,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.paths import QUADRATIC_PATH
-from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 
@@ -61,7 +59,7 @@ def backtracking_search(
     """
     region = resolve_region(region)
     project = _make_projected_point(region, region_state, params)
-    dg = tree_vdot(grad, direction)  # directional derivative gᵀd
+    dg = tree_vdot(grad, direction)
 
     def eval_at(alpha):
         raw = tree_add_scaled(params, alpha, direction)
@@ -69,9 +67,6 @@ def backtracking_search(
         val, g = value_and_grad_fn(projected, *args)
         return projected, val, g
 
-    # When the caller does not consume probes, shrink the scratch buffers to a
-    # single slot so the line-search ``while_loop`` does not allocate and
-    # thread a full ``(max_probes, n)`` array through every iteration.
     eff_probes = max_probes if record_probes else 1
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
     temp0 = jnp.asarray(temperature, dtype=value.dtype)
@@ -124,11 +119,11 @@ def backtracking_search(
         new_params, new_val, new_g = eval_at(alpha)
         accepted, key = accept(alpha, new_val, temp, key)
         temp = temp * cooling
-        # Record this probe (slot = i, since slot 0 holds the init_step probe).
+
         pp, pg, pv, pval, pa = _record_probe(
             pp, pg, pv, pval, pa, i, new_params, new_g, new_val, alpha, eff_probes
         )
-        # ``evals`` counts every eval_at call: the body adds exactly one.
+
         return (
             alpha,
             i + 1,
@@ -150,11 +145,10 @@ def backtracking_search(
     max_alpha = jnp.asarray(max_step, dtype=value.dtype)
     grow = jnp.asarray(1.0 / shrink, dtype=value.dtype)
 
-    # Evaluate at the initial step first.
     init_params, init_val, init_g = eval_at(init_alpha)
     init_accepted, key1 = accept(init_alpha, init_val, temp0, key0)
     temp1 = temp0 * cooling
-    # Slot 0 records the initial-step probe.
+
     init_pp, init_pg, init_pv, init_pval, init_pa = _record_probe(
         init_pp,
         init_pg,
@@ -169,12 +163,6 @@ def backtracking_search(
         eff_probes,
     )
 
-    # --- Optional extrapolation phase (t > 1) ---------------------------
-    # When permitted (``max_step > init_step``) and the initial step already
-    # satisfies Armijo, try growing the step while it keeps improving the
-    # objective, capped at ``max_step``. This lets the search explore past
-    # the oracle endpoint. The phase reuses the probe buffers, filling slots
-    # after slot 0.
     def extrap_cond(carry):
         alpha, i, evals, val, _g, _p, _acc, _pp, _pg, _pv, _pval, _pa = carry
         next_alpha = alpha * grow
@@ -191,7 +179,7 @@ def backtracking_search(
         pp, pg, pv, pval, pa = _record_probe(
             pp, pg, pv, pval, pa, i, new_params, new_g, new_val, new_alpha, eff_probes
         )
-        # Only advance the accepted point when the grown step still improves.
+
         out_alpha = jnp.where(keep, new_alpha, alpha)
         out_val = jnp.where(keep, new_val, prev_val)
         out_g = jnp.where(keep, new_g, _g)
@@ -203,7 +191,7 @@ def backtracking_search(
             out_val,
             out_g,
             out_p,
-            keep,  # stop growing once a step fails to improve
+            keep,
             pp,
             pg,
             pv,
@@ -245,7 +233,7 @@ def backtracking_search(
             init_pa,
         ),
     )
-    # If extrapolation ran and improved, adopt its point and skip backtracking.
+
     init_alpha = ex_alpha
     init_val = ex_val
     init_g = ex_g
@@ -253,9 +241,6 @@ def backtracking_search(
     init_accepted = jnp.logical_or(init_accepted, ex_acc)
     init_pp, init_pg, init_pv, init_pval, init_pa = ex_pp, ex_pg, ex_pv, ex_pval, ex_pa
 
-    # --- Backtracking (shrink) phase ------------------------------------
-    # Start the carry from the (possibly extrapolated) initial point. If the
-    # initial point was already accepted the ``cond`` guard exits immediately.
     (
         alpha,
         n_iters,
@@ -292,9 +277,6 @@ def backtracking_search(
         ),
     )
 
-    # Evals are tracked explicitly in the carry (1 for the initial-step probe
-    # plus one per backtracking iteration), decoupled from ``n_iters`` so the
-    # count cannot drift if the loop index semantics change.
     num_evals = eval_count
     return LineSearchResult(
         step_size=alpha,

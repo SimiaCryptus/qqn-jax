@@ -14,7 +14,7 @@ import numpy as np
 import optax
 import pytest
 
-# Import the example module by path (examples/ is not a package).
+
 _HERE = os.path.dirname(__file__)
 _EXAMPLE_PATH = os.path.join(_HERE, "..", "examples", "mnist_comparison.py")
 _spec = importlib.util.spec_from_file_location("mnist_comparison", _EXAMPLE_PATH)
@@ -89,7 +89,7 @@ def test_synthetic_shapes_consistent():
 def test_qqn_history_is_non_increasing(problem):
     loss_fn, params0, *_ = problem
     _, history, *_ = mc.run_qqn(loss_fn, params0, maxiter=15)
-    # QQN should not increase the loss between the first and last point.
+
     assert history[-1] <= history[0] + 1e-6
 
 

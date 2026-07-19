@@ -24,10 +24,7 @@ Run with:  python examples/fashion_mnist_mlp_comparison.py
 
 import os
 
-# The cuBLAS-Lt autotuner profiles candidate algorithms concurrently, each
-# allocating a multi-GiB workspace for the large full-batch JVP matmuls; on a
-# ~6.5GiB GPU that profiling itself OOMs before the solve starts. Disable
-# autotuning and prefer async host fallback. Set BEFORE importing jax.
+
 os.environ.setdefault("XLA_FLAGS", "--xla_gpu_autotune_level=0")
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
 

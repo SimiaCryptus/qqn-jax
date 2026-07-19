@@ -84,21 +84,13 @@ def AnchoredMultiSecantOracle(
         g_hist = state.g_history
         x_hist = state.x_history
 
-        # Anchored secants: pull every stored (x_i, g_i) back to the tangent
-        # space at the *current* point rather than chaining adjacent
-        # first-differences. Unfilled slots (x_i = g_i = 0) are masked out
-        # below via ``active`` so they contribute nothing.
-        dX = (params[None, :] - x_hist).T  # (n, window)
-        dG = (grad[None, :] - g_hist).T  # (n, window)
+        dX = (params[None, :] - x_hist).T
+        dG = (grad[None, :] - g_hist).T
 
         m = dX.shape[1]
         active = jnp.arange(m) < state.step_count
 
-        # Distance kernel over the anchored displacement: oscillation becomes
-        # clean signal (a longer, cleaner Δx) rather than a cancelling chord,
-        # and the kernel trusts samples in proportion to their distance from
-        # the current tangent space.
-        dx_norm2 = jnp.sum(dX * dX, axis=0)  # (window,)
+        dx_norm2 = jnp.sum(dX * dX, axis=0)
         if kernel == "gaussian":
             w = jnp.exp(-dx_norm2 / (sigma**2 + 1e-12))
         elif kernel == "rational":
@@ -108,8 +100,6 @@ def AnchoredMultiSecantOracle(
         w = jnp.where(active, w, 0.0)
         sqrt_w = jnp.sqrt(w)
 
-        # Weighted normal equations for the multi-secant least-squares fit:
-        #   (ΔGᵀ W ΔG + reg·scale·I) θ = ΔGᵀ W ∇f
         dG_w = dG * sqrt_w[None, :]
         gram = dG_w.T @ dG_w
         trace = jnp.trace(gram)
@@ -118,9 +108,6 @@ def AnchoredMultiSecantOracle(
         A = gram + reg * scale * eye_m
         b = (dG * w[None, :]).T @ grad
 
-        # Mask inactive rows/cols to the identity and add an absolute
-        # diagonal ridge so a degenerate/empty window can never make the
-        # solve singular.
         active_mask = active[:, None] & active[None, :]
         A = jnp.where(active_mask, A, eye_m) + (
             jnp.asarray(1e-12, dtype=grad.dtype) * eye_m
@@ -130,18 +117,13 @@ def AnchoredMultiSecantOracle(
 
         residual = grad - dG @ theta
         d = -beta * residual - dX @ theta
-        # Safeguard: fall back to steepest descent if the solve degenerates
-        # or the window is still empty.
+
         ok = jnp.all(jnp.isfinite(d)) & (state.step_count > 0)
         d = jnp.where(ok, d, -grad)
         return d, state
 
     def update(state, info):
-        # Roll the windows, inserting the freshly-accepted (x, g). When
-        # line-search probes are populated, roll each valid probe
-        # (oldest-first) into the windows before the accepted point, exactly
-        # as in AndersonOracle: every probed point enriches the anchored
-        # multi-secant fit with an extra observation.
+
         ordered = _ordered_probe_secants(info)
         if ordered is None:
             new_x = (

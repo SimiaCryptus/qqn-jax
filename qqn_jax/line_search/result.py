@@ -26,14 +26,9 @@ class LineSearchResult(NamedTuple):
     probe_params: Any = None
     probe_grads: Any = None
     probe_valid: Any = None
-    # Per-probe objective values (so callers gating on descent need not
-    # recompute f via an extra vmapped forward pass — the line search
-    # already evaluated these points).
+
     probe_values: Any = None
-    # Per-probe step size α (lets the oracle replay probes in α-order
-    # rather than slot-order, which matters for secant differences).
+
     probe_alphas: Any = None
-    # Number of value-and-grad evaluations performed by the line search.
-    # Each ``value_and_grad_fn`` call evaluates both f and ∇f, so this counts
-    # combined value+grad oracle calls. ``None`` means "not reported".
+
     num_evals: Any = None

@@ -37,8 +37,8 @@ def param_layout(dim, hidden_sizes, n_classes):
     dims = layer_dims(dim, hidden_sizes, n_classes)
     sizes = [0]
     for fan_in, fan_out in zip(dims[:-1], dims[1:]):
-        sizes.append(fan_in * fan_out)  # W block
-        sizes.append(fan_out)  # b block
+        sizes.append(fan_in * fan_out)
+        sizes.append(fan_out)
     return np.cumsum(sizes)
 
 
@@ -51,8 +51,8 @@ def partition_sizes(dim, hidden_sizes, n_classes):
     dims = layer_dims(dim, hidden_sizes, n_classes)
     sizes = []
     for fan_in, fan_out in zip(dims[:-1], dims[1:]):
-        sizes.append(fan_in * fan_out)  # W block
-        sizes.append(fan_out)  # b block
+        sizes.append(fan_in * fan_out)
+        sizes.append(fan_out)
     return tuple(int(s) for s in sizes)
 
 
@@ -73,14 +73,14 @@ def init_params(dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid"):
         ]
     else:
         hidden_names = [activation] * max(n_hidden, 0)
-    layer_names = hidden_names + ["identity"]  # output layer is linear
+    layer_names = hidden_names + ["identity"]
     blocks = []
     for li, (k, fan_in, fan_out) in enumerate(zip(keys, dims[:-1], dims[1:])):
         act_name = layer_names[li] if li < len(layer_names) else "identity"
         if act_name == "relu":
-            scale = jnp.sqrt(2.0 / fan_in)  # He
+            scale = jnp.sqrt(2.0 / fan_in)
         else:
-            scale = jnp.sqrt(1.0 / fan_in)  # Glorot/Xavier-style
+            scale = jnp.sqrt(1.0 / fan_in)
         w = jax.random.normal(k, (fan_in * fan_out,)) * scale
         b = jnp.zeros((fan_out,))
         blocks.append(w)

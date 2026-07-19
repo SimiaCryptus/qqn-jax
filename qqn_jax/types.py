@@ -9,22 +9,21 @@ from typing import Any, Callable, Tuple
 import chex
 from jaxtyping import Array, Float
 
-# ``jaxtyping.Scalar`` was removed in recent releases; a 0-d float array is
-# the canonical replacement.
+
 Scalar = Float[Array, ""]
 
-# A flat parameter / gradient vector.
+
 Params = Float[Array, " n"]
 Grad = Float[Array, " n"]
 Direction = Float[Array, " n"]
 
-# Scalar function value.
+
 Value = Float[Array, ""]
 
-# Objective function: params -> scalar.
+
 ObjectiveFn = Callable[..., Scalar]
 
-# Value-and-grad function: params -> (value, grad).
+
 ValueAndGradFn = Callable[..., Tuple[Value, Grad]]
 
 __all__ = [

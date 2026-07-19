@@ -9,7 +9,7 @@ from qqn_jax.oracles.oracle import Oracle
 class SecantState(NamedTuple):
     prev_params: jnp.ndarray
     prev_grad: jnp.ndarray
-    alpha: jnp.ndarray  # current inverse-curvature step scale
+    alpha: jnp.ndarray
     step_count: jnp.ndarray
 
 
@@ -43,24 +43,17 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
         return d, state
 
     def update(state, info):
-        # When line-search probes are populated, use the *finest* secant on
-        # the ray (accepted point relative to the closest valid probe) so the
-        # BB curvature estimate reflects the local geometry at the t=1
-        # endpoint rather than the full accepted jump. Absent probes we use
-        # the accepted secant (x_new − x, ∇f_new − ∇f).
+
         ordered = _ordered_probe_secants(info)
         if ordered is None:
             s = info.new_params - info.params
             y = info.new_grad - info.grad
         else:
             params_seq, grad_seq, valid_seq = ordered
-            # The accepted point is the last entry; the immediately-preceding
-            # valid probe gives the tightest secant. Anchor on the pre-step
-            # iterate as a guaranteed-valid fallback.
+
             anchor_p = jnp.concatenate([info.params[None, :], params_seq[:-1]], axis=0)
             anchor_g = jnp.concatenate([info.grad[None, :], grad_seq[:-1]], axis=0)
-            # ``valid_seq[:-1]`` marks whether each preceding probe is real;
-            # pick the last valid one (closest to the accepted point).
+
             prev_valid = valid_seq[:-1]
             idx = jnp.max(jnp.where(prev_valid, jnp.arange(prev_valid.shape[0]), 0))
             p_prev = anchor_p[idx]
@@ -69,7 +62,7 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
             y = info.new_grad - g_prev
         ss = jnp.vdot(s, s)
         sy = jnp.vdot(s, y)
-        # BB1 step; guard against non-positive curvature by retaining prior α.
+
         curvature_ok = sy > eps
         bb = ss / jnp.where(curvature_ok, sy, 1.0)
         new_alpha = jnp.where(curvature_ok, jnp.clip(bb, eps, alpha_max), state.alpha)
@@ -103,7 +96,7 @@ def _ordered_probe_secants(info, max_replay=None):
     k = info.probe_alphas.shape[0]
     if max_replay is not None:
         n_keep = min(max_replay, k)
-        # Rank valid probes by α (descending): closest-to-accepted first.
+
         ranked_alpha = jnp.where(info.probe_valid, info.probe_alphas, -jnp.inf)
         keep_order = jnp.argsort(-ranked_alpha)[:n_keep]
         kept_params = info.probe_params[keep_order]
@@ -115,13 +108,12 @@ def _ordered_probe_secants(info, max_replay=None):
         kept_grads = info.probe_grads
         kept_valid = info.probe_valid
         kept_alphas = info.probe_alphas
-    # Sort the KEPT probes by INCREASING α so replayed secant differences are
-    # consistently oriented along the search ray.
+
     inner = jnp.argsort(jnp.where(kept_valid, kept_alphas, jnp.inf))
     probe_params = kept_params[inner]
     probe_grads = kept_grads[inner]
     probe_valid = kept_valid[inner]
-    # Append the accepted point as the final (newest) entry.
+
     params_seq = jnp.concatenate([probe_params, info.new_params[None, :]], axis=0)
     grad_seq = jnp.concatenate([probe_grads, info.new_grad[None, :]], axis=0)
     valid_seq = jnp.concatenate([probe_valid, jnp.asarray([True])], axis=0)

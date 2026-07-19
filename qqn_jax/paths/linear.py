@@ -45,7 +45,6 @@ def _linear_velocity(t, grad_dir, direction):
     return direction
 
 
-# The shared strategy object for the chord path.
 LINEAR_PATH = PathStrategy(offset=_linear_offset, velocity=_linear_velocity)
 
 
@@ -101,7 +100,6 @@ def linear_wrap(
 
         dtype = value.dtype
 
-        # 1. Baseline from the inner search.
         inner = inner_search(
             value_and_grad_fn,
             params,
@@ -119,9 +117,6 @@ def linear_wrap(
         if inner_evals is None:
             inner_evals = jnp.asarray(1, jnp.int32)
 
-        # 2. Sample the chord from origin (t=0) to oracle point (t=1),
-        #    discarding all gradient/curvature information. Interior samples
-        #    at t = k / num_samples for k = 1..num_samples.
         n = num_samples
         alphas = (jnp.arange(1, n + 1, dtype=dtype)) / jnp.asarray(n, dtype=dtype)
 
@@ -131,7 +126,6 @@ def linear_wrap(
 
         s_alpha, s_val, s_params, s_grad = jax.vmap(sample)(alphas)
 
-        # 3. Pick the best of {inner accepted point, linear samples}.
         best_sample_idx = jnp.argmin(s_val)
         best_sample_val = s_val[best_sample_idx]
         best_sample_alpha = s_alpha[best_sample_idx]

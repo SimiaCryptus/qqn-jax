@@ -49,9 +49,7 @@ def AdamOracle(
         )
 
     def direction(params, grad, state):
-        # Fold the *current* gradient into the moment estimates to form the
-        # endpoint, but do NOT persist here (the solver discards the returned
-        # oracle state; ``update`` commits the accepted moments).
+
         t = state.step + 1
         m = jax.tree_util.tree_map(
             lambda mi, g: beta1 * mi + (1.0 - beta1) * g, state.m, grad
@@ -69,15 +67,7 @@ def AdamOracle(
         return d, state
 
     def update(state, info):
-        # Commit the accepted gradient into the running moment estimates. This
-        # is the only state the solver persists across iterations.
-        # When line-search probes are populated, fold *every* gradient
-        # evaluated along the path into the moment estimates (oldest-first,
-        # ordered by increasing α), finishing with the accepted gradient as
-        # the newest sample. Each valid probe supplies an additional gradient
-        # observation for the first/second-moment averages, so the adaptive
-        # scaling reflects the whole probed ray rather than a single point.
-        # Absent probes we fall back to the single-gradient update.
+
         ordered = _ordered_probe_secants(info)
 
         def fold(m, v, g):
@@ -95,14 +85,13 @@ def AdamOracle(
             m, v = carry
             g, valid = elem
             m_new, v_new = fold(m, v, g)
-            # Skip empty probe slots: retain the moments unchanged.
+
             m = jnp.where(valid, m_new, m)
             v = jnp.where(valid, v_new, v)
             return (m, v), None
 
         (m, v), _ = jax.lax.scan(body, (state.m, state.v), (grad_seq, valid_seq))
-        # Advance the step counter once per accepted step (bias correction is
-        # keyed to accepted iterations, not probe count).
+
         return AdamState(m=m, v=v, step=state.step + 1)
 
     return Oracle(init=init, direction=direction, update=update)

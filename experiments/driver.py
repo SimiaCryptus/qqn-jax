@@ -72,7 +72,6 @@ def enrich(result, model, data, config):
     else:
         result.traj_auc = float(log_hist[-1])
 
-    # Per-target iterations (target-sensitivity profile).
     target_iters = {}
     for tgt in config.target_profile:
         hit_it = None
@@ -113,7 +112,6 @@ def run_experiment(config, *, enabled=None, do_plots=True):
         f"gtol={stop['gtol']:.1e}  time_budget={stop['time_budget']:.1f}s\n"
     )
 
-    # --- Data (same loss/data/regularization for every runner) ---
     xtr, ytr, xte, yte = load_image_dataset(
         config.dataset,
         config.n_train,
@@ -131,7 +129,6 @@ def run_experiment(config, *, enabled=None, do_plots=True):
     model = build_model(config, dim)
     loss_fn = model.make_loss(X_train, y_train, l2=config.l2)
 
-    # --- Identical init (fairness invariant #1) ---
     params0 = model.init_params(jax.random.PRNGKey(config.seed))
     print(
         f"  l2={config.l2:.1e}  sgd_lr={config.sgd_lr}  "
@@ -142,7 +139,6 @@ def run_experiment(config, *, enabled=None, do_plots=True):
     )
     print(f"  model parameters: {int(params0.shape[0])}\n")
 
-    # --- Build runners from the profile registry ---
     ctx = _Ctx()
     ctx.loss_fn = loss_fn
     ctx.params0 = params0
@@ -153,21 +149,18 @@ def run_experiment(config, *, enabled=None, do_plots=True):
     ctx.run_qqn = _runners.run_qqn
     ctx.run_optax = _runners.run_optax
     ctx.run_optax_lbfgs = _runners.run_optax_lbfgs
-    # Per-layer partitioning needs the flat block sizes of each weight/bias
-    # segment. Prefer an explicit model API; fall back to None so only the
-    # "Part" profiles (which pop the sentinel) will complain.
+
     ctx.partition_sizes = getattr(model, "partition_sizes", None)
     if callable(ctx.partition_sizes):
         ctx.partition_sizes = ctx.partition_sizes()
     runners, qqn_kwarg_map = _profiles.build_runners(ctx, enabled=enabled)
 
-    # --- Run each variant under a profiling span (invariant #5) ---
     results = {}
     for name, runner in runners.items():
         with profile_region(name):
             result = runner()
         enrich(result, model, data, config)
-        # Display-only evals/iter: prefer measured, else heuristic fallback.
+
         if result.evals_to_target is not None and result.iters_to_target:
             result.evals_per_iter = result.evals_to_target / result.iters_to_target
         else:

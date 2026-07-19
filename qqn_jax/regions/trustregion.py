@@ -54,10 +54,7 @@ def TrustRegion(
         step = _tree_sub(info.new_params, info.params)
         n = tree_l2_norm(step)
         at_boundary = n >= state.radius - 1e-6
-        # Only contract on a genuinely poor agreement, and contract gently.
-        # The wide central band [eta_lo, eta_hi] is the *stable attractor*:
-        # the radius is held constant there, immune to the chord/arc-length
-        # disagreement that drives the naive rule to collapse.
+
         new_radius = jnp.where(
             rho < eta_lo,
             shrink * state.radius,
@@ -67,14 +64,7 @@ def TrustRegion(
                 state.radius,
             ),
         )
-        # Chord/arc-length safeguard: with the exact along-path predicted
-        # reduction now supplied by the solver, ρ is honest — but the radius
-        # constrains the *chord* ‖x_new − x‖ while pred integrates *arc*
-        # length. On a curved step a perfectly good move can momentarily read
-        # ρ < eta_lo and trigger a shrink. To stop the documented collapse we
-        # never let the radius fall below the realized step that just SUCCEEDED
-        # (actual_reduction > 0): the geometry has demonstrably permitted a
-        # step of length n, so the region must remain at least that large.
+
         made_progress = ared > 0.0
         floor = jnp.where(made_progress, n, eps)
         new_radius = jnp.maximum(new_radius, floor)

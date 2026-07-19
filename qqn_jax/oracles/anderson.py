@@ -52,39 +52,29 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         )
 
     def direction(params, grad, state):
-        # Build first-difference matrices from the window (newest-first).
-        # ΔG[:, k] = g_k − g_{k+1}, ΔX[:, k] = x_k − x_{k+1}. Unfilled
-        # slots are zero and contribute nothing to the normal equations.
+
         g_hist = state.g_history
         x_hist = state.x_history
-        # Differences anchored on the present iterate, computed without the
-        # extra (window+1, n) concat allocations: the first column is
-        # (current - newest_stored), the rest are stored[k] - stored[k+1].
-        # dG[:, 0] = grad - g_hist[0]; dG[:, k>=1] = g_hist[k-1] - g_hist[k].
+
         dG_first = (grad - g_hist[0])[:, None]
         dX_first = (params - x_hist[0])[:, None]
-        dG_rest = (g_hist[:-1] - g_hist[1:]).T  # (n, window-1)
+        dG_rest = (g_hist[:-1] - g_hist[1:]).T
         dX_rest = (x_hist[:-1] - x_hist[1:]).T
-        dG = jnp.concatenate([dG_first, dG_rest], axis=1)  # (n, window)
+        dG = jnp.concatenate([dG_first, dG_rest], axis=1)
         dX = jnp.concatenate([dX_first, dX_rest], axis=1)
 
-        # Solve (dGᵀ dG + reg·I) θ = dGᵀ ∇f  — an (m × m) system.
         m = dG.shape[1]
         gram = dG.T @ dG
-        # Scale-aware Tikhonov: anchor the regularizer to the Gram trace so
-        # conditioning is invariant to the magnitude of the residual window.
+
         trace = jnp.trace(gram)
         scale = jnp.where(trace > 0.0, trace / m, 1.0)
         eye_m = jnp.eye(m, dtype=grad.dtype)
         A = gram + reg * scale * eye_m
         b = dG.T @ grad
-        # Mask columns with no stored history so empty windows are inert.
+
         active = jnp.arange(m) < state.step_count
         b = jnp.where(active, b, 0.0)
-        # Mask inactive rows/cols to the identity and add an absolute diagonal
-        # ridge in one fused step: a degenerate window can otherwise leave A
-        # near-singular, making solve() emit NaN that backprops through the
-        # downstream safeguard. The ridge guarantees SPD-ness.
+
         active_mask = active[:, None] & active[None, :]
         A = jnp.where(active_mask, A, eye_m) + (
             jnp.asarray(1e-12, dtype=grad.dtype) * eye_m
@@ -92,22 +82,15 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         theta = jnp.linalg.solve(A, b)
         theta = jnp.where(active, theta, 0.0)
 
-        # Accelerated residual and the corresponding iterate correction.
         residual = grad - dG @ theta
         d = -beta * residual - dX @ theta
-        # Safeguard: fall back to steepest descent if the solve degenerates.
+
         ok = jnp.all(jnp.isfinite(d)) & (state.step_count > 0)
         d = jnp.where(ok, d, -grad)
         return d, state
 
     def update(state, info):
-        # Roll the windows, inserting the freshly-accepted (x, g).
-        # When line-search probes are populated, roll each valid probe
-        # (oldest-first) into the windows before the accepted point. Every
-        # probed (x, g) enriches the first-difference matrices ΔG/ΔX with an
-        # extra residual observation, deepening the least-squares window
-        # without extra accepted iterations. Absent probes we roll only the
-        # accepted point.
+
         ordered = _ordered_probe_secants(info)
         if ordered is None:
             new_x = (

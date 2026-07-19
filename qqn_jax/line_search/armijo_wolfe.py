@@ -10,8 +10,6 @@ from qqn_jax.line_search.util import (
     _metropolis_accept,
 )
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.paths import QUADRATIC_PATH
-from qqn_jax.paths.base import PathStrategy
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 
@@ -57,7 +55,7 @@ def armijo_wolfe_search(
     """
     region = resolve_region(region)
     project = _make_projected_point(region, region_state, params)
-    dg = tree_vdot(grad, direction)  # φ'(0)
+    dg = tree_vdot(grad, direction)
     max_alpha = jnp.asarray(max_step, dtype=value.dtype)
     zero = jnp.asarray(0.0, dtype=value.dtype)
 
@@ -77,22 +75,12 @@ def armijo_wolfe_search(
         curv = jnp.abs(slope) <= c2 * abs_dg
         return jnp.logical_and(armijo, curv)
 
-    # --- Phase 1: bracket an interval [lo, hi] containing a Wolfe point. --
-    # We track a "previous" trial (alpha_prev, phi_prev, slope_prev) and a
-    # current trial; the classic conditions decide when a bracket is found.
     a0 = jnp.asarray(init_step, dtype=value.dtype)
     p0, v0, g0, s0 = eval_at(a0)
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, p0, g0, v0, a0, eff_probes
     )
 
-    # Bracket carry:
-    #  alpha_prev, phi_prev, slope_prev  : previous trial
-    #  alpha_cur,  phi_cur,  slope_cur   : current trial
-    #  found      : a Wolfe point already satisfied at the current trial
-    #  lo/hi + associated phi/slope/params/grad : the bracket, once set
-    #  bracketed  : whether a bracket was produced
-    #  best_*     : lowest-value probe seen (fallback return)
     def bracket_cond(carry):
         (
             a_prev,
@@ -165,25 +153,23 @@ def armijo_wolfe_search(
             pval,
             pa,
         ) = carry
-        # Track best-value point for graceful fallback.
+
         improved = phi_cur < best_v
         best_a = jnp.where(improved, a_cur, best_a)
         best_v = jnp.where(improved, phi_cur, best_v)
         best_p = jnp.where(improved, p_cur, best_p)
         best_g = jnp.where(improved, g_cur, best_g)
-        # Condition A: Armijo violated, or (i>0 and phi_cur >= phi_prev)
-        #  => bracket = [prev, cur]
+
         armijo_cur = phi_cur <= value + c1 * a_cur * dg
         cond_a = jnp.logical_or(
             jnp.logical_not(armijo_cur),
             jnp.logical_and(i > 0, phi_cur >= phi_prev),
         )
-        # Condition B: Wolfe curvature already satisfied => done (found).
+
         cond_found = jnp.abs(s_cur) <= c2 * abs_dg
-        # Condition C: slope non-negative => bracket = [cur, prev]
+
         cond_c = s_cur >= 0.0
-        # Decide the bracket (only relevant when we stop this iteration).
-        # cond_a -> [prev, cur]; cond_c -> [cur, prev].
+
         use_a = cond_a
         use_c = jnp.logical_and(
             jnp.logical_not(cond_a),
@@ -191,14 +177,11 @@ def armijo_wolfe_search(
         )
         new_bracketed = jnp.logical_or(use_a, use_c)
         new_found = jnp.logical_and(jnp.logical_not(cond_a), cond_found)
-        # [prev, cur] bracket
+
         lo_a, hi_a = a_prev, a_cur
         phi_lo_a, phi_hi_a = phi_prev, phi_cur
         s_lo_a, s_hi_a = s_prev, s_cur
-        # For prev endpoint we do not retain params/grad; zoom re-evaluates
-        # midpoints, so endpoint params/grad are only used as fallback. Reuse
-        # current point as a safe placeholder.
-        # [cur, prev] bracket
+
         lo_c, hi_c = a_cur, a_prev
         phi_lo_c, phi_hi_c = phi_cur, phi_prev
         s_lo_c, s_hi_c = s_cur, s_prev
@@ -208,21 +191,21 @@ def armijo_wolfe_search(
         new_phi_hi = jnp.where(use_a, phi_hi_a, jnp.where(use_c, phi_hi_c, phi_hi))
         new_s_lo = jnp.where(use_a, s_lo_a, jnp.where(use_c, s_lo_c, s_lo))
         new_s_hi = jnp.where(use_a, s_hi_a, jnp.where(use_c, s_hi_c, s_hi))
-        # Grow the current step for the next iteration (only used if not stopped).
+
         next_alpha = jnp.minimum(a_cur * 2.0, max_alpha)
         p_n, v_n, g_n, s_n = eval_at(next_alpha)
         pp, pg, pv, pval, pa = _record_probe(
             pp, pg, pv, pval, pa, i + 1, p_n, g_n, v_n, next_alpha, eff_probes
         )
         stop_now = jnp.logical_or(new_found, new_bracketed)
-        # If we stop, freeze the current trial as the "best found" candidate.
+
         best_a = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), a_cur, best_a)
         best_v = jnp.where(
             jnp.logical_and(new_found, phi_cur < best_v), phi_cur, best_v
         )
         best_p = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), p_cur, best_p)
         best_g = jnp.where(jnp.logical_and(new_found, phi_cur < best_v), g_cur, best_g)
-        # Advance the trial window when not stopping.
+
         out_a_prev = jnp.where(stop_now, a_prev, a_cur)
         out_phi_prev = jnp.where(stop_now, phi_prev, phi_cur)
         out_s_prev = jnp.where(stop_now, s_prev, s_cur)
@@ -334,13 +317,12 @@ def armijo_wolfe_search(
             pa,
         ),
     )
-    # If the current trial already satisfied Wolfe during bracketing, adopt it.
+
     found_a = a_cur
     found_v = phi_cur
     found_p = p_cur
     found_g = g_cur
 
-    # --- Phase 2: zoom within [lo, hi] via bisection. --------------------
     def zoom_cond(carry):
         (
             lo,
@@ -365,7 +347,7 @@ def armijo_wolfe_search(
             pa,
         ) = carry
         keep = jnp.logical_and(jnp.logical_not(z_found), i < max_iter)
-        # Only zoom if we actually bracketed and haven't already found a point.
+
         return jnp.logical_and(keep, bracketed)
 
     def zoom_body(carry):
@@ -403,12 +385,11 @@ def armijo_wolfe_search(
         best_g = jnp.where(improved, g, best_g)
         armijo = v <= value + c1 * mid * dg
         higher = v >= phi_lo
-        # If Armijo fails or value not below lo endpoint, shrink from the right.
+
         shrink_hi = jnp.logical_or(jnp.logical_not(armijo), higher)
         curv_ok = jnp.abs(s) <= c2 * abs_dg
         this_found = jnp.logical_and(armijo, curv_ok)
-        # Standard zoom update of the bracket.
-        # If not shrinking hi, mid becomes new lo; if slope*(hi-lo) >= 0 flip hi->lo.
+
         flip = jnp.logical_and(jnp.logical_not(shrink_hi), s * (hi - lo) >= 0.0)
         new_hi = jnp.where(shrink_hi, mid, jnp.where(flip, lo, hi))
         new_lo = jnp.where(shrink_hi, lo, mid)
@@ -488,18 +469,14 @@ def armijo_wolfe_search(
             pa,
         ),
     )
-    # Resolve the returned point:
-    #  1. a Wolfe point found during bracketing, else
-    #  2. a Wolfe point found during zoom, else
-    #  3. the best-value probe seen (graceful fallback).
+
     use_found = found
     use_zoom = jnp.logical_and(jnp.logical_not(found), zoom_found)
     out_a = jnp.where(use_found, found_a, jnp.where(use_zoom, z_a, best_a))
     out_v = jnp.where(use_found, found_v, jnp.where(use_zoom, z_v, best_v))
     out_p = jnp.where(use_found, found_p, jnp.where(use_zoom, z_p, best_p))
     out_g = jnp.where(use_found, found_g, jnp.where(use_zoom, z_g, best_g))
-    # Temperature meta-rule: if no Wolfe point was found, the best-value
-    # fallback may still be accepted via a Metropolis uphill move.
+
     stochastic, _key = _metropolis_accept(
         out_v - value, temperature, jax.random.PRNGKey(seed), value.dtype
     )

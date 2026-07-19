@@ -16,7 +16,6 @@ def rosenbrock(x):
 def main():
     x0 = jnp.array([-1.2, 1.0])
 
-    # 1. Basic usage.
     solver = QQN(rosenbrock, maxiter=500, tol=1e-6)
     params, state = solver.run(x0)
     print("=== Basic ===")
@@ -25,13 +24,11 @@ def main():
     print(f"  error:    {float(state.error):.3e}")
     print(f"  iters:    {int(state.iter)}")
 
-    # 2. JIT-compiled.
     run_jit = jax.jit(solver.run)
     params_j, state_j = run_jit(x0)
     print("\n=== JIT ===")
     print(f"  solution: {params_j}")
 
-    # 3. Batched over multiple starting points.
     x0_batch = jnp.array([[-1.2, 1.0], [2.0, 2.0], [-0.5, 0.5]])
     batched = jax.vmap(solver.run)
     params_b, states_b = batched(x0_batch)

@@ -25,7 +25,6 @@ def resolve_region(region: Optional[Region]) -> Region:
     return IdentityRegion() if region is None else region
 
 
-# Backwards-compat alias used in docstrings/specs.
 RegionState = Any
 
 

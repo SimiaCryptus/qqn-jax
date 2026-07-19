@@ -6,7 +6,7 @@ from qqn_jax.line_search.hager_zhang import hager_zhang_search
 from qqn_jax.line_search.null_search import null_search
 from qqn_jax.line_search.strong_wolfe import strong_wolfe_search
 
-# Registry mapping line-search names to their implementations.
+
 LINE_SEARCHES = {
     "strong_wolfe": strong_wolfe_search,
     "backtracking": backtracking_search,

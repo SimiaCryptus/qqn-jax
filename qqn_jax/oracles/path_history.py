@@ -41,25 +41,18 @@ def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Orac
         )
 
     def direction(params, grad, state):
-        # Reconstruct the momentum from the stored path history: weight each
-        # realized delta by β^k (newest first). Unfilled slots are zero and
-        # contribute nothing. Do NOT mutate state here.
+
         m = state.delta_history.shape[0]
-        weights = beta ** jnp.arange(m, dtype=grad.dtype)  # (m,)
-        # Mask slots beyond the currently-filled history.
+        weights = beta ** jnp.arange(m, dtype=grad.dtype)
+
         active = jnp.arange(m) < state.step_count
         weights = jnp.where(active, weights, 0.0)
-        v = jnp.tensordot(weights, state.delta_history, axes=(0, 0))  # (n,)
+        v = jnp.tensordot(weights, state.delta_history, axes=(0, 0))
         d = -grad + v
         return d, state
 
     def update(state, info):
-        # Push the freshly-realized delta into the front of the circular
-        # buffer (most-recent-first), dropping the oldest.
-        # When line-search probes are populated, push each incremental probe
-        # delta (oldest-first) into the buffer so the reconstructed momentum
-        # weights the genuine intermediate path geometry, finishing with the
-        # accepted point. Absent probes we push the single accepted delta.
+
         ordered = _ordered_probe_secants(info)
         if ordered is None:
             delta = info.new_params - info.params
@@ -69,7 +62,7 @@ def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Orac
 
         params_seq, _, valid_seq = ordered
         anchored = jnp.concatenate([info.params[None, :], params_seq], axis=0)
-        deltas = anchored[1:] - anchored[:-1]  # (k+1, n) incremental deltas
+        deltas = anchored[1:] - anchored[:-1]
 
         def body(carry, elem):
             hist, count = carry

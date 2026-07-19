@@ -21,11 +21,9 @@ def test_quadratic_path_endpoints():
     grad_dir = jnp.array([1.0, 2.0, 3.0])
     qn_dir = jnp.array([-1.0, 0.0, 1.0])
 
-    # t = 0 -> zero (both terms vanish).
     d0 = quadratic_path(0.0, grad_dir, qn_dir)
     np.testing.assert_allclose(d0, jnp.zeros(3), atol=1e-7)
 
-    # t = 1 -> pure L-BFGS direction.
     d1 = quadratic_path(1.0, grad_dir, qn_dir)
     np.testing.assert_allclose(d1, qn_dir, atol=1e-7)
 
@@ -33,7 +31,7 @@ def test_quadratic_path_endpoints():
 def test_quadratic_path_derivative_at_zero():
     grad_dir = jnp.array([1.0, 2.0, 3.0])
     qn_dir = jnp.array([-1.0, 0.0, 1.0])
-    # d'(0) = (-∇f), i.e. grad_dir.
+
     dprime = quadratic_path_derivative(0.0, grad_dir, qn_dir)
     np.testing.assert_allclose(dprime, grad_dir, atol=1e-7)
 
@@ -47,7 +45,7 @@ def test_tree_vdot_and_norm():
 def test_quadratic_path_midpoint():
     grad_dir = jnp.array([1.0, 0.0])
     qn_dir = jnp.array([0.0, 1.0])
-    # d(0.5) = 0.25*grad_dir + 0.25*qn_dir.
+
     d = quadratic_path(0.5, grad_dir, qn_dir)
     np.testing.assert_allclose(d, jnp.array([0.25, 0.25]), atol=1e-7)
 
@@ -55,7 +53,7 @@ def test_quadratic_path_midpoint():
 def test_quadratic_path_derivative_at_one():
     grad_dir = jnp.array([1.0, 2.0, 3.0])
     qn_dir = jnp.array([-1.0, 0.0, 1.0])
-    # d'(1) = (1-2)*grad_dir + 2*qn_dir = -grad_dir + 2*qn_dir.
+
     dprime = quadratic_path_derivative(1.0, grad_dir, qn_dir)
     np.testing.assert_allclose(dprime, -grad_dir + 2.0 * qn_dir, atol=1e-7)
 
@@ -76,7 +74,7 @@ def test_tree_scale_and_negative():
 def test_tree_ops_on_pytrees():
     a = {"w": jnp.array([1.0, 2.0]), "b": jnp.array([3.0])}
     b = {"w": jnp.array([1.0, 1.0]), "b": jnp.array([1.0])}
-    # vdot over a pytree sums the leaf vdots.
+
     assert float(tree_vdot(a, b)) == float(1 + 2 + 3)
     out = tree_add_scaled(a, 1.0, b)
     np.testing.assert_allclose(out["w"], jnp.array([2.0, 3.0]))
@@ -84,7 +82,7 @@ def test_tree_ops_on_pytrees():
 
 
 def test_quadratic_path_equals_derivative_integral_endpoints():
-    # d(t) must be the integral of d'(t): check via finite differences.
+
     grad_dir = jnp.array([1.0, -2.0, 0.5])
     qn_dir = jnp.array([-0.5, 1.0, 2.0])
     eps = 1e-4
@@ -98,7 +96,7 @@ def test_quadratic_path_equals_derivative_integral_endpoints():
 
 def test_tree_l2_norm_matches_flat_norm():
     tree = {"a": jnp.array([3.0, 4.0]), "b": jnp.array([12.0])}
-    # sqrt(9 + 16 + 144) = sqrt(169) = 13.
+
     np.testing.assert_allclose(float(tree_l2_norm(tree)), 13.0, atol=1e-6)
 
 

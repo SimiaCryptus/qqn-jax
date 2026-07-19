@@ -46,26 +46,21 @@ def ShampooOracle(
         )
 
     def direction(params, grad, state):
-        g = grad.reshape(-1, 1)  # (n, 1)
+        g = grad.reshape(-1, 1)
 
         do_refresh = (state.step % update_freq) == 0
 
-        # The (n,n) outer product ``g gᵀ`` is O(n²) every step; only the L
-        # accumulator is rank-meaningful here (R is 1×1). Accumulate R cheaply
-        # always, but only pay for the dense L update + eigh on a refresh.
-        # ``grad @ grad`` is a single O(n) dot; keep R as a (1,1) matrix so the
-        # shape is stable for ``_matrix_inverse_pth_root`` on refresh.
         R_new = state.R + jnp.vdot(grad, grad).reshape(1, 1)
 
         def refresh(_):
             L_new = state.L + g @ g.T
             Lr = _matrix_inverse_pth_root(L_new, 4.0, epsilon)
             Rr = _matrix_inverse_pth_root(R_new, 4.0, epsilon)
-            precond = (Lr @ g) @ Rr  # (n, 1)
+            precond = (Lr @ g) @ Rr
             return precond.reshape(-1), L_new
 
         def keep(_):
-            # Fall back to scaled gradient when not refreshing roots.
+
             return grad, state.L
 
         precond, L_new = jax.lax.cond(do_refresh, refresh, keep, operand=None)

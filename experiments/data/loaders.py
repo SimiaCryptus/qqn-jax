@@ -49,7 +49,7 @@ def load_image_dataset(
         (X_train, y_train, X_test, y_test) numpy arrays; images flattened to
         (N, 784) float32 in [0, 1] and int32 labels.
     """
-    # --- Attempt 1: tensorflow / keras ---
+
     try:
         if dataset == "fashion_mnist":
             from tensorflow.keras.datasets import fashion_mnist as ds  # type: ignore
@@ -74,7 +74,6 @@ def load_image_dataset(
     except Exception:
         pass
 
-    # --- Attempt 2: torchvision ---
     try:
         from torchvision import datasets  # type: ignore
 
@@ -106,7 +105,6 @@ def load_image_dataset(
     except Exception:
         pass
 
-    # --- Fallback: synthetic "MNIST-like" Gaussian blobs ---
     print(_INSTALL_HINT)
     print(f"[data] Real {dataset} unavailable; using synthetic Gaussian blobs.")
     return synthetic(n_train, n_test, n_classes, dim=synth_dim, seed=seed)

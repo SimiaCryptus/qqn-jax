@@ -31,7 +31,7 @@ def _jsonify(obj):
         return [_jsonify(v) for v in obj]
     if isinstance(obj, dict):
         return {str(_jsonify(k)): _jsonify(v) for k, v in obj.items()}
-    # Fall back to a string representation for anything exotic.
+
     return str(obj)
 
 
@@ -41,15 +41,14 @@ def _config_to_dict(config):
         raw = dataclasses.asdict(config)
     except Exception:
         raw = {k: getattr(config, k) for k in vars(config)}
-    # ``activation_fn`` is a live callable (and ``activation_name`` may be a
-    # list of names) — keep the names, drop the function objects.
+
     raw.pop("activation_fn", None)
     return _jsonify(raw)
 
 
 def _result_to_dict(name, r):
     """Serialize one RunResult (measured + derived) to a plain dict."""
-    # ``milestone_hits`` maps a float milestone -> tuple|None; stringify keys.
+
     milestone_hits = {
         f"{m:.6e}": (None if hit is None else list(hit))
         for m, hit in (r.milestone_hits or {}).items()

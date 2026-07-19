@@ -17,7 +17,7 @@ def plot_convergence(results: List[Dict[str, Any]], fname: str = "convergence.pn
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-    except Exception as exc:  # pragma: no cover - environment dependent
+    except Exception as exc:
         print(f"[plot_convergence] matplotlib unavailable ({exc!r}); skipping plot.")
         return
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -48,7 +48,7 @@ def plot_pareto(results: List[Dict[str, Any]], fname: str = "pareto.png"):
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-    except Exception as exc:  # pragma: no cover - environment dependent
+    except Exception as exc:
         print(f"[plot_pareto] matplotlib unavailable ({exc!r}); skipping plot.")
         return
     if not results:
@@ -116,7 +116,7 @@ def plot_metrics_bar(results: List[Dict[str, Any]], fname: str = "metrics_bar.pn
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import numpy as _np
-    except Exception as exc:  # pragma: no cover - environment dependent
+    except Exception as exc:
         print(f"[plot_metrics_bar] matplotlib unavailable ({exc!r}); skipping plot.")
         return
     if not results:

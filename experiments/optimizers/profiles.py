@@ -40,45 +40,15 @@ from qqn_jax.oracles import AnchoredMultiSecantOracle
 ENABLED = [
     "QQN",
     "Adam",
-    # "L-BFGS",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Axis maps.
-#
-# Each function below returns a ``{token: kwargs}`` map for one orthogonal
-# QQN axis. Comment out an entry to remove it from the cross product (and
-# thus from every profile name that would have included its token).
-# ---------------------------------------------------------------------------
 
 
 def _oracle_axis():
     """Oracle axis: token -> ``run_qqn`` kwargs selecting the oracle."""
     return {
-        # "": {},
-        # "Mom": {"oracle": MomentumOracle(beta=0.9)},
-        # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
         "Adam": {"oracle": AdamOracle()},
-        # "Sec": {"oracle": SecantOracle()},
-        # "And": {"oracle": AndersonOracle(window=5)},
         "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
-        "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
-        # "L20": {"oracle": LBFGSOracle(history_size=20)},
-        # "L50": {"oracle": LBFGSOracle(history_size=50)},
-        # "L80": {"oracle": LBFGSOracle(history_size=80)},
-        # "L120": {"oracle": LBFGSOracle(history_size=120)},
-        # "L160": {"oracle": LBFGSOracle(history_size=160)},
-        # "L80And": {
-        #     "oracle": Fallback(
-        #         [LBFGSOracle(history_size=80), AndersonOracle(window=5)]
-        #     )
-        # },
-        # "L50And": {
-        #     "oracle": Fallback(
-        #         [LBFGSOracle(history_size=50), AndersonOracle(window=5)]
-        #     )
-        # },
+        "L10": {"oracle": LBFGSOracle(history_size=10)},
     }
 
 
@@ -109,26 +79,10 @@ def _line_search_axis():
         along-path minimizer is worth the extra gradient evaluations.
     """
     return {
-        # "": {},
-        # --- Permissive family (the usual role) --------------------------
-        # "Null": {"line_search": "null"},
         "BT": {"line_search": "backtracking"},
         "AW": {"line_search": "armijo_wolfe"},
         "Fix": {"line_search": "fixed"},
         "SW": {"line_search": "strong_wolfe"},
-        # "ArmLoose": {
-        #     "line_search": "backtracking",
-        #     "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
-        # },
-        # "ArmTight": {
-        #     "line_search": "backtracking",
-        #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
-        # },
-        # "HZ": {"line_search": "hager_zhang"},
-        # "Bisect": {
-        #     "line_search": "bisection",
-        #     # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
-        # },
     }
 
 
@@ -136,9 +90,6 @@ def _region_axis():
     """Region axis: token -> ``run_qqn`` kwargs selecting the trust region."""
     return {
         "": {},
-        # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
-        # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
-        # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
     }
 
 
@@ -155,8 +106,6 @@ def _spline_axis():
     """
     return {
         "": {},
-        # "S": {"spline": True},
-        # "L": {"linear": True},
     }
 
 
@@ -164,7 +113,6 @@ def _probes_axis():
     """Probe-feeding axis: token -> ``run_qqn`` kwargs toggling probe replay."""
     return {
         "": {},
-        # "P": {"feed_probes_to_oracle": True},
     }
 
 
@@ -200,16 +148,9 @@ def _temperature_axis():
     """
     return {
         "": {},
-        # "T1": {"line_search_options": {"temperature": 1.0}},
-        # "T001": {"line_search_options": {"temperature": 0.01}},
-        # "T01": {"line_search_options": {"temperature": 0.1}},
-        # "T10": {"line_search_options": {"temperature": 10.0}},
-        # "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 
-# Fixed axis order: also the order in which non-empty tokens are hyphenated
-# together to build a profile's name.
 _AXES = [
     _oracle_axis,
     _line_search_axis,
@@ -220,9 +161,7 @@ _AXES = [
     _partition_axis,
 ]
 
-# Only these kwarg keys are surfaced in the eval-cost display map; the rest
-# (oracle/region instances, probe-feeding flags, ...) don't affect the
-# display estimate and aren't cheaply representable.
+
 _DISPLAY_KWARG_KEYS = ("line_search", "line_search_options", "spline")
 
 
@@ -237,10 +176,6 @@ def _qqn_registry():
         name = "-".join(["QQN", *tokens])
         kwargs = {}
         for _token, axis_kwargs in combo:
-            # Deep-merge ``line_search_options`` so orthogonal axes (e.g. a
-            # line-search variant that sets ``init_step``/``shrink`` and the
-            # temperature axis that sets ``temperature``) compose instead of
-            # one axis clobbering the other's options dict.
             for key, val in axis_kwargs.items():
                 if key == "line_search_options" and isinstance(val, dict):
                     merged = dict(kwargs.get("line_search_options", {}))
@@ -251,10 +186,7 @@ def _qqn_registry():
         display_kwargs = {k: v for k, v in kwargs.items() if k in _DISPLAY_KWARG_KEYS}
 
         def factory(ctx, _kwargs=kwargs, _display=display_kwargs):
-            # Resolve the runtime-only ``partition_sizes`` from ``ctx`` when the
-            # partition axis requested per-layer partitioning. The sentinel
-            # flag never reaches ``run_qqn`` — it is popped here and replaced
-            # with the concrete per-layer segment sizes carried by ``ctx``.
+
             run_kwargs = dict(_kwargs)
             if run_kwargs.pop("_per_layer", False):
                 partition_sizes = getattr(ctx, "partition_sizes", None)
@@ -346,9 +278,7 @@ def build_runners(ctx, enabled=None):
     names = enabled if enabled is not None else ENABLED
     runners = {}
     qqn_kwarg_map = {}
-    # Expand the bare "QQN" token into every generated cross-product name so
-    # that enabling "QQN" pulls in the full set of currently-enabled axis
-    # combinations, not just a single (non-existent) "QQN" profile.
+
     qqn_names = sorted(
         name for name in registry if name == "QQN" or name.startswith("QQN-")
     )
@@ -363,8 +293,7 @@ def build_runners(ctx, enabled=None):
             resolved.extend(qqn_names)
         else:
             resolved.append(name)
-    # Preserve order while removing duplicates (e.g. "QQN" plus an explicit
-    # cross-product name).
+
     seen = set()
     for name in resolved:
         if name in seen:

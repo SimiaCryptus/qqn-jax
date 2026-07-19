@@ -30,12 +30,8 @@ def resolve_oracle(oracle, history_size: int = 10, max_probe_replay: int = 2) ->
         if oracle == "ams_qn":
             return AnchoredMultiSecantOracle(window=history_size)
         if oracle == "anderson+secant":
-            # The variational ideal, safeguarded by a featherweight secant —
-            # a strictly-dominant pairing when the residual solve degenerates.
             return Fallback([AndersonOracle(window=5), SecantOracle()])
         if oracle == "lbfgs+secant":
-            # Your data's "best zero-storage safety net": deep curvature while
-            # healthy, finite curvature the instant the history collapses.
             return Fallback(
                 [
                     LBFGSOracle(

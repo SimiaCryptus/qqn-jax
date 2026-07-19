@@ -14,17 +14,15 @@ __all__ = ["RunResult"]
 
 @dataclass
 class RunResult:
-    # --- measured by the runner ---
     params: Any
     history: list
     times: list
     wall: float
     iters_to_target: Optional[int]
     time_to_target: Optional[float]
-    milestone_hits: dict  # {milestone: (iter, wall_time, evals) | None}
+    milestone_hits: dict
     evals_to_target: Optional[int]
 
-    # --- derived (filled by the driver.enrich) ---
     final_loss: Optional[float] = None
     best_loss: Optional[float] = None
     iters: Optional[int] = None

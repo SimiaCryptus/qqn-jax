@@ -58,8 +58,7 @@ def rolling_window(h, base_fn=_sin_diff, window=2):
     Returns:
         Array of the same shape as ``h`` (N evaluations -> N outputs).
     """
-    # Gather the ``window`` circularly-shifted views of the ring. Shift by
-    # -k along the last axis brings element h_{i+k} into position i.
+
     shifted = [jnp.roll(h, shift=-k, axis=-1) for k in range(window)]
     return base_fn(*shifted)
 
@@ -74,7 +73,6 @@ def make_rolling_window(base_fn=_sin_diff, window=2):
     return lambda h: rolling_window(h, base_fn=base_fn, window=window)
 
 
-# A ready-to-use default instance: the ``sin(x - y)`` 2-input ring activation.
 rolling_sin_diff = make_rolling_window(_sin_diff, window=2)
-# A ready-to-use 3-input instance: the ``atan2(a + b, b + c)`` ring activation.
+
 rolling_atan2_ramp = make_rolling_window(_atan2_ramp, window=3)

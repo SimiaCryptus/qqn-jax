@@ -57,7 +57,7 @@ def QuantizationRegion(
     """
     if step is None and bits is None:
         raise ValueError("QuantizationRegion requires either `bits` or `step`.")
-    # After the guard above, `bits` is non-None whenever `step` is None.
+
     _bits: int = 0 if bits is None else int(bits)
 
     def _delta(dtype):
@@ -72,26 +72,18 @@ def QuantizationRegion(
             delta = _delta(dt)
             lo_v = jnp.asarray(lo, dtype=dt)
             hi_v = jnp.asarray(hi, dtype=dt)
-            # Grid points sit at g_k = lo + k*delta. The rounding-delta penalty
-            # |x - round(x)| has its maxima at the midpoints g_k ± delta/2,
-            # which form the natural cell walls. The k-th cell is therefore
-            # [g_k - delta/2, g_k + delta/2], centered on the grid point g_k
-            # (the minimum-rounding-error attractor).
+
             x_clipped = jnp.clip(x, lo_v, hi_v)
-            # Nearest grid index to x: round() snaps x into its own cell.
+
             k = jnp.round((x_clipped - lo_v) / delta)
-            # Clamp k to the valid grid range.
+
             k_max = jnp.floor((hi_v - lo_v) / delta)
             k = jnp.clip(k, 0.0, k_max)
-            # Cell center: the grid point itself — the rounding-error minimum.
+
             center = lo_v + k * delta
             if lock:
-                # Collapse to the grid point (true quantization).
                 return center
-            # The explorable cell is the midpoint-walled box around the grid
-            # point, optionally narrowed by `window`. The walls are the local
-            # maxima of the rounding delta (the half-cell midpoints), clipped
-            # to the [lo, hi] range.
+
             half = jnp.asarray(window, dtype=dt) * delta * 0.5
             cell_lo = jnp.maximum(center - half, lo_v)
             cell_hi = jnp.minimum(center + half, hi_v)

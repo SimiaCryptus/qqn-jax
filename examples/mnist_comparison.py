@@ -39,11 +39,6 @@ from qqn_jax.regions import (
 )
 
 
-# --------------------------------------------------------------------------
-# Data loading
-# --------------------------------------------------------------------------
-
-
 def _load_mnist_numpy(n_train: int, n_test: int, n_classes: int):
     """Try to load a real MNIST subset; fall back to synthetic data.
 
@@ -51,9 +46,9 @@ def _load_mnist_numpy(n_train: int, n_test: int, n_classes: int):
         (X_train, y_train, X_test, y_test) as numpy arrays with images
         flattened to shape (N, 784) and float32 in [0, 1].
     """
-    # --- Attempt 1: tensorflow_datasets / keras ---
+
     try:
-        from tensorflow.keras.datasets import mnist  # type: ignore
+        from tensorflow.keras.datasets import mnist # type: ignore
 
         (xtr, ytr), (xte, yte) = mnist.load_data()
         xtr = xtr.reshape(xtr.shape[0], -1).astype(np.float32) / 255.0
@@ -62,9 +57,8 @@ def _load_mnist_numpy(n_train: int, n_test: int, n_classes: int):
     except Exception:
         pass
 
-    # --- Attempt 2: torchvision ---
     try:
-        from torchvision import datasets  # type: ignore
+        from torchvision import datasets
 
         train = datasets.MNIST(root="./_mnist_data", train=True, download=True)
         test = datasets.MNIST(root="./_mnist_data", train=False, download=True)
@@ -76,7 +70,6 @@ def _load_mnist_numpy(n_train: int, n_test: int, n_classes: int):
     except Exception:
         pass
 
-    # --- Fallback: synthetic "MNIST-like" Gaussian blobs ---
     print("[data] Real MNIST unavailable; using synthetic Gaussian blobs.")
     return _synthetic(n_train, n_test, n_classes, dim=784)
 
@@ -103,11 +96,6 @@ def _synthetic(n_train, n_test, n_classes, dim):
     xtr, ytr = make(n_train)
     xte, yte = make(n_test)
     return xtr, ytr, xte, yte
-
-
-# --------------------------------------------------------------------------
-# Model: softmax / multinomial logistic regression
-# --------------------------------------------------------------------------
 
 
 def init_params(dim: int, n_classes: int, key) -> jnp.ndarray:
@@ -143,11 +131,6 @@ def accuracy(params, X, y, dim, n_classes):
     logits = X @ w + b
     preds = jnp.argmax(logits, axis=-1)
     return jnp.mean((preds == y).astype(jnp.float32))
-
-
-# --------------------------------------------------------------------------
-# Optimizers
-# --------------------------------------------------------------------------
 
 
 def _grad_norm(loss_fn, params):
@@ -221,15 +204,14 @@ def _run_qqn_configured(
         spline=spline,
     )
 
-    # Run one update at a time to record the loss trajectory.
     state = solver.init_state(params0)
     params = params0
     history = [float(state.value)]
     times = [0.0]
-    # Record iteration / time at which the shared target was first hit.
+
     iters_to_target = None
     time_to_target = None
-    # Convergence-rate profile: first iteration/time per loss milestone.
+
     milestone_hits = {m: None for m in milestones}
     _update_milestones(milestones, milestone_hits, history[-1], 0, 0.0)
     t0 = time.perf_counter()
@@ -239,7 +221,7 @@ def _run_qqn_configured(
         history.append(float(state.value))
         now = time.perf_counter() - t0
         times.append(now)
-        # --- Shared termination criteria (uniform across all methods) ---
+
         gnorm = _grad_norm(loss_fn, params)
         _update_milestones(milestones, milestone_hits, history[-1], it + 1, now)
         if iters_to_target is None and _converged(history[-1], gnorm, f_target, gtol):
@@ -293,7 +275,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         history.append(float(value))
         now = time.perf_counter() - t0
         times.append(now)
-        # --- Shared termination criteria (uniform across all methods) ---
+
         _update_milestones(milestones, milestone_hits, history[-1], it + 1, now)
         if iters_to_target is None and _converged(
             history[-1], float(gnorm), f_target, gtol
@@ -354,7 +336,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
         history.append(float(value))
         now = time.perf_counter() - t0
         times.append(now)
-        # --- Shared termination criteria (uniform across all methods) ---
+
         _update_milestones(milestones, milestone_hits, history[-1], it + 1, now)
         if iters_to_target is None and _converged(
             history[-1], float(gnorm), f_target, gtol
@@ -376,41 +358,17 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     )
 
 
-# --------------------------------------------------------------------------
-# Experiment driver
-# --------------------------------------------------------------------------
-
-
 def main():
-    # Problem configuration
+
     n_classes = 10
     n_train = 5000
     n_test = 1000
     maxiter = 500
-    # --- Shared, fair termination bounds applied to EVERY optimizer ---
-    #   f_target:     stop once full-batch loss <= this value
-    #   gtol:         stop once ||grad|| <= this value (stationarity)
-    #   time_budget:  hard wall-clock cap (seconds) per optimizer
-    # These make the comparison apples-to-apples: every method now races to
-    # the same loss threshold under the same time limit and the same
-    # stationarity tolerance, rather than each using its own private rule.
+
     stop = {
-        # A reachable-but-demanding loss target so that the ``->target`` /
-        # ``t->tgt`` columns become *informative* (the previous 1.0e-1 was
-        # below every method's 50-iteration reach, leaving the columns empty).
-        # The deep-memory + trust-region combos converge to ~1.04e-1, so a
-        # slightly looser target lets the strongest variants actually "win"
-        # the race and surface their iteration/time-to-target advantage.
         "f_target": 1.1e-1,
         "gtol": 1.0e-4,
-        # Shampoo's dense n×n inverse-root refresh blew the previous 10s cap
-        # after 6 iters; a modestly larger budget plus a *blocked* Shampoo
-        # (below) keeps the comparison meaningful while still capping runaways.
         "time_budget": 15.0,
-        # Intermediate milestones for measuring *convergence rate* (not just
-        # the final target). Recording the iteration/time at which each method
-        # first crosses these loss thresholds gives a far more discriminating
-        # picture of early- vs late-phase convergence than a single target.
         "milestones": (5.0e-1, 2.0e-1, 1.5e-1, 1.2e-1),
     }
 
@@ -438,13 +396,10 @@ def main():
 
     loss_fn = make_loss(X_train, y_train, dim, n_classes)
 
-    # Shared initial parameters so every optimizer starts identically.
     params0 = init_params(dim, n_classes, jax.random.PRNGKey(42))
 
     runners = {
-        # --- Baseline QQN (L-BFGS oracle, Armijo line search) ---
         "QQN": lambda: run_qqn(loss_fn, params0, maxiter, stop=stop),
-        # --- QQN with a strong-Wolfe line search (tighter curvature) ---
         "QQN-SW": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -452,7 +407,6 @@ def main():
             line_search="strong_wolfe",
             stop=stop,
         ),
-        # --- QQN with backtracking line search (cheap, robust) ---
         "QQN-BT": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -460,7 +414,6 @@ def main():
             line_search="backtracking",
             stop=stop,
         ),
-        # --- QQN with a cubic Hermite spline line search ---
         "QQN-Spln": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -468,9 +421,6 @@ def main():
             spline=True,
             stop=stop,
         ),
-        # --- Best-of-breed (spline): cubic Hermite refinement on top of the
-        #     strongest oracle (L50). Probes whether reusing every probe as a
-        #     spline control point sharpens the deepest-memory trajectory. ---
         "QQN-L50Spln": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -479,9 +429,6 @@ def main():
             spline=True,
             stop=stop,
         ),
-        # --- Best-of-breed (spline): cubic Hermite refinement + adaptive
-        #     trust-region, stacking the spline's curve-reuse with the
-        #     convergence-stabilizing safeguard. ---
         "QQN-SplnTR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -490,7 +437,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Best-of-breed (spline): full stack — deep L-BFGS (L50) + cubic
         "QQN-L50SplnTR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -500,7 +446,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Best-of-breed (spline): deepest memory (L100) + spline. Extends
         "QQN-L100Spln": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -509,7 +454,6 @@ def main():
             spline=True,
             stop=stop,
         ),
-        # --- Best-of-breed (spline): spline refinement on top of the cheap
         "QQN-BTSpln": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -518,7 +462,6 @@ def main():
             spline=True,
             stop=stop,
         ),
-        # --- QQN with a momentum oracle instead of L-BFGS ---
         "QQN-Mom": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -526,10 +469,6 @@ def main():
             oracle=MomentumOracle(beta=0.9),
             stop=stop,
         ),
-        # --- A/B (oracle): matrix-free Barzilai-Borwein secant curvature.
-        #     Probes how much curvature lives in a SINGLE realized step:
-        #     O(n) memory, no Hessian, just the path's own secant. Expected
-        #     to trail L-BFGS but crush plain momentum at zero storage cost. ---
         "QQN-Sec": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -537,11 +476,6 @@ def main():
             oracle=SecantOracle(),
             stop=stop,
         ),
-        # --- A/B (oracle): Anderson acceleration — the variational ideal that
-        #     L-BFGS approximates. Solves a tiny (m×m) least-squares over recent
-        #     residual differences; no Hessian, O(m²n) per step. Probes whether
-        #     the optimal multi-step residual combination beats fixed-window
-        #     two-loop L-BFGS on this smooth, well-conditioned problem. ---
         "QQN-And": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -549,10 +483,6 @@ def main():
             oracle=AndersonOracle(window=5),
             stop=stop,
         ),
-        # --- Combinator: L-BFGS with an Anderson fallback. The Anderson
-        #     residual solve supplies a curvature-aware descent direction the
-        #     instant the L-BFGS history degenerates — strictly dominating the
-        #     momentum/secant fallbacks, which carry weaker curvature. ---
         "QQN-L50And": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -560,10 +490,6 @@ def main():
             oracle=Fallback([LBFGSOracle(history_size=50), AndersonOracle(window=5)]),
             stop=stop,
         ),
-        # --- Combinator: deep L-BFGS with a featherweight secant fallback.
-        #     The secant costs nothing while L-BFGS is healthy, but supplies a
-        #     finite, curvature-aware direction the instant the history
-        #     degenerates — a strictly-dominant safety net over raw momentum. ---
         "QQN-L50Sec": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -572,7 +498,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- A/B (oracle): lighter momentum damping (completes beta sweep) ---
         "QQN-Mom50": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -580,9 +505,6 @@ def main():
             oracle=MomentumOracle(beta=0.5),
             stop=stop,
         ),
-        # --- A/B (oracle): minimal momentum damping (beta=0.1) to find the
-        #     floor of the monotone beta sweep (0.99>0.9>0.5 in loss); probes
-        #     whether near-zero momentum collapses toward steepest-descent. ---
         "QQN-Mom10": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -590,9 +512,6 @@ def main():
             oracle=MomentumOracle(beta=0.1),
             stop=stop,
         ),
-        # --- A/B (oracle): near-zero momentum (beta=0.01) to pin the floor of
-        #     the monotone beta sweep and confirm the collapse toward pure
-        #     steepest-descent (extends Mom10<Mom50<Mom toward the limit). ---
         "QQN-Mom01": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -600,12 +519,6 @@ def main():
             oracle=MomentumOracle(beta=0.01),
             stop=stop,
         ),
-        # --- A/B (oracle): Shampoo structure-aware preconditioner. Probes
-        #     whether Kronecker-factored second-moment statistics beat the
-        #     momentum first-order accelerator on this smooth problem. We use
-        #     a *blocked* preconditioner (block_size=64) so the per-refresh
-        #     eigendecomposition is O(block³) instead of O(n³); the previous
-        #     dense n×n refresh exhausted the time budget after 6 iters. ---
         "QQN-Sh": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -613,7 +526,6 @@ def main():
             oracle=ShampooOracle(block_size=64, update_freq=25),
             stop=stop,
         ),
-        # --- A/B (oracle): lighter L-BFGS history (size 5) — cheap memory ---
         "QQN-L5": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -621,7 +533,6 @@ def main():
             oracle=LBFGSOracle(history_size=5),
             stop=stop,
         ),
-        # --- QQN with a deeper L-BFGS history (richer curvature memory) ---
         "QQN-L20": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -629,7 +540,6 @@ def main():
             oracle=LBFGSOracle(history_size=20),
             stop=stop,
         ),
-        # --- A/B (oracle): even deeper L-BFGS memory (size 50) ---
         "QQN-L50": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -637,9 +547,6 @@ def main():
             oracle=LBFGSOracle(history_size=50),
             stop=stop,
         ),
-        # --- A/B (oracle): very deep L-BFGS memory (size 100) — extends the
-        #     monotone history sweep (L5<L10<L20<L50) to probe diminishing
-        #     returns at the extreme end of curvature memory. ---
         "QQN-L100": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -647,7 +554,6 @@ def main():
             oracle=LBFGSOracle(history_size=100),
             stop=stop,
         ),
-        # --- QQN with a Fallback oracle: L-BFGS, else momentum ---
         "QQN-Fall": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -655,7 +561,6 @@ def main():
             oracle=Fallback([LBFGSOracle(history_size=10), MomentumOracle()]),
             stop=stop,
         ),
-        # --- QQN constrained to a box region (bounded weights) ---
         "QQN-Box": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -663,7 +568,6 @@ def main():
             region=BoxRegion(lo=-2.0, hi=2.0),
             stop=stop,
         ),
-        # --- QQN with an adaptive trust-region sphere ---
         "QQN-TR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -671,9 +575,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- A/B (region): very tight adaptive trust-region (radius=0.25),
-        #     extends the radius sweep (0.25 -> 1.0 -> 2.0) to probe
-        #     whether over-constraining the step harms convergence. ---
         "QQN-TR025": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -681,9 +582,6 @@ def main():
             region=TrustRegion(radius=0.25, adaptive=True),
             stop=stop,
         ),
-        # --- A/B (region): generous adaptive trust-region (radius=2.0) to
-        #     complete the radius sweep (0.25 -> 1.0 -> 2.0) and probe whether
-        #     a looser safeguard lets deep curvature steps run unimpeded. ---
         "QQN-TR2": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -691,7 +589,6 @@ def main():
             region=TrustRegion(radius=2.0, adaptive=True),
             stop=stop,
         ),
-        # --- A/B (region): fixed (non-adaptive) trust-region control ---
         "QQN-TRfix": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -699,7 +596,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=False),
             stop=stop,
         ),
-        # --- QQN with an orthant region (OWL-QN-style sparsity) ---
         "QQN-Orth": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -707,9 +603,6 @@ def main():
             region=OrthantRegion(),
             stop=stop,
         ),
-        # --- A/B (region): Sequential composition (box then trust-region).
-        #     Probes that the combinator composes projections in order with
-        #     negligible overhead and bounds weights while limiting step. ---
         "QQN-Seq": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -719,7 +612,6 @@ def main():
             ),
             stop=stop,
         ),
-        # --- Combined: strong-Wolfe search + adaptive trust-region ---
         "QQN-SW+TR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -728,9 +620,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Best-of-breed: deep L-BFGS (size 20) + Hager-Zhang line search.
-        #     Combines the fastest-converging oracle (L20: 53 iters) with the
-        #     efficient Wolfe line search to probe for a new pareto winner. ---
         "QQN-L20HZ": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -739,8 +628,6 @@ def main():
             oracle=LBFGSOracle(history_size=20),
             stop=stop,
         ),
-        # --- Best-of-breed: L50 oracle + adaptive trust-region. Tests whether
-        #     curvature-rich steps benefit from the trust-region safeguard. ---
         "QQN-L50TR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -749,13 +636,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Extraterrestrial: the *curvature-consistent* adaptive trust
-        #     region. The naive ρ<0.25 rule stalls at 6.272e-01 because it
-        #     compares chord-length (the clip) against arc-length (the pred
-        #     model) on a curved path. The gentle-shrink, wide-stable-band
-        #     variant holds the radius in [0.1, 0.75] and should *converge*
-        #     where the old adaptive region collapsed — proving the stall was
-        #     geometric, not fundamental. ---
         "QQN-L50TRcc": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -771,10 +651,6 @@ def main():
             ),
             stop=stop,
         ),
-        # --- Extraterrestrial: the self-scaling Anderson oracle. The β
-        #     coupling constant rescales the deep-residual descent, aiming to
-        #     convert QQN-And's leading AUC (−0.84) into a leading *iteration*
-        #     count without sacrificing trajectory depth. ---
         "QQN-And2": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -782,9 +658,6 @@ def main():
             oracle=AndersonOracle(window=5, beta=1.5),
             stop=stop,
         ),
-        # --- Best-of-breed: L100 oracle + adaptive trust-region. Extends the
-        #     winning L50TR combo (lowest-loss trajectory) to the deeper L100
-        #     oracle to push past the 1.024e-01 frontier with the safeguard. ---
         "QQN-L100TR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -793,9 +666,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Best-of-breed: L50 + generous trust-region (radius=2.0). Probes
-        #     whether loosening the radius lets the lowest-loss L50TR combo
-        #     push past its 1.044e-01 frontier by permitting longer steps. ---
         "QQN-L50TR2": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -804,10 +674,6 @@ def main():
             region=TrustRegion(radius=2.0, adaptive=True),
             stop=stop,
         ),
-        # --- Best-of-breed triple: L50 oracle + backtracking + trust-region.
-        #     Combines the strongest pareto components — deep curvature memory,
-        #     the cheapest robust search, and the convergence-stabilizing
-        #     trust-region — to probe the joint optimum on loss AND time. ---
         "QQN-L50BTTR": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -817,14 +683,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Performance: aggressive warm-started backtracking that probes
-        #     well beyond α=1 (init_step=4) with a *gentle* shrink (0.8) so the
-        #     deep-memory quasi-Newton step can stretch deep into the
-        #     superlinear regime. Paired with a *fixed* trust-region (the data
-        #     shows the adaptive radius over-shrinks and stalls under the honest
-        #     pred model), so the aggressive initial step is genuinely "free":
-        #     the fixed clip bounds overshoot without the destabilizing radius
-        #     feedback. This recovers the intended speed lever. ---
         "QQN-L50WS": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -835,11 +693,6 @@ def main():
             region=TrustRegion(radius=1.5, adaptive=False),
             stop=stop,
         ),
-        # --- Performance: pure-oracle-dominant t-grid. Concentrate ALL blend
-        #     samples warm-started beyond α=1 where the deep-memory experiments
-        #     show the winning blend lives. Pairs the winning L50 oracle with
-        #     warm-started backtracking + a *fixed* trust-region (adaptive
-        #     over-shrinks here). Probes the tight-endpoint regime safely. ---
         "QQN-L50Endpt": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -850,14 +703,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=False),
             stop=stop,
         ),
-        # --- Performance: L50 + backtracking + trust-region, but with the
-        #     line search *warm-started* at a larger initial step (init_step=2)
-        #     and a gentler shrink (0.7). Because the quadratic path's t=1
-        #     endpoint is already a full quasi-Newton step, allowing the search
-        #     to probe beyond α=1 lets deep-memory steps stretch into the
-        #     superlinear regime. Paired with a *fixed* trust-region so the
-        #     warm start is a clean speed lever (not contaminated by the
-        #     adaptive-radius stall). This is the intended fast stack. ---
         "QQN-L50WS+": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -868,14 +713,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=False),
             stop=stop,
         ),
-        # --- Performance: warm-started backtracking on the *Anderson-fallback*
-        #     oracle. Fuses the two strongest independent levers in the data:
-        #     deep L50 curvature (fastest converging oracle, 45 iters) WITH the
-        #     Anderson residual solve as a strictly-dominant safety net (lowest
-        #     loss of any oracle), warm-started beyond α=1 and clipped by a
-        #     *fixed* trust-region. Probes whether the Anderson backstop lets
-        #     the warm-started deep step push past the 45-iter frontier without
-        #     the adaptive-radius stall. ---
         "QQN-AndWS": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -888,13 +725,6 @@ def main():
             region=TrustRegion(radius=1.5, adaptive=False),
             stop=stop,
         ),
-        # --- Performance: spline refinement on the warm-started deep stack.
-        #     The plain L50Spln is the fewest-iteration converging variant (42)
-        #     but pays ~66 ms/it. Warm-starting the inner backtracking beyond
-        #     α=1 (so the spline's stationary-point probes anchor on a longer
-        #     bracket) + a *fixed* trust-region tests whether we can push below
-        #     42 iters while keeping the per-step cost bounded. This is the
-        #     intended iteration-frontier champion. ---
         "QQN-SplnWS": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -906,11 +736,6 @@ def main():
             region=TrustRegion(radius=1.5, adaptive=False),
             stop=stop,
         ),
-        # --- Performance (t-grid): concentrate the blend samples *near t=1*
-        #     A/B (region): deep L50 memory paired with a *fixed* trust-region
-        #     (radius=1.0). Directly contrasts the converging fixed radius
-        #     against the stalling adaptive radius (QQN-L50TR) at deep memory,
-        #     isolating the adaptivity variable at the strongest oracle. ---
         "QQN-L50TRfix": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -920,11 +745,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=False),
             stop=stop,
         ),
-        # --- Performance: the strongest stack — deep L100 memory + warm-started
-        #     backtracking + a *fixed* trust-region. Stacks every *robust* speed
-        #     lever (deepest curvature memory, aggressive warm-started step,
-        #     bounded overshoot) to probe the fewest-iterations frontier without
-        #     the adaptive-radius stall. This is the intended speed champion. ---
         "QQN-Fast": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -935,10 +755,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=False),
             stop=stop,
         ),
-        # --- Best-of-breed full stack: deep L-BFGS (L50) + backtracking +
-        #     spline refinement + adaptive trust-region + finer t-grid. Stacks
-        #     every pareto-winning component to probe the joint loss/time
-        #     optimum and the lowest loss reachable in the budget. ---
         "QQN-Best": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -949,14 +765,6 @@ def main():
             region=TrustRegion(radius=1.0, adaptive=True),
             stop=stop,
         ),
-        # --- Diversity-preserving champion: stack the strongest *independent*
-        #     performance levers — deep curvature memory (L50), the cheapest
-        #     robust search warm-started aggressively beyond α=1, and a generous
-        #     *fixed* trust-region to clip overshoot for free — WITHOUT the
-        #     expensive spline and WITHOUT the adaptive radius (both shown to be
-        #     net-negative or destabilizing for deep-memory backtracking here).
-        #     This is the intended best-on-both-axes (loss AND time) config:
-        #     it should reach the target in the fewest iterations at ~1s. ---
         "QQN-Champion": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -967,15 +775,6 @@ def main():
             region=TrustRegion(radius=1.5, adaptive=False),
             stop=stop,
         ),
-        # --- Apex champion: the data-driven optimum. The convergence-rate
-        #     profile shows L50Spln crosses every milestone fastest (7/20/27/36)
-        #     yet L50WS+ pays the cheapest per-step cost. This variant fuses the
-        #     deepest *robust* memory (L100) with a moderate warm start (so the
-        #     bracket extends without over-probing) AND the spline (to reuse
-        #     every probe as a control point), clipped by a generous *fixed*
-        #     trust-region. It targets the absolute fewest-iteration frontier
-        #     (<42) while remaining a distinct config from the warm-start and
-        #     pure-spline champions above. ---
         "QQN-Apex": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -987,7 +786,6 @@ def main():
             region=TrustRegion(radius=2.0, adaptive=False),
             stop=stop,
         ),
-        # --- Combined: deep L-BFGS oracle + box constraint ---
         "QQN-L20Box": lambda: _run_qqn_configured(
             loss_fn,
             params0,
@@ -1018,20 +816,14 @@ def main():
         ) = runner()
         train_acc = float(accuracy(params, X_train, y_train, dim, n_classes))
         test_acc = float(accuracy(params, X_test, y_test, dim, n_classes))
-        # Fraction of (near-)zero weights — illuminating for the orthant region.
+
         sparsity = float(jnp.mean((jnp.abs(params) < 1e-6).astype(jnp.float32)))
-        # Did this optimizer reach the shared loss/gradient target at all?
+
         reached = iters_to_target is not None
-        # Mean wall-clock cost per accepted iteration (excludes the initial
-        # value evaluation); a clean per-step cost metric for fair comparison.
+
         n_iters = max(len(history) - 1, 1)
         ms_per_iter = (wall / n_iters) * 1e3
-        # Trajectory AUC: a single scalar summarizing *both* early- and
-        # late-phase descent speed. We integrate log10(loss) over the
-        # (normalized) iteration axis via the trapezoid rule; lower AUC means
-        # the optimizer spent its whole trajectory at lower loss, which is far
-        # more discriminating than a single time-to-target (it rewards fast
-        # early descent AND deep late refinement simultaneously).
+
         log_hist = np.log10(np.maximum(np.asarray(history), 1e-12))
         if len(log_hist) > 1:
             x_axis = np.linspace(0.0, 1.0, len(log_hist))
@@ -1056,15 +848,8 @@ def main():
             "traj_auc": traj_auc,
         }
 
-    # --- Summary table ---
-    # Sort by final loss (ascending) so the strongest variants surface at the
-    # top, making the leaderboard immediately readable. Baselines are kept in
-    # the same sort so QQN's standing relative to SGD/Adam/L-BFGS is explicit.
     ordered = sorted(results.items(), key=lambda kv: kv[1]["final_loss"])
-    # Reference iteration count for a "speedup vs L-BFGS" column: how many
-    # fewer iterations each method needs to reach the shared target relative
-    # to the classical L-BFGS baseline. This makes QQN's iteration advantage
-    # explicit and directly comparable across the whole leaderboard.
+
     lbfgs_ref = results.get("L-BFGS", {}).get("iters_to_target")
     print(
         f"{'optimizer':<10}{'final_loss':>14}{'iters':>8}"
@@ -1075,7 +860,7 @@ def main():
     for name, r in ordered:
         it_tgt = "—" if r["iters_to_target"] is None else f"{r['iters_to_target']}"
         t_tgt = "—" if r["time_to_target"] is None else f"{r['time_to_target']:.3f}"
-        # Speedup vs L-BFGS in iterations-to-target (positive = faster).
+
         if lbfgs_ref is not None and r["iters_to_target"] is not None:
             spd = f"{lbfgs_ref / r['iters_to_target']:.2f}x"
         else:
@@ -1087,10 +872,7 @@ def main():
             f"{r['ms_per_iter']:>8.2f}{it_tgt:>10}{t_tgt:>9}{spd:>10}"
             f"{r['traj_auc']:>8.2f}"
         )
-    # --- Pareto frontier (loss vs. wall-time) ---
-    # Surface the non-dominated variants: those for which no other variant is
-    # both faster AND lower-loss. This crisply identifies the best loss/time
-    # trade-offs without manual inspection of the full table.
+
     print("\nPareto frontier (loss vs. time — non-dominated variants):")
     pareto = []
     for name, r in ordered:
@@ -1104,12 +886,7 @@ def main():
             pareto.append((name, r))
     for name, r in sorted(pareto, key=lambda kv: kv[1]["wall"]):
         print(f"  {name:<12} loss={r['final_loss']:.4e}  time={r['wall']:.3f}s")
-    # --- Composite efficiency score (converging variants only) -----------
-    # A single ranked metric fusing the three axes that matter: iterations to
-    # target, wall-time to target, and final loss. Each is normalized to its
-    # best-in-class value (lower = better) and combined geometrically so no
-    # single axis dominates. This surfaces the genuine best-on-ALL-axes stacks
-    # rather than the per-axis leaders, making the experiment more decisive.
+
     print("\nComposite efficiency score (lower = better; converging only):")
     conv = [
         (name, r) for name, r in results.items() if r["iters_to_target"] is not None
@@ -1123,7 +900,7 @@ def main():
             ni = r["iters_to_target"] / best_iters
             nt = r["time_to_target"] / best_time
             nl = r["final_loss"] / best_loss
-            # Geometric mean: penalizes being weak on any single axis.
+
             score = float((ni * nt * nl) ** (1.0 / 3.0))
             scored.append((name, r, score))
         scored.sort(key=lambda x: x[2])
@@ -1133,12 +910,7 @@ def main():
                 f"iters={r['iters_to_target']:>3}  time={r['time_to_target']:.3f}s  "
                 f"final={r['final_loss']:.4e}"
             )
-    # --- Iteration-efficiency leaderboard (converging variants only) -----
-    # The single most actionable metric: of the variants that actually reach
-    # the shared target, which do so in the fewest iterations (and at what
-    # wall-time). This crisply separates the *robust fast* stacks from the
-    # many variants that stall (which never reach the target and are excluded
-    # here), surfacing the genuine best-on-both-axes configurations.
+
     print("\nIteration-efficiency leaderboard (target reached, fewest iters):")
     converged = [
         (name, r) for name, r in results.items() if r["iters_to_target"] is not None
@@ -1153,12 +925,7 @@ def main():
             f"time={r['time_to_target']:.3f}s  vs_LBFGS={spd:>6}  "
             f"final={r['final_loss']:.4e}"
         )
-    # --- Trajectory-AUC leaderboard --------------------------------------
-    # Rank optimizers by the single-scalar trajectory AUC (lower = better):
-    # it rewards methods that descend fast early AND refine deep late, so it
-    # is a more effective summary of *overall* convergence quality than a
-    # single time-to-target. The strongest deep-memory + warm-start combos
-    # should top this list.
+
     print("\nTrajectory-AUC leaderboard (lower = faster overall descent):")
     auc_ranked = sorted(results.items(), key=lambda kv: kv[1]["traj_auc"])
     for name, r in auc_ranked[:12]:
@@ -1166,13 +933,7 @@ def main():
             f"  {name:<14} AUC={r['traj_auc']:+.3f}  "
             f"final={r['final_loss']:.4e}  time={r['wall']:.3f}s"
         )
-    # --- Convergence-rate profile (loss milestones) ----------------------
-    # For each method, report the iteration at which it first crossed each
-    # intermediate loss milestone. This separates *early-phase* descent speed
-    # (large-loss milestones) from *late-phase* refinement (small-loss
-    # milestones) far more sharply than a single time-to-target, surfacing
-    # methods that descend fast early but stall late (e.g. momentum) vs. those
-    # that accelerate near the optimum (e.g. deep-memory QQN).
+
     milestones = stop.get("milestones", ())
     if milestones:
         print("\nConvergence-rate profile (iteration first reaching each loss):")
@@ -1182,8 +943,7 @@ def main():
             + "".join(f"{f'<={m:.1e}':>12}" for m in milestones)
         )
         print(header)
-        # Sort by the iteration that reached the tightest milestone (those that
-        # never reach it sort last), so the fastest late-phase methods surface.
+
         tightest = milestones[-1]
 
         def _sort_key(kv):
@@ -1196,18 +956,12 @@ def main():
                 hit = r["milestone_hits"].get(m)
                 cells.append("—" if hit is None else f"{hit[0]}")
             print("  " + f"{name:<12}" + "".join(f"{c:>12}" for c in cells))
-    # --- Stall report (non-converging variants) --------------------------
-    # Explicitly surface every variant that exhausted its budget WITHOUT
-    # reaching the shared target. This makes the cautionary results (e.g. the
-    # adaptive trust-region stall, strong-Wolfe over-restriction, Shampoo
-    # timeout) a first-class, scannable experimental finding rather than
-    # something to be inferred from "—" cells scattered across the big table.
+
     stalled = [(name, r) for name, r in results.items() if r["iters_to_target"] is None]
     if stalled:
         print("\nStall report (never reached the shared target):")
         stalled.sort(key=lambda kv: kv[1]["final_loss"])
         for name, r in stalled:
-            # Classify the likely cause for a quick scan.
             if r["wall"] >= stop.get("time_budget", float("inf")) - 0.5:
                 cause = "time-budget exhausted"
             elif r["final_loss"] > 0.5:
@@ -1219,7 +973,6 @@ def main():
                 f"iters={r['iters']:>3}  time={r['wall']:.3f}s  [{cause}]"
             )
 
-    # --- Loss trajectory (compact ASCII view at log10 scale) ---
     print("\nLoss trajectory (log10, sampled):")
     sample_points = 10
     for name, r in results.items():
@@ -1228,14 +981,6 @@ def main():
         vals = [f"{np.log10(max(hist[i], 1e-12)):6.2f}" for i in idxs]
         print(f"  {name:<8} " + " ".join(vals))
 
-    # --- A/B comparison report -------------------------------------------
-    # Each pair isolates a single variable (oracle depth, region radius,
-    # line search, etc.) against a named baseline so the effect is causal.
-    # --- Per-step cost decomposition -------------------------------------
-    # Make the spline / warm-start trade-offs causal by isolating ms/it for
-    # the controlled pairs. The spline raises ms/it (extra probes) but lowers
-    # iters; warm-start raises iters slightly but lowers ms/it (cheaper inner
-    # search). This table shows the time/iter lever each component pulls.
     cost_pairs = [
         ("spline cost", "QQN-L50", "QQN-L50Spln"),
         ("warm-start cost", "QQN-L50TRfix", "QQN-L50WS+"),
@@ -1372,9 +1117,8 @@ def main():
                 f"  time={r['wall']:.3f}s (Δ{d_wall:+.3f}){marker}"
             )
 
-    # Optional: save a matplotlib plot if available.
     try:
-        import matplotlib.pyplot as plt  # type: ignore
+        import matplotlib.pyplot as plt
         import os
         from datetime import datetime
 
@@ -1397,7 +1141,7 @@ def main():
         out = os.path.join(results_dir, f"mnist_comparison_{timestamp}.png")
         plt.savefig(out, dpi=120, bbox_inches="tight")
         print(f"\n[plot] Saved convergence plot to {out}")
-        # --- Second plot: loss vs wall-clock time ---
+
         plt.figure(figsize=(7, 5))
         for name, r in results.items():
             if name in baselines:

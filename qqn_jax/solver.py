@@ -155,14 +155,7 @@ class QQN:
         self.line_search_options = dict(line_search_options or {})
         self.spline = spline
         self.linear = linear
-        # The path strategy is the shared component (``qqn_jax.paths.base.
-        # PathStrategy``) that remaps the scalar line-search parameter ``t``
-        # into the probe offset ``d(t)`` and its velocity ``d'(t)``. It is a
-        # first-class, explicit solver attribute — used both to seed the
-        # ``spline``/``linear`` refinements below *and* to derive the
-        # along-path predicted-reduction model in ``update`` — rather than an
-        # assumption re-derived by hand (and potentially inconsistently) in
-        # each consumer.
+
         self.path: PathStrategy = (
             path if path is not None else (LINEAR_PATH if linear else QUADRATIC_PATH)
         )
@@ -170,44 +163,23 @@ class QQN:
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
         self.oracle = resolve_oracle(oracle, history_size=history_size)
-        # Per-layer partitioning is a *cross-cutting solver* concern: the
-        # single oracle above stays completely unaware of it. When
-        # ``partition_sizes`` is supplied, the solver splits the flat
-        # params/grad (and probe buffers) into contiguous segments and drives
-        # the oracle independently on each segment, holding a tuple of
-        # per-segment oracle states and concatenating the per-segment t=1
-        # endpoints back into the full direction. This matters for QN oracles
-        # (each layer keeps its own curvature history, so incompatible
-        # per-layer scales never mix) and is a harmless no-op for first-order
-        # oracles (their per-coordinate moments are identical either way).
+
         self.partition_sizes = (
             tuple(int(s) for s in partition_sizes)
             if partition_sizes is not None
             else None
         )
         if self.partition_sizes is not None:
-            # Static cumulative offsets delimiting each segment; kept as plain
-            # Python ints so all slicing stays jit/vmap/grad friendly.
             self._partition_offsets = tuple(
                 int(o) for o in jnp.cumsum(jnp.asarray((0,) + self.partition_sizes))
             )
         else:
             self._partition_offsets = None
         self.feed_probes_to_oracle = feed_probes_to_oracle
-        # When feeding probes, only admit those that (a) strictly *decrease* the
-        # objective relative to the current iterate and (b) lie on the accepted
-        # side of the path (their step does not overshoot the accepted step).
-        # The prior benchmark (docs/...144249.analysis.md, §4) showed that
-        # feeding *rejected* line-search probes injects non-representative
-        # (s, y) curvature pairs that pollute the L-BFGS history and cause
-        # catastrophic stalls. Gating on descent is the documented fix: only
-        # genuinely improving probes enrich the curvature memory.
+
         self.probe_descent_gate = probe_descent_gate
         self.max_probes = max_probes
-        # Maximum path parameter ``t`` the line search may explore. Values
-        # greater than 1 enable *extrapolation* past the oracle endpoint. The
-        # backtracking/Armijo family grows the step (capped here) before
-        # shrinking; the bisection search caps its bracket expansion here.
+
         self.max_t = max_t
 
         if line_search not in LINE_SEARCHES:
@@ -220,63 +192,32 @@ class QQN:
                 "spline and linear are mutually exclusive path refinements; "
                 "enable at most one."
             )
-        # The spline refinement is orthogonal to the chosen line search: rather
-        # than replacing it, it *wraps* it. The spline is an expanded definition
-        # of the curve — it reuses every probe (with its gradient) as a control
-        # point of a cubic Hermite spline along the consistent path, then tries
-        # to improve on the inner search's accepted point. It composes with any
-        # line search.
+
         base_ls = LINE_SEARCHES[line_search]
         opts = self.line_search_options
-        # The path strategy is a first-class, explicit choice threaded into
-        # the inner line search *unconditionally* — not only when a spline/
-        # linear refinement wraps it. This makes the quadratic path an
-        # alternative form of path construction on equal footing with linear
-        # and spline, rather than an implicit default the line search happens
-        # to fall back to. (Fixes the long-standing TODO: the quadratic path
-        # is NOT a "default to be wrapped".)
+
         opts = {**opts, "path": self.path}
-        # Line searches that support extrapolation (t > 1) accept ``max_step``.
-        # Only inject it for those to avoid passing an unexpected kwarg to
-        # searches that don't accept it. The user may still override via
-        # ``line_search_options``.
+
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
-        # When feeding probes to the oracle, size the line-search probe buffers
-        # to ``max_probes`` so they match the oracle's replay capacity.
+
         if self.feed_probes_to_oracle:
             opts = {**opts, "max_probes": self.max_probes}
         else:
-            # Probes are unused downstream; disable recording so the inner
-            # line-search ``while_loop`` skips the (max_probes, n) scratch.
             opts = {**opts, "record_probes": False}
         if opts:
             base_ls = partial(base_ls, **opts)
-        # The linear refinement is, like the spline, an orthogonal *path*
-        # choice that wraps whatever inner line search was selected: it
-        # samples the straight chord to the oracle endpoint (throwing out
-        # gradient/curvature information) and keeps the best feasible point.
-        # Each branch selects a *path construction*, not a base-plus-optional-
-        # refinement. The quadratic path is a first-class primitive that needs
-        # no wrapper: the inner line search already traverses ``self.path``
-        # (bound above), so there is nothing to refine it *toward*. The spline
-        # and linear cases are genuinely different constructions that reuse the
-        # inner search as a baseline and then probe additional points on the
-        # same curve.
+
         if self.spline:
             from qqn_jax.paths.spline import spline_wrap
+
             self._ls = spline_wrap(base_ls, path=self.path)
         elif self.linear:
             from qqn_jax.paths.linear import linear_wrap
+
             self._ls = linear_wrap(base_ls, path=self.path)
         else:
-            # Direct quadratic (or explicitly-supplied) path construction: the
-            # line search itself traverses ``self.path`` via the ``path`` kwarg
-            # bound into ``base_ls`` above. No wrapping is needed or sensible —
-            # this is the primitive, not a default awaiting refinement.
             self._ls = base_ls
-
-    # --- Internal helpers -------------------------------------------------
 
     def _eval(self, params, *args):
         """Evaluate value and grad, splitting off aux if present."""
@@ -287,7 +228,6 @@ class QQN:
             aux = None
         return value, grad, aux
 
-    # --- Per-layer partitioning helpers -----------------------------------
     def _segments(self, x):
         """Split a flat ``(n,)`` array into the configured contiguous
         segments (static offsets -> jit/vmap/grad safe)."""
@@ -367,8 +307,6 @@ class QQN:
             value, grad = self._value_and_grad(params, *args)
         return value, grad
 
-    # --- JAXopt-style interface ------------------------------------------
-
     def init_state(self, params, *args) -> QQNState:
         """Initialize solver state at ``params``."""
         value, grad, aux = self._eval(params, *args)
@@ -385,7 +323,6 @@ class QQN:
             done=error <= self.tol,
             aux=aux,
             region_state=region_state,
-            # init_state performs exactly one value-and-grad evaluation.
             num_evals=jnp.asarray(1, jnp.int32),
             qn_slope=jnp.asarray(0.0, dtype=value.dtype),
             ls_success=jnp.asarray(True),
@@ -405,35 +342,9 @@ class QQN:
         """
         grad = state.grad
 
-        # 1. Oracle: L-BFGS direction (-H∇f), the t=1 endpoint of the path.
         qn_dir, _ = self._oracle_direction(params, grad, state.oracle_state)
-        # Diagnostic: directional derivative along the oracle direction. A
-        # non-negative value means the oracle handed back a non-descent
-        # direction at t=1 (degenerate curvature) — worth surfacing.
+
         qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
-
-        # 2. Gradient: steepest descent direction (-∇f), the path's tangent.
-        # Note: grad_dir = -grad is never materialized; the only consumer is
-        # the directional-derivative model below, where ⟨∇f, grad_dir⟩ = -‖∇f‖².
-        # Optional probe recorder: wrap the value-and-grad handed to the line
-        # search so every evaluated (params, grad) is captured into a
-        # fixed-size circular scratch buffer. We thread the buffer through a
-        # Python list closure over a JAX-carried state to stay JIT-safe: the
-        # buffer itself is built as outputs and re-derived deterministically.
-        #
-        # Because line searches are jitted ``while_loop``s, a Python-mutating
-        # closure won't work. Instead we re-evaluate the probe points after the
-        # search using the alphas the search reports is not generally possible
-        # (only the accepted alpha is returned). We therefore record probes via
-        # a stateful host-side buffer is not jit-safe either. The robust,
-        # JIT-compatible route is to have the recording wrapper write into a
-        # ref-like carry — which JAX lacks — so we instead reconstruct probes
-        # from the spline/inner contract below.
-
-        # 3. Single line search along the quadratic path.
-        #    The "direction" handed to the line search is the path itself,
-        #    parameterized so that step size ``t`` traces d(t). The search
-        #    walks the curve directly; each probe ``x + d(t)`` is a state.
 
         res = self._ls(
             self._plain_value_and_grad,
@@ -452,57 +363,28 @@ class QQN:
         step_size = res.step_size
         best_t = step_size
 
-        # Recompute aux at the accepted point if needed.
         if self.has_aux:
-            # We already have new_value/new_grad from the line search; only the
-            # aux is missing. Call ``fun`` directly (no grad) to avoid a second
-            # backward pass per iteration.
             _, aux = self.fun(new_params, *args)
         else:
             aux = None
 
-        # Update the oracle state (e.g. L-BFGS curvature pair, momentum).
-        # When enabled, forward every (params, grad) evaluated *during* the
-        # line search into the oracle's curvature memory — not just the
-        # accepted point. The probe buffers are fixed-size and fully JIT/vmap
-        # compatible (see LineSearchResult.probe_*).
-        # ``extra_recovery_evals`` accounts for any forward passes spent
-        # recovering probe objective values for the descent gate. It MUST be
-        # bound on every control-flow path (it is summed into step_evals
-        # below), so initialize it to zero here.
         extra_recovery_evals = jnp.asarray(0, jnp.int32)
         if self.feed_probes_to_oracle and res.probe_params is not None:
             probe_valid = res.probe_valid
-            # Enforce the "accepted side" rule promised in the docstring: a
-            # probe must not overshoot the accepted step. Probes beyond
-            # ``step_size`` sit on a rejected stretch of the ray and inject
-            # non-representative curvature. Gate them out here (the oracle then
-            # only replays a small, well-spaced, *closer* subset).
+
             if res.probe_alphas is not None:
                 on_accepted_side = res.probe_alphas <= step_size
                 probe_valid = jnp.logical_and(probe_valid, on_accepted_side)
             if self.probe_descent_gate and res.probe_values is not None:
-                # Descent gate: only admit probes whose objective value strictly
-                # improves on the *current* iterate. The line search already
-                # evaluated f at every probe (``res.probe_values``), so the gate
-                # is free — no extra forward passes. (The previous code paid an
-                # extra ``vmap`` of ``max_probes`` forward evaluations per
-                # iteration to recover values the line search had thrown away.)
                 descends = res.probe_values < state.value
                 probe_valid = jnp.logical_and(probe_valid, descends)
             elif self.probe_descent_gate:
-                # The (e.g. spline-wrapped) line search recorded probe params and
-                # grads but not their objective values. Recover the values with a
-                # single vmapped forward pass so the descent gate can still admit
-                # only genuinely-improving probes (the documented fix against
-                # history-polluting rejected probes).
                 probe_values = jax.vmap(
                     lambda p: self._plain_value_and_grad(p, *args)[0]
                 )(res.probe_params)
                 descends = probe_values < state.value
                 probe_valid = jnp.logical_and(probe_valid, descends)
-                # Override the zero default: we spent one forward pass per probe
-                # slot recovering values the line search did not retain.
+
                 extra_recovery_evals = jnp.asarray(res.probe_params.shape[0], jnp.int32)
             oracle_info = OracleInfo(
                 params=params,
@@ -526,30 +408,13 @@ class QQN:
                 step_size=step_size,
             )
         new_oracle_state = self._oracle_update(state.oracle_state, oracle_info)
-        # Update region state (e.g. adaptive trust-region radius).
+
         actual_reduction = state.value - new_value
-        # Honest predicted reduction from the along-path model.
-        #
-        # For *any* differentiable path ``d(t)`` with ``d(0) = 0``, the model
-        # that holds the gradient fixed at its ``t = 0`` value gives
-        #   pred(t) = -∫₀ᵗ ⟨∇f, d'(τ)⟩ dτ = -⟨∇f, d(t)⟩
-        # by the fundamental theorem of calculus — independent of the
-        # specific curve. Rather than re-deriving (and hand-expanding) this
-        # per path, as before, we materialize ``d(t)`` through
-        # ``self.path.offset`` — the same first-class ``PathStrategy``
-        # component (``qqn_jax.paths.quadratic.QUADRATIC_PATH`` by default)
-        # that built every probe the line search actually evaluated. This
-        # keeps the trust-region model exactly in sync with whichever curve
-        # the solver is configured to traverse, instead of hard-coding the
-        # quadratic path's closed form here (which silently diverged from
-        # the accepted point whenever ``linear=True`` routed the step
-        # through a different curve).
+
         grad_dir = tree_negative(grad)
         d_t = self.path.offset(best_t, grad_dir, qn_dir)
         pred_reduction = jnp.asarray(-tree_vdot(grad, d_t))
-        # The model reduction is non-negative whenever the step descends along
-        # the path (which the line search guarantees via sufficient decrease).
-        # A tiny positive epsilon avoids a 0/0 ρ when the step is degenerate.
+
         eps_pred = jnp.asarray(1e-16, dtype=pred_reduction.dtype)
         pred_reduction = jnp.maximum(pred_reduction, eps_pred)
         info = RegionInfo(
@@ -563,16 +428,12 @@ class QQN:
         new_region_state = self.region.update(state.region_state, info)
 
         error = tree_l2_norm(new_grad)
-        # Terminate (rather than spin to maxiter) if the iterate diverges to a
-        # non-finite state — a single bad start in a vmap batch otherwise wastes
-        # the whole batch's remaining iterations on NaN arithmetic.
+
         finite = jnp.logical_and(jnp.isfinite(new_value), jnp.isfinite(error))
         done = jnp.logical_or(error <= self.tol, jnp.logical_not(finite))
-        # --- Eval accounting -------------------------------------------------
+
         ls_evals = res.num_evals
         if ls_evals is None:
-            # Defensive: a custom line search may not report evals. Assume the
-            # minimum (one accepted-point evaluation) so totals never decrease.
             ls_evals = jnp.asarray(1, jnp.int32)
         aux_evals = (
             jnp.asarray(1, jnp.int32) if self.has_aux else jnp.asarray(0, jnp.int32)

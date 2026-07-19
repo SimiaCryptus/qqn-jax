@@ -17,9 +17,6 @@ def quadratic(x):
     return 0.5 * jnp.sum(x**2)
 
 
-# --- Identity ---------------------------------------------------------
-
-
 def test_identity_region_is_noop():
     region = IdentityRegion()
     params = jnp.array([1.0, 2.0])
@@ -43,9 +40,6 @@ def test_resolve_region_passthrough():
     assert resolve_region(r) is r
 
 
-# --- Box --------------------------------------------------------------
-
-
 def test_box_region_clips():
     region = BoxRegion(lo=-1.0, hi=1.0)
     params = jnp.array([0.0, 0.0, 0.0])
@@ -62,13 +56,10 @@ def test_box_region_unbounded_sides():
     np.testing.assert_allclose(out, jnp.array([0.0, 100.0]))
 
 
-# --- Orthant ----------------------------------------------------------
-
-
 def test_orthant_region_zeros_sign_crossing():
     region = OrthantRegion()
     params = jnp.array([1.0, -1.0])
-    # candidate flips both signs -> both zeroed.
+
     candidate = jnp.array([-2.0, 2.0])
     out = region.project(params, candidate, region.init(params))
     np.testing.assert_allclose(out, jnp.array([0.0, 0.0]))
@@ -77,28 +68,25 @@ def test_orthant_region_zeros_sign_crossing():
 def test_orthant_region_keeps_same_orthant():
     region = OrthantRegion()
     params = jnp.array([1.0, -1.0])
-    candidate = jnp.array([0.5, -0.5])  # same signs
+    candidate = jnp.array([0.5, -0.5])
     out = region.project(params, candidate, region.init(params))
     np.testing.assert_allclose(out, candidate)
-
-
-# --- Trust Region -----------------------------------------------------
 
 
 def test_trust_region_clips_step_norm():
     region = TrustRegion(radius=1.0, adaptive=False)
     params = jnp.array([0.0, 0.0])
-    candidate = jnp.array([3.0, 4.0])  # step norm = 5
+    candidate = jnp.array([3.0, 4.0])
     state = region.init(params)
     out = region.project(params, candidate, state)
-    # Step should be radially scaled to norm 1.
+
     np.testing.assert_allclose(jnp.linalg.norm(out - params), 1.0, atol=1e-6)
 
 
 def test_trust_region_leaves_small_step():
     region = TrustRegion(radius=10.0, adaptive=False)
     params = jnp.array([0.0, 0.0])
-    candidate = jnp.array([0.3, 0.4])  # norm 0.5 < radius
+    candidate = jnp.array([0.3, 0.4])
     state = region.init(params)
     out = region.project(params, candidate, state)
     np.testing.assert_allclose(out, candidate, atol=1e-6)
@@ -108,8 +96,8 @@ def test_trust_region_adaptive_expands_on_good_agreement():
     region = TrustRegion(radius=1.0, adaptive=True, expand=2.0)
     params = jnp.array([0.0, 0.0])
     state = region.init(params)
-    # A boundary step with excellent agreement (rho ~ 1) should expand.
-    new_params = jnp.array([1.0, 0.0])  # step norm = radius
+
+    new_params = jnp.array([1.0, 0.0])
     info = RegionInfo(
         params=params,
         new_params=new_params,
@@ -125,43 +113,37 @@ def test_trust_region_floor_respects_successful_step():
     params = jnp.array([0.0, 0.0])
     state = region.init(params)
     new_params = jnp.array([0.8, 0.0])
-    # Poor predicted agreement but actual progress was made.
+
     info = RegionInfo(
         params=params,
         new_params=new_params,
         pred_reduction=jnp.asarray(10.0),
-        actual_reduction=jnp.asarray(0.1),  # rho small -> would shrink
+        actual_reduction=jnp.asarray(0.1),
     )
     new_state = region.update(state, info)
-    # Radius must not fall below the realized step length.
+
     assert float(new_state.radius) >= 0.8 - 1e-6
 
 
-# --- NoDecrease -------------------------------------------------------
-
-
 def test_no_decrease_removes_increasing_component():
-    # Secondary g(x) = 0.5||x||^2, grad g = x.
+
     region = NoDecreaseRegion(lambda p: p)
     params = jnp.array([1.0, 0.0])
-    # Step purely along +grad g would increase g.
+
     candidate = jnp.array([2.0, 0.0])
     out = region.project(params, candidate, region.init(params))
     step = out - params
-    # The g-increasing component should have been removed.
+
     assert float(jnp.vdot(params, step)) <= 1e-6
 
 
 def test_no_decrease_passes_descent_through():
     region = NoDecreaseRegion(lambda p: p)
     params = jnp.array([1.0, 0.0])
-    # Step that decreases g (toward origin).
+
     candidate = jnp.array([0.5, 0.0])
     out = region.project(params, candidate, region.init(params))
     np.testing.assert_allclose(out, candidate, atol=1e-6)
-
-
-# --- Sequential -------------------------------------------------------
 
 
 def test_sequential_applies_in_order():
@@ -205,10 +187,10 @@ def test_trust_region_non_adaptive_update_is_noop():
         params=params,
         new_params=jnp.array([1.0, 0.0]),
         pred_reduction=jnp.asarray(0.01),
-        actual_reduction=jnp.asarray(-5.0),  # terrible agreement
+        actual_reduction=jnp.asarray(-5.0),
     )
     new_state = region.update(state, info)
-    # Non-adaptive: radius is unchanged.
+
     np.testing.assert_allclose(float(new_state.radius), 2.0, atol=1e-6)
 
 
@@ -216,12 +198,12 @@ def test_trust_region_shrinks_on_poor_agreement():
     region = TrustRegion(radius=4.0, adaptive=True, shrink=0.5, eta_lo=0.1)
     params = jnp.array([0.0, 0.0])
     state = region.init(params)
-    # A small step (no floor pressure) with poor agreement should shrink.
+
     info = RegionInfo(
         params=params,
         new_params=jnp.array([0.01, 0.0]),
         pred_reduction=jnp.asarray(10.0),
-        actual_reduction=jnp.asarray(-1.0),  # rho < 0 -> shrink
+        actual_reduction=jnp.asarray(-1.0),
     )
     new_state = region.update(state, info)
     assert float(new_state.radius) < 4.0
@@ -230,17 +212,17 @@ def test_trust_region_shrinks_on_poor_agreement():
 def test_orthant_region_zeros_only_crossing_coordinate():
     region = OrthantRegion()
     params = jnp.array([1.0, 1.0])
-    # First coordinate flips sign, second stays positive.
+
     candidate = jnp.array([-0.5, 0.5])
     out = region.project(params, candidate, region.init(params))
     np.testing.assert_allclose(out, jnp.array([0.0, 0.5]))
 
 
 def test_no_decrease_region_orthogonality():
-    # After projection, the step's component along ∇g must be non-positive.
+
     region = NoDecreaseRegion(lambda p: p)
     params = jnp.array([1.0, 2.0])
-    candidate = jnp.array([3.0, 5.0])  # large increasing step
+    candidate = jnp.array([3.0, 5.0])
     out = region.project(params, candidate, region.init(params))
     step = out - params
     assert float(jnp.vdot(params, step)) <= 1e-6
@@ -268,11 +250,8 @@ def test_solver_with_sequential_region_is_jittable():
     assert np.isfinite(float(state.value))
 
 
-# --- End-to-end with solver -------------------------------------------
-
-
 def test_solver_with_box_region_respects_bounds():
-    # Minimum of quadratic is at origin; box keeps us within [0.5, 5].
+
     region = BoxRegion(lo=0.5, hi=5.0)
     solver = QQN(quadratic, maxiter=100, tol=1e-6, region=region)
     x0 = jnp.array([3.0, 4.0])

@@ -22,10 +22,7 @@ def OrthantRegion(l1: float = 0.0) -> Region:
 
     def project(params, candidate, state):
         def proj_leaf(x, c):
-            # Clamp the candidate so it cannot cross zero relative to x's sign.
-            #   x > 0  -> c is floored at 0
-            #   x < 0  -> c is capped at 0
-            #   x == 0 -> c is pinned at 0
+
             zero = jnp.zeros((), dtype=c.dtype)
             c = jnp.where(x > 0.0, jnp.maximum(c, zero), c)
             c = jnp.where(x < 0.0, jnp.minimum(c, zero), c)

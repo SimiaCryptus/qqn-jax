@@ -20,9 +20,7 @@ import jax.numpy as jnp
 
 def jnp_select_buf(flag, a, b):
     """Scalar-flag select between two equally-shaped buffers (lax.select)."""
-    # Under vmap, ``lax.cond`` is converted to ``select`` and both branches
-    # are evaluated regardless; a plain ``where`` is equivalent but avoids the
-    # cond/branch tracing overhead and composes more cleanly with vmap.
+
     return jnp.where(flag, a, b)
 
 
@@ -79,35 +77,18 @@ def update_lbfgs_history(
     ys = jnp.vdot(y, s)
     yy = jnp.vdot(y, y)
 
-    # Relative curvature guard: an absolute 1e-10 floor is below float32
-    # resolution once ‖y‖‖s‖ is even moderately scaled, so it spuriously
-    # admits near-zero-curvature pairs. Anchor to the Cauchy-Schwarz scale.
     ss = jnp.vdot(s, s)
     eps = jnp.asarray(1e-10, dtype=params.dtype)
     valid = ys > eps * jnp.sqrt(yy * ss + eps)
 
-    # Guard the reciprocal: jnp.where evaluates BOTH branches, so a raw
-    # ``1.0 / ys`` produces inf/NaN when ys ≤ 0 even though it is masked out.
-    # Under jax.grad that NaN backpropagates through the non-selected branch
-    # and poisons the gradient. Compute on a safe denominator first.
     safe_ys = jnp.where(valid, ys, jnp.ones_like(ys))
     rho = jnp.where(valid, 1.0 / safe_ys, 0.0)
 
-    # Shift buffers down by one row (drop the oldest) only when ``valid``;
-    # otherwise keep the existing buffer untouched. A slice-based shift avoids
-    # the full extra copy that ``jnp.roll`` allocates, and selecting the whole
-    # *shifted* buffer (instead of a per-element ``where`` over the original)
-    # keeps the masking to a single cheap scalar-controlled select.
     def _shift_insert(buf, row):
-        # buf: (m, ...) -> drop last, prepend ``row``.
+
         shifted = jnp.concatenate([row[None], buf[:-1]], axis=0)
         return shifted
 
-    # ``jnp.where`` materializes BOTH the shifted buffer and the original and
-    # then selects element-wise over the full (history_size, n) array. The
-    # shift itself is unavoidable, but the select can be a single cheap
-    # scalar-flag ``lax.cond`` (see ``jnp_select_buf``) that picks one buffer
-    # whole rather than blending element-by-element.
     new_s = jnp_select_buf(valid, _shift_insert(state.s_history, s), state.s_history)
     new_y = jnp_select_buf(valid, _shift_insert(state.y_history, y), state.y_history)
     new_rho = jnp_select_buf(
@@ -118,7 +99,7 @@ def update_lbfgs_history(
         jnp.minimum(state.step_count + 1, history_size),
         state.step_count,
     )
-    # Same NaN-safety for the initial-Hessian scale γ = ⟨y,s⟩/⟨y,y⟩.
+
     safe_yy = jnp.where(yy > 0.0, yy, jnp.ones_like(yy))
     new_gamma = jnp.where(valid, ys / safe_yy, state.gamma)
 
@@ -153,14 +134,7 @@ def update_lbfgs_history_batch(
     def step(carry_state, inputs):
         p, g, ok = inputs
         updated = update_lbfgs_history(carry_state, p, g, history_size)
-        # Honor the per-probe validity flag (e.g. unused scratch slots): when
-        # ``ok`` is False, keep the histories/gamma but still advance prev_*
-        # so subsequent (s, y) differences anchor on the latest real probe.
-        #
-        # ``update_lbfgs_history`` already keeps buffers unchanged when its own
-        # curvature guard fails, so we only need to gate the (large) history
-        # buffers on ``ok`` here. ``prev_params``/``prev_grad`` are always
-        # advanced to the latest probe so the next (s, y) anchors correctly.
+
         merged = LBFGSState(
             s_history=jnp_select_buf(ok, updated.s_history, carry_state.s_history),
             y_history=jnp_select_buf(ok, updated.y_history, carry_state.y_history),
@@ -192,11 +166,10 @@ def lbfgs_direction(state: LBFGSState, grad) -> jnp.ndarray:
     Buffers are stored most-recent-first; the first loop iterates
     newest -> oldest, the second loop oldest -> newest.
     """
-    s_hist = state.s_history  # newest first
+    s_hist = state.s_history
     y_hist = state.y_history
     rho_hist = state.rho_history
 
-    # First loop: newest -> oldest (index 0 .. m-1).
     def first_loop(carry, inputs):
         q = carry
         s_i, y_i, rho_i = inputs
@@ -206,10 +179,8 @@ def lbfgs_direction(state: LBFGSState, grad) -> jnp.ndarray:
 
     q, alphas = jax.lax.scan(first_loop, grad, (s_hist, y_hist, rho_hist))
 
-    # Apply initial Hessian approximation H0 = gamma * I.
     r = state.gamma * q
 
-    # Second loop: oldest -> newest (reverse of the first loop order).
     def second_loop(carry, inputs):
         r = carry
         s_i, y_i, rho_i, alpha_i = inputs

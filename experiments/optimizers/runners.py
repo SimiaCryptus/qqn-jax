@@ -32,11 +32,9 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
     params = params0
     history = [float(state.value)]
     times = [0.0]
-    # ``state.num_evals`` is the TRUE cumulative evaluation count (line-search
-    # probes, spline probes, recovery evals, plus the init_state eval).
+
     eval_counts = [int(state.num_evals)]
-    # Each QQN value-and-grad call evaluates both f (forward) and ∇f
-    # (backward), so the forward/backward counts equal the combined count.
+
     fwd_counts = [int(state.num_evals)]
     bwd_counts = [int(state.num_evals)]
     iters_to_target = None
@@ -118,8 +116,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     history = [float(loss_fn(params))]
     times = [0.0]
     eval_counts = [0]
-    # A generic first-order Optax step is one value-and-grad call per step:
-    # exactly one forward (value) and one backward (grad) evaluation.
+
     fwd_counts = [0]
     bwd_counts = [0]
     iters_to_target = None
@@ -132,7 +129,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         history.append(float(value))
         now = time.perf_counter() - t0
         times.append(now)
-        cum_evals = it + 1  # one value+grad call per step
+        cum_evals = it + 1
         eval_counts.append(cum_evals)
         fwd_counts.append(cum_evals)
         bwd_counts.append(cum_evals)
@@ -206,9 +203,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     history = [float(loss_fn(params))]
     times = [0.0]
     eval_counts = [0]
-    # L-BFGS line-search probes evaluate the objective *value* only (forward),
-    # while each accepted step also computes a gradient (backward). Track the
-    # two separately: +1 backward per step, +(1 + ls_steps) forward per step.
+
     fwd_counts = [0]
     bwd_counts = [0]
     cum_fwd = 0
@@ -228,12 +223,12 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
         ls_steps = None if _ls_unavailable else _extract_ls_evals(opt_state)
         if ls_steps is None:
             _ls_unavailable = True
-            cum_evals += 3  # conservative fallback: ~2 probes/step + base call
-            cum_fwd += 3  # ~1 base value + ~2 line-search value probes
-            cum_bwd += 1  # one accepted-point gradient per step
+            cum_evals += 3
+            cum_fwd += 3
+            cum_bwd += 1
         else:
             cum_evals += 1 + max(ls_steps, 0)
-            # 1 base value+grad call plus ``ls_steps`` value-only probes.
+
             cum_fwd += 1 + max(ls_steps, 0)
             cum_bwd += 1
         eval_counts.append(cum_evals)

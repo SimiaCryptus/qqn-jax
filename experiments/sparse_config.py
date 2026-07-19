@@ -36,7 +36,7 @@ class SparseConfig:
     polish_maxiter: int = 5000
     hidden_sizes: list = field(default_factory=lambda: [64, 64])
     activation: Union[str, list] = "tanh"
-    # --- runtime-resolved (filled by from_env) ---
+
     activation_name: object = None
     activation_fn: object = None
 

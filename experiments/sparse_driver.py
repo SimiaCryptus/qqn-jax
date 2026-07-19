@@ -281,7 +281,7 @@ def run_sparse_experiment(config, *, do_plots=True):
         config.dataset,
         config.n_train,
         config.n_test,
-        10,  # use all 10 classes (permutation subsetting)
+        10,
         seed=config.seed,
         balanced=False,
         synth_dim=784,
@@ -379,7 +379,6 @@ def run_sparse_experiment(config, *, do_plots=True):
                 f"quant_loss={res['quant_loss']:.4f}  time={res['time_s']:.2f}s"
             )
 
-    # Release warm-start vectors held only for polishing.
     for base in base_results:
         base.pop("final_flat", None)
         base.pop("unravel", None)

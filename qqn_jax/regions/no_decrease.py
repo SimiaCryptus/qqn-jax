@@ -38,7 +38,7 @@ def NoDecreaseRegion(secondary_grad_fn: Callable) -> Region:
             )
         )
         gg = sum(jnp.vdot(gi, gi) for gi in jax.tree_util.tree_leaves(g))
-        # Remove only the g-increasing component (relu(c) gates the sign).
+
         coeff = jnp.maximum(c, 0.0) / (gg + eps)
         s_proj = jax.tree_util.tree_map(lambda si, gi: si - coeff * gi, step, g)
         return _tree_add(params, s_proj)

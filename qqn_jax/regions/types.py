@@ -47,9 +47,6 @@ class RegionInfo(NamedTuple):
     step_size: Any = None
 
 
-# --- Tree helpers -----------------------------------------------------
-
-
 def _tree_add(a, b):
     return jax.tree_util.tree_map(lambda x, y: x + y, a, b)
 

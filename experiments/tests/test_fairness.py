@@ -22,7 +22,7 @@ def _tiny_config():
         activation="tanh",
         synth_dim=16,
         maxiter=5,
-        f_target=1e-9,  # unreachable -> exercise the budget/maxiter path
+        f_target=1e-9,
         gtol=1e-12,
         time_budget=10.0,
         milestones=(1e0, 5e-1),
@@ -75,8 +75,7 @@ def test_runners_return_runresult_and_count_evals():
         R.run_optax(loss_fn, params0, optax.adam(1e-2), cfg.maxiter, stop=cfg.stop),
         R.run_optax_lbfgs(loss_fn, params0, cfg.maxiter, stop=cfg.stop),
     ):
-        # Shared termination loop produced a full history + times.
         assert len(result.history) == len(result.times)
         assert result.history[0] >= result.history[-1] - 1e-3
-        # Milestone dict keyed by the shared milestones.
+
         assert set(result.milestone_hits.keys()) == set(cfg.milestones)

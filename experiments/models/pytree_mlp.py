@@ -43,15 +43,15 @@ def init_params(key, sizes: List[int], activation: Any = "tanh"):
         ]
     else:
         hidden_names = [activation] * max(n_hidden, 0)
-    # Output layer is always linear (logits) -> Glorot-style init.
+
     layer_names = hidden_names + ["identity"]
     for li, (k, (n_in, n_out)) in enumerate(zip(keys, zip(sizes[:-1], sizes[1:]))):
         wk, _bk = jax.random.split(k)
         act_name = layer_names[li] if li < len(layer_names) else "identity"
         if act_name == "relu":
-            scale = jnp.sqrt(2.0 / n_in)  # He
+            scale = jnp.sqrt(2.0 / n_in)
         else:
-            scale = 1.0 / jnp.sqrt(n_in)  # Glorot/Xavier-style
+            scale = 1.0 / jnp.sqrt(n_in)
         params.append(
             {
                 "w": scale * jax.random.normal(wk, (n_in, n_out)),

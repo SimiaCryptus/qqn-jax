@@ -29,16 +29,16 @@ class ExperimentConfig:
     synth_dim: int = 784
     maxiter: int = 1_000_000
     balanced: bool = True
-    # --- termination / fairness ---
+
     f_target: float = 2e-2
     gtol: float = 1e-8
     time_budget: float = 150.0
     milestones: tuple = (1e0, 5e-1, 2e-1, 1e-1)
     target_profile: tuple = (2e-1, 1e-1, 6e-2, 4e-2, 2e-2)
-    # --- baselines ---
+
     sgd_lr: float = 0.05
     adam_lr: float = 0.01
-    # --- runtime-resolved (filled by from_env) ---
+
     activation_name: object = None
     activation_fn: object = None
 

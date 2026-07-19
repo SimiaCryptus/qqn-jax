@@ -38,8 +38,8 @@ def _empty_probes(params, max_probes):
         jnp.zeros((max_probes, n), dtype=params.dtype),
         jnp.zeros((max_probes, n), dtype=params.dtype),
         jnp.zeros((max_probes,), dtype=bool),
-        jnp.full((max_probes,), jnp.inf, dtype=params.dtype),  # values
-        jnp.zeros((max_probes,), dtype=params.dtype),  # alphas
+        jnp.full((max_probes,), jnp.inf, dtype=params.dtype),
+        jnp.zeros((max_probes,), dtype=params.dtype),
     )
 
 

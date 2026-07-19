@@ -163,7 +163,7 @@ def quantization_delta_penalty(
         lo_v = jnp.asarray(lo, dtype=dt)
         hi_v = jnp.asarray(hi, dtype=dt)
         x = jnp.clip(p, lo_v, hi_v)
-        # Nearest grid point g_k = lo + round((x-lo)/delta)*delta.
+
         k = jnp.round((x - lo_v) / delta)
         k_max = jnp.floor((hi_v - lo_v) / delta)
         k = jnp.clip(k, 0.0, k_max)

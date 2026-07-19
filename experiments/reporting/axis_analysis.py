@@ -17,9 +17,6 @@ from experiments.optimizers.profiles import _AXES
 __all__ = ["axis_analysis", "report_axis_analysis"]
 
 
-# Metrics we aggregate; all oriented lower-is-better after transformation.
-# ``invert`` marks metrics where higher is better (accuracies) so we flip
-# them before normalization.
 _METRICS = [
     ("final_loss", False),
     ("iters_to_target", False),
@@ -46,7 +43,7 @@ def _parse_profile_tokens(name):
     """Split a ``QQN-...`` profile name into its ordered token list."""
     if name != "QQN" and not name.startswith("QQN-"):
         return None
-    parts = name.split("-")[1:]  # drop leading "QQN"
+    parts = name.split("-")[1:]
     return parts
 
 
@@ -55,7 +52,7 @@ def _token_for_axis(tokens, axis_token_set):
     for tok in tokens:
         if tok in axis_token_set:
             return tok
-    return None  # this axis was at its default for this profile
+    return None
 
 
 def _metric_value(r, key):
@@ -91,7 +88,6 @@ def axis_analysis(results):
     if not qqn:
         return {}
 
-    # --- Precompute per-metric normalization ranges across QQN profiles. ---
     norm_ranges = {}
     for key, higher_better in _METRICS:
         vals = [
@@ -119,14 +115,13 @@ def axis_analysis(results):
     analysis = {}
     for axis_idx, token_set in axis_tokens:
         axis_name = _AXES[axis_idx].__name__.lstrip("_").replace("_axis", "")
-        buckets = {}  # token_or_default -> list of (name, result)
+        buckets = {}
         for name, r in qqn.items():
             tokens = _parse_profile_tokens(name)
             tok = _token_for_axis(tokens, token_set)
             key = tok if tok is not None else "<default>"
             buckets.setdefault(key, []).append((name, r))
 
-        # Skip axes that never vary (single bucket) to keep the report tight.
         if len(buckets) <= 1:
             continue
 

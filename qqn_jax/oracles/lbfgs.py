@@ -26,8 +26,7 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
     """
 
     def init(params):
-        # ``grad`` is unknown at init; use zeros for ``prev_grad`` so the
-        # very first curvature pair is computed once a real gradient lands.
+
         grad = jax.tree_util.tree_map(jnp.zeros_like, params)
         return init_lbfgs_state(params, grad, history_size)
 
@@ -36,22 +35,7 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
         return d, state
 
     def update(state, info):
-        # When line-search probes are supplied, replay them oldest-first so
-        # every gradient evaluated along the path contributes curvature, then
-        # finish with the accepted point as the newest pair. Otherwise fall
-        # back to the single-pair update (byte-for-byte legacy behavior).
-        # The replay path additionally needs probe_alphas (to sort the probes
-        # into monotone-α order) and probe_valid (to mask empty slots). Some
-        # line searches (e.g. the spline-wrapped variant) record probe params
-        # and grads but neither alphas nor a valid mask — in that case we
-        # cannot meaningfully replay, so fall back to the single-pair update.
-        #
-        # All probes are COLLINEAR (they lie on the single ray x + α·d), so
-        # they only ever re-estimate curvature *along d*. Replaying many of
-        # them flushes the fixed-size buffer of genuine cross-iteration
-        # curvature. ``_ordered_probe_secants`` caps the replay count so the
-        # bulk of the real history survives and probes only add a mild
-        # endpoint refinement.
+
         ordered = _ordered_probe_secants(info, max_replay=max_probe_replay)
         if ordered is None:
             return update_lbfgs_history(

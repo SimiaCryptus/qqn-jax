@@ -51,8 +51,7 @@ def _enabled_backends():
     if raw in ("1", "true", "on", "all"):
         return frozenset({"jax", "perfetto", "scalene"})
     toks = {t.strip() for t in raw.split(",") if t.strip()}
-    # ``perfetto`` is implied by ``jax`` (JAX writes Perfetto traces), but
-    # keep them independently selectable for clarity in the printout.
+
     return frozenset(toks)
 
 
@@ -68,7 +67,7 @@ def _profile_name(default):
 
 def scalene_active():
     """Return True if the process is running under Scalene."""
-    # Scalene injects its profiler module and sets this env marker.
+
     if os.environ.get("SCALENE_PROFILE") is not None:
         return True
     return "scalene" in sys.modules or any("scalene" in m for m in sys.modules)
@@ -77,7 +76,6 @@ def scalene_active():
 def _print_scalene_hint(script_argv):
     """Print the command to re-run the current script under Scalene."""
     try:
-        import scalene  # type: ignore # noqa: F401
 
         have = True
     except Exception:
@@ -130,17 +128,14 @@ def profile_session(name="run"):
             import jax
 
             os.makedirs(trace_dir, exist_ok=True)
-            # create_perfetto_trace=True emits a perfetto_trace.json.gz that
-            # loads directly in ui.perfetto.dev (in addition to the
-            # TensorBoard plugin format).
+
             try:
                 jax.profiler.start_trace(trace_dir, create_perfetto_trace=True)
             except TypeError:
-                # Older JAX without the create_perfetto_trace kwarg.
                 jax.profiler.start_trace(trace_dir)
             started = True
             print(f"[profile] JAX/Perfetto trace -> {trace_dir}")
-        except Exception as exc:  # pragma: no cover - environment dependent
+        except Exception as exc:
             print(f"[profile] Failed to start JAX profiler: {exc}")
 
     if "scalene" in backends:
@@ -164,7 +159,7 @@ def profile_session(name="run"):
                     f"            * tensorboard --logdir {outdir}  "
                     "(Profile -> Trace Viewer)"
                 )
-            except Exception as exc:  # pragma: no cover
+            except Exception as exc:
                 print(f"[profile] Failed to stop JAX profiler: {exc}")
 
 
@@ -186,7 +181,6 @@ def profile_region(label):
         with jax.profiler.TraceAnnotation(label):
             yield
     except Exception:
-        # Never let profiling annotation break the actual computation.
         yield
 
 

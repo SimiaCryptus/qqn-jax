@@ -61,7 +61,7 @@ def fixed_step_search(
     raw_params = tree_add_scaled(params, 1.0, offset)
     new_params = region.project(params, raw_params, region_state)
     new_val, new_g = value_and_grad_fn(new_params, *args)
-    # Temperature meta-rule: gate on descent OR Metropolis when active.
+
     temp0 = jnp.asarray(temperature, dtype=value.dtype)
     stochastic, _key = _metropolis_accept(
         new_val - value, temp0, jax.random.PRNGKey(seed), value.dtype
