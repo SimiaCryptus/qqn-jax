@@ -117,6 +117,9 @@ def backtracking_search(
     c1: float = 1e-2,
     shrink: float = 0.5,
     max_iter: int = 5,
+    temperature: float = 0.0,
+    cooling: float = 0.95,
+    seed: int = 0,
     region=None,
     region_state=None,
     max_probes: int = 32,
@@ -131,6 +134,14 @@ def backtracking_search(
      If a ``region`` is supplied, the candidate point ``x + α·d`` is projected
      onto the region before evaluation, so the search navigates the feasible
      (projected) path.
+    When ``temperature > 0`` a Metropolis-style stochastic acceptance is
+    layered on top of the Armijo test: a step that fails Armijo may still be
+    accepted (an *uphill climb*) with probability ``exp(−ΔE / T)`` where
+    ``ΔE = f(x + α·d) − f(x)`` and ``T`` is the (geometrically cooled)
+    temperature. With the default ``temperature = 0.0`` this stochastic path
+    is disabled entirely and the search reduces to plain Armijo backtracking.
+    A ``seed`` seeds a deterministic PRNG so the search stays JIT/vmap
+    compatible and reproducible.
     """
     region = resolve_region(region)
     project = _make_projected_point(region, region_state, params)
@@ -147,27 +158,93 @@ def backtracking_search(
     # thread a full ``(max_probes, n)`` array through every iteration.
     eff_probes = max_probes if record_probes else 1
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
+    temp0 = jnp.asarray(temperature, dtype=value.dtype)
+    # Temperature is enabled only when strictly positive.
+    use_temp = temp0 > 0.0
+    key0 = jax.random.PRNGKey(seed)
+    def accept(alpha, val, temp, key):
+        """Return (accepted, new_key). Armijo OR (optional) Metropolis test."""
+        armijo = val <= value + c1 * alpha * dg
+        delta_e = val - value
+        # Safe temperature guards against divide-by-zero when T collapses.
+        safe_t = jnp.maximum(temp, jnp.asarray(1e-12, dtype=value.dtype))
+        p = jnp.exp(-delta_e / safe_t)
+        p = jnp.clip(p, 0.0, 1.0)
+        key, subkey = jax.random.split(key)
+        u = jax.random.uniform(subkey, dtype=value.dtype)
+        # Only allow the stochastic uphill move when temperature is active.
+        stochastic = jnp.logical_and(use_temp, u < p)
+        return jnp.logical_or(armijo, stochastic), key
+
 
     def cond(carry):
-        alpha, i, evals, val, _g, _p, _pp, _pg, _pv, _pval, _pa = carry
-        armijo = val <= value + c1 * alpha * dg
-        return jnp.logical_and(jnp.logical_not(armijo), i < max_iter)
+        (
+            alpha,
+            i,
+            evals,
+            val,
+            _g,
+            _p,
+            accepted,
+            _temp,
+            _key,
+            _pp,
+            _pg,
+            _pv,
+            _pval,
+            _pa,
+        ) = carry
+        return jnp.logical_and(jnp.logical_not(accepted), i < max_iter)
 
     def body(carry):
-        alpha, i, evals, _val, _g, _p, pp, pg, pv, pval, pa = carry
+        (
+            alpha,
+            i,
+            evals,
+            _val,
+            _g,
+            _p,
+            _accepted,
+            temp,
+            key,
+            pp,
+            pg,
+            pv,
+            pval,
+            pa,
+        ) = carry
         alpha = alpha * shrink
         new_params, new_val, new_g = eval_at(alpha)
+        accepted, key = accept(alpha, new_val, temp, key)
+        temp = temp * cooling
         # Record this probe (slot = i, since slot 0 holds the init_step probe).
         pp, pg, pv, pval, pa = _record_probe(
             pp, pg, pv, pval, pa, i, new_params, new_g, new_val, alpha, eff_probes
         )
         # ``evals`` counts every eval_at call: the body adds exactly one.
-        return alpha, i + 1, evals + 1, new_val, new_g, new_params, pp, pg, pv, pval, pa
+        return (
+            alpha,
+            i + 1,
+            evals + 1,
+            new_val,
+            new_g,
+            new_params,
+            accepted,
+            temp,
+            key,
+            pp,
+            pg,
+            pv,
+            pval,
+            pa,
+        )
 
     init_alpha = jnp.asarray(init_step, dtype=value.dtype)
 
     # Evaluate at the initial step first.
     init_params, init_val, init_g = eval_at(init_alpha)
+    init_accepted, key1 = accept(init_alpha, init_val, temp0, key0)
+    temp1 = temp0 * cooling
     # Slot 0 records the initial-step probe.
     init_pp, init_pg, init_pv, init_pval, init_pa = _record_probe(
         init_pp,
@@ -190,6 +267,9 @@ def backtracking_search(
         final_val,
         final_g,
         new_params,
+        accepted,
+        _temp,
+        _key,
         probe_params,
         probe_grads,
         probe_valid,
@@ -205,6 +285,9 @@ def backtracking_search(
             init_val,
             init_g,
             init_params,
+            init_accepted,
+            temp1,
+            key1,
             init_pp,
             init_pg,
             init_pv,
@@ -212,7 +295,6 @@ def backtracking_search(
             init_pa,
         ),
     )
-    armijo = final_val <= value + c1 * alpha * dg
     # Evals are tracked explicitly in the carry (1 for the initial-step probe
     # plus one per backtracking iteration), decoupled from ``n_iters`` so the
     # count cannot drift if the loop index semantics change.
@@ -222,7 +304,7 @@ def backtracking_search(
         new_value=final_val,
         new_grad=final_g,
         new_params=new_params,
-        done=armijo,
+        done=accepted,
         probe_params=probe_params,
         probe_grads=probe_grads,
         probe_valid=probe_valid,
@@ -242,6 +324,7 @@ def strong_wolfe_search(
     c1: float = 1e-3,
     c2: float = 0.7,
     max_iter: int = 10,
+    temperature: float = 0.0,
     region=None,
     region_state=None,
     max_probes: int = 32,
@@ -251,6 +334,9 @@ def strong_wolfe_search(
 
     Enforces Armijo sufficient decrease and the strong curvature
     condition, which keeps the L-BFGS curvature updates well-conditioned.
+    The ``temperature`` parameter is accepted for interface uniformity with
+    the backtracking searches but is ignored here: Optax's zoom search does
+    not expose a stochastic-acceptance hook.
 
     Optax's zoom line search is a ``GradientTransformationExtraArgs`` whose
     ``update`` step rescales the provided *updates* (here, ``direction``)
@@ -330,6 +416,7 @@ def fixed_step_search(
     grad,
     *args,
     step_size: float = 1.0,
+    temperature: float = 0.0,
     region=None,
     region_state=None,
     max_probes: int = 32,
@@ -339,6 +426,8 @@ def fixed_step_search(
     Useful for debugging, benchmarking against a baseline, or when the
     quadratic path scaling already provides a sensible step. Always reports
     ``done=True`` (it makes no acceptance test).
+    The ``temperature`` parameter is accepted for interface uniformity but
+    has no effect (this search makes no acceptance test).
     """
     region = resolve_region(region)
     alpha = jnp.asarray(step_size, dtype=value.dtype)
@@ -375,6 +464,9 @@ def armijo_search(
     c1: float = 1e-2,
     shrink: float = 0.5,
     max_iter: int = 30,
+    temperature: float = 0.0,
+    cooling: float = 0.95,
+    seed: int = 0,
     region=None,
     region_state=None,
     max_probes: int = 32,
@@ -395,14 +487,15 @@ def armijo_search(
         c1=c1,
         shrink=shrink,
         max_iter=max_iter,
+        temperature=temperature,
+        cooling=cooling,
+        seed=seed,
         region=region,
         region_state=region_state,
         max_probes=max_probes,
         record_probes=record_probes,
     )
-
-
-def backtracking_temperature_search(
+def bisection_search(
     value_and_grad_fn: Callable,
     params,
     direction,
@@ -410,155 +503,86 @@ def backtracking_temperature_search(
     grad,
     *args,
     init_step: float = 1.0,
-    c1: float = 1e-2,
-    shrink: float = 0.5,
-    max_iter: int = 30,
-    temperature: float = 1.0,
-    cooling: float = 0.95,
-    seed: int = 0,
+    c1: float = 1e-4,
+    max_iter: int = 25,
+    slope_tol: float = 1e-8,
+    temperature: float = 0.0,
     region=None,
     region_state=None,
     max_probes: int = 32,
     record_probes: bool = True,
 ) -> LineSearchResult:
-    """Backtracking line search with a Metropolis-style temperature.
-    A simulated-annealing flavored backtracking search: at each shrink step
-    the Armijo sufficient-decrease test is checked first, but if it fails the
-    step may *still* be probabilistically accepted — an *uphill climb* — with
-    Metropolis acceptance probability
-        p = exp(−ΔE / T),   ΔE = f(x + α·d) − f(x)
-    where ``T`` is the (annealed) temperature. This lets the search escape
-    shallow local structure by occasionally accepting a worse point. The
-    temperature is cooled geometrically (``T ← cooling·T``) at each iteration
-    so the acceptance of uphill moves becomes progressively less likely.
-    Downhill steps (ΔE ≤ 0) are always accepted (``p ≥ 1``). If neither the
-    Armijo test nor the stochastic test ever accepts, the search terminates at
-    ``max_iter`` with the last (shrunk) step.
-    A ``seed`` seeds a deterministic PRNG so the whole search stays
-    JIT/vmap-compatible and reproducible.
+    """Bisection line search that seeks a *true* one-dimensional minimum.
+    Whereas the backtracking/Armijo family is deliberately *permissive* — it
+    accepts the first step that merely makes sufficient progress — this search
+    is the opposite: it bisects on the directional derivative
+    ``φ'(α) = ⟨∇f(x + α·d), d⟩`` to drive it toward zero, locating a genuine
+    stationary point of the objective *along the path*. Use it only in the
+    special cases where an accurate along-path minimizer is worth the extra
+    gradient evaluations (the cross-product profiles reserve it for exactly
+    that role).
+    The scheme first brackets a sign change of ``φ'`` by expanding from a small
+    lower bound; if no bracket is found within the expansion budget it falls
+    back to the best (lowest-value) point it evaluated, still reporting
+    ``done`` when the Armijo sufficient-decrease condition holds there.
+    Implemented with ``lax.while_loop`` to stay JIT/vmap compatible.
+    The ``temperature`` parameter is accepted for interface uniformity but has
+    no effect (this search makes a deterministic minimizing test).
     """
     region = resolve_region(region)
     project = _make_projected_point(region, region_state, params)
-    dg = tree_vdot(grad, direction)  # directional derivative gᵀd
-
+    dg = tree_vdot(grad, direction)  # φ'(0) = gᵀd
     def eval_at(alpha):
         raw = tree_add_scaled(params, alpha, direction)
         projected = project(raw)
         val, g = value_and_grad_fn(projected, *args)
-        return projected, val, g
-
+        slope = tree_vdot(g, direction)
+        return projected, val, g, slope
     eff_probes = max_probes if record_probes else 1
     init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
-    temp0 = jnp.asarray(temperature, dtype=value.dtype)
-    key0 = jax.random.PRNGKey(seed)
-
-    def accept(alpha, val, temp, key):
-        """Return (accepted, new_key). Armijo OR Metropolis stochastic test."""
-        armijo = val <= value + c1 * alpha * dg
-        delta_e = val - value
-        # Metropolis probability: exp(-ΔE / T), clamped to [0, 1]. A safe
-        # temperature guards against divide-by-zero when T collapses.
-        safe_t = jnp.maximum(temp, jnp.asarray(1e-12, dtype=value.dtype))
-        p = jnp.exp(-delta_e / safe_t)
-        p = jnp.clip(p, 0.0, 1.0)
-        key, subkey = jax.random.split(key)
-        u = jax.random.uniform(subkey, dtype=value.dtype)
-        stochastic = u < p
-        return jnp.logical_or(armijo, stochastic), key
-
-    def cond(carry):
-        (
-            alpha,
-            i,
-            evals,
-            val,
-            _g,
-            _p,
-            accepted,
-            temp,
-            key,
-            _pp,
-            _pg,
-            _pv,
-            _pval,
-            _pa,
-        ) = carry
-        return jnp.logical_and(jnp.logical_not(accepted), i < max_iter)
-
-    def body(carry):
-        (alpha, i, evals, _val, _g, _p, _accepted, temp, key, pp, pg, pv, pval, pa) = (
-            carry
-        )
-        alpha = alpha * shrink
-        new_params, new_val, new_g = eval_at(alpha)
-        accepted, key = accept(alpha, new_val, temp, key)
-        temp = temp * cooling
-        pp, pg, pv, pval, pa = _record_probe(
-            pp, pg, pv, pval, pa, i, new_params, new_g, new_val, alpha, eff_probes
-        )
-        return (
-            alpha,
-            i + 1,
-            evals + 1,
-            new_val,
-            new_g,
-            new_params,
-            accepted,
-            temp,
-            key,
-            pp,
-            pg,
-            pv,
-            pval,
-            pa,
-        )
-
-    init_alpha = jnp.asarray(init_step, dtype=value.dtype)
-    # Evaluate at the initial step first.
-    init_params, init_val, init_g = eval_at(init_alpha)
-    init_accepted, key1 = accept(init_alpha, init_val, temp0, key0)
-    temp1 = temp0 * cooling
+    zero = jnp.asarray(0.0, dtype=value.dtype)
+    hi0 = jnp.asarray(init_step, dtype=value.dtype)
+    # --- Phase 1: bracket a sign change of φ'. ---------------------------
+    # We keep a low endpoint (slope known-negative, starting at α=0 where the
+    # slope is dg < 0 for a descent direction) and expand the high endpoint by
+    # doubling until φ'(hi) >= 0 (a bracket) or the budget is exhausted.
+    p_hi, v_hi, g_hi, s_hi = eval_at(hi0)
     init_pp, init_pg, init_pv, init_pval, init_pa = _record_probe(
-        init_pp,
-        init_pg,
-        init_pv,
-        init_pval,
-        init_pa,
-        0,
-        init_params,
-        init_g,
-        init_val,
-        init_alpha,
-        eff_probes,
+        init_pp, init_pg, init_pv, init_pval, init_pa,
+        0, p_hi, g_hi, v_hi, hi0, eff_probes,
     )
+    def bracket_cond(carry):
+        hi, s_hi, v_hi, i, evals, _pp, _pg, _pv, _pval, _pa = carry
+        # Keep expanding while slope still negative (no bracket yet).
+        return jnp.logical_and(s_hi < 0.0, i < max_iter)
+    def bracket_body(carry):
+        hi, _s_hi, _v_hi, i, evals, pp, pg, pv, pval, pa = carry
+        new_hi = hi * 2.0
+        p, v, g, s = eval_at(new_hi)
+        pp, pg, pv, pval, pa = _record_probe(
+            pp, pg, pv, pval, pa, i, p, g, v, new_hi, eff_probes
+        )
+        return new_hi, s, v, i + 1, evals + 1, pp, pg, pv, pval, pa
     (
-        alpha,
-        n_iters,
-        eval_count,
-        final_val,
-        final_g,
-        new_params,
-        accepted,
-        _temp,
-        _key,
-        probe_params,
-        probe_grads,
-        probe_valid,
-        probe_values,
-        probe_alphas,
+        hi,
+        s_hi_final,
+        _v_hi_final,
+        bracket_iters,
+        bracket_evals,
+        pp,
+        pg,
+        pv,
+        pval,
+        pa,
     ) = jax.lax.while_loop(
-        cond,
-        body,
+        bracket_cond,
+        bracket_body,
         (
-            init_alpha,
+            hi0,
+            s_hi,
+            v_hi,
             jnp.asarray(1),
-            jnp.asarray(1, jnp.int32),
-            init_val,
-            init_g,
-            init_params,
-            init_accepted,
-            temp1,
-            key1,
+            jnp.asarray(1, jnp.int32),  # the initial eval_at(init_step) probe
             init_pp,
             init_pg,
             init_pv,
@@ -566,21 +590,217 @@ def backtracking_temperature_search(
             init_pa,
         ),
     )
-    num_evals = eval_count
+    bracketed = s_hi_final >= 0.0
+    # --- Phase 2: bisect within [lo, hi] to drive φ'(α) -> 0. ------------
+    # lo starts at 0 (slope dg < 0); hi is the bracketing high endpoint.
+    def bisect_cond(carry):
+        (lo, hi, i, evals, best_a, best_v, best_p, best_g, pp, pg, pv, pval, pa) = carry
+        return i < max_iter
+    def bisect_body(carry):
+        (lo, hi, i, evals, best_a, best_v, best_p, best_g, pp, pg, pv, pval, pa) = carry
+        mid = 0.5 * (lo + hi)
+        p, v, g, s = eval_at(mid)
+        pp, pg, pv, pval, pa = _record_probe(
+            pp, pg, pv, pval, pa, bracket_iters + i, p, g, v, mid, eff_probes
+        )
+        # Track the lowest-value probe seen (the returned point).
+        improved = v < best_v
+        best_a = jnp.where(improved, mid, best_a)
+        best_v = jnp.where(improved, v, best_v)
+        best_p = jnp.where(improved, p, best_p)
+        best_g = jnp.where(improved, g, best_g)
+        # Standard slope bisection: if φ'(mid) < 0 the minimum is to the right.
+        go_right = s < 0.0
+        new_lo = jnp.where(go_right, mid, lo)
+        new_hi = jnp.where(go_right, hi, mid)
+        return (
+            new_lo,
+            new_hi,
+            i + 1,
+            evals + 1,
+            best_a,
+            best_v,
+            best_p,
+            best_g,
+            pp,
+            pg,
+            pv,
+            pval,
+            pa,
+        )
+    # Seed the "best" tracker with the bracketing high point (a valid,
+    # already-projected candidate) so we always have something to return.
+    (
+        _lo,
+        _hi,
+        bisect_iters,
+        total_evals,
+        best_alpha,
+        best_value,
+        best_params,
+        best_grad,
+        pp,
+        pg,
+        pv,
+        pval,
+        pa,
+    ) = jax.lax.while_loop(
+        bisect_cond,
+        bisect_body,
+        (
+            zero,
+            hi,
+            jnp.asarray(0),
+            bracket_evals,
+            hi,  # best_alpha
+            v_hi,  # best_value
+            p_hi,  # best_params
+            g_hi,  # best_grad
+            pp,
+            pg,
+            pv,
+            pval,
+            pa,
+        ),
+    )
+    # Only actually bisect when a bracket was found; otherwise the best-value
+    # point already tracked from the expansion phase is returned as-is.
+    # (The while_loop still runs but the bisection interval collapses onto the
+    # unbracketed hi, so the result degrades gracefully to the expansion best.)
+    # Accept when the Armijo sufficient-decrease condition holds at the
+    # returned point (a minimizer that also descends), or when we successfully
+    # bracketed a stationary point.
+    armijo = best_value <= value + c1 * best_alpha * dg
+    done = jnp.logical_or(armijo, bracketed)
     return LineSearchResult(
-        step_size=alpha,
-        new_value=final_val,
-        new_grad=final_g,
-        new_params=new_params,
-        done=accepted,
-        probe_params=probe_params,
-        probe_grads=probe_grads,
-        probe_valid=probe_valid,
-        probe_values=probe_values,
-        probe_alphas=probe_alphas,
-        num_evals=num_evals,
+        step_size=best_alpha,
+        new_value=best_value,
+        new_grad=best_grad,
+        new_params=best_params,
+        done=done,
+        probe_params=pp,
+        probe_grads=pg,
+        probe_valid=pv,
+        probe_values=pval,
+        probe_alphas=pa,
+        num_evals=total_evals,
     )
 
+
+def null_search(
+    value_and_grad_fn: Callable,
+    params,
+    direction,
+    value,
+    grad,
+    *args,
+    step_size: float = 1.0,
+    grad_scale: float = 1.0,
+    temperature: float = 0.0,
+    region=None,
+    region_state=None,
+    max_probes: int = 32,
+    record_probes: bool = True,
+) -> LineSearchResult:
+    """"Null" line search: unconditionally accept the ``t = 1`` oracle point.
+    The ``direction`` handed to the line search is the oracle endpoint
+    ``-H∇f`` (the ``t = 1`` point of the quadratic path). This search performs
+    *no* acceptance test and simply steps to ``params + step_size·direction``.
+    When the oracle degenerates and hands back the raw (negated) gradient — the
+    Fallback oracle's terminal safety net returns ``-∇f`` — this reduces to a
+    plain scaled-gradient step. The ``grad_scale`` parameter lets callers
+    rescale that case: it is applied as an *additional* multiplier when the
+    supplied direction is (anti-)parallel to the gradient (i.e. no genuine
+    curvature was available).
+    The ``temperature`` parameter is accepted for interface uniformity but
+    has no effect (this search makes no acceptance test).
+    Always reports ``done=True`` (it makes no acceptance test).
+    """
+    region = resolve_region(region)
+    base_alpha = jnp.asarray(step_size, dtype=value.dtype)
+    # Detect the "no oracle point" case: the direction is (anti-)parallel to
+    # the gradient, i.e. cos-similarity magnitude ~= 1. In that case apply the
+    # configurable ``grad_scale`` multiplier.
+    dd = tree_vdot(direction, direction)
+    gg = tree_vdot(grad, grad)
+    dg = tree_vdot(direction, grad)
+    denom = jnp.sqrt(dd * gg)
+    cos_sim = jnp.where(denom > 0.0, dg / denom, jnp.asarray(0.0, dtype=value.dtype))
+    is_grad = jnp.abs(cos_sim) >= (1.0 - 1e-6)
+    scale = jnp.where(is_grad, jnp.asarray(grad_scale, dtype=value.dtype), 1.0)
+    alpha = base_alpha * scale
+    raw_params = tree_add_scaled(params, alpha, direction)
+    new_params = region.project(params, raw_params, region_state)
+    new_val, new_g = value_and_grad_fn(new_params, *args)
+    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    pp, pg, pv, pval, pa = _record_probe(
+        pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, max_probes
+    )
+    return LineSearchResult(
+        step_size=alpha,
+        new_value=new_val,
+        new_grad=new_g,
+        new_params=new_params,
+        done=jnp.asarray(True),
+        probe_params=pp,
+        probe_grads=pg,
+        probe_valid=pv,
+        probe_values=pval,
+        probe_alphas=pa,
+        num_evals=jnp.asarray(1, dtype=jnp.int32),
+    )
+
+
+def backtracking_temperature_search(
+        value_and_grad_fn: Callable,
+        params,
+        direction,
+        value,
+        grad,
+        *args,
+        init_step: float = 1.0,
+        c1: float = 1e-2,
+        shrink: float = 0.5,
+        max_iter: int = 30,
+        temperature: float = 1.0,
+        cooling: float = 0.95,
+        seed: int = 0,
+        region=None,
+        region_state=None,
+        max_probes: int = 32,
+        record_probes: bool = True,
+) -> LineSearchResult:
+    """Backtracking line search with a Metropolis-style temperature.
+
+    Thin proxy over :func:`backtracking_search` that simply defaults the
+    ``temperature`` to ``1.0`` (enabling stochastic acceptance) rather than
+    ``0.0``. All the simulated-annealing logic — the Armijo test, the
+    Metropolis ``p = exp(−ΔE / T)`` uphill acceptance, and the geometric
+    cooling ``T ← cooling·T`` — now lives in ``backtracking_search`` and is
+    activated whenever ``temperature > 0``.
+
+    A ``seed`` seeds a deterministic PRNG so the whole search stays
+    JIT/vmap-compatible and reproducible.
+    """
+    return backtracking_search(
+        value_and_grad_fn,
+        params,
+        direction,
+        value,
+        grad,
+        *args,
+        init_step=init_step,
+        c1=c1,
+        shrink=shrink,
+        max_iter=max_iter,
+        temperature=temperature,
+        cooling=cooling,
+        seed=seed,
+        region=region,
+        region_state=region_state,
+        max_probes=max_probes,
+        record_probes=record_probes,
+    )
 
 def hager_zhang_search(
     value_and_grad_fn: Callable,
@@ -591,6 +811,7 @@ def hager_zhang_search(
     *args,
     c1: float = 0.1,
     max_iter: int = 30,
+    temperature: float = 0.0,
     region=None,
     region_state=None,
     max_probes: int = 32,
@@ -601,6 +822,8 @@ def hager_zhang_search(
     Optax's backtracking transformation parameterized to approximate it,
     recomputing value/grad at the accepted point. Falls back gracefully if
     the underlying transform is unavailable.
+    The ``temperature`` parameter is accepted for interface uniformity but
+    is ignored (Optax's backtracking transform exposes no stochastic hook).
     """
     region = resolve_region(region)
 

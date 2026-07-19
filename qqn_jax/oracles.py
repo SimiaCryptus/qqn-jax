@@ -27,6 +27,51 @@ from qqn_jax.lbfgs import (
 from qqn_jax.utils import tree_negative
 
 
+def _ordered_probe_secants(info, max_replay=None):
+    """Extract probe points ordered by increasing α, masked by validity.
+    Returns ``(params_seq, grad_seq, valid_seq)`` where the sequence runs
+    oldest-first (increasing α) and terminates with the accepted point as the
+    newest (always-valid) entry. When ``max_replay`` is given only the probes
+    CLOSEST to the accepted step (largest α among valid, descent-gated probes)
+    are retained, capping how many collinear probes are folded in.
+    Returns ``None`` when the probe buffers are not populated (no alphas /
+    valid mask / params), signalling the caller to fall back to a single-pair
+    (accepted-point-only) update.
+    """
+    if (
+            info.probe_params is None
+            or info.probe_alphas is None
+            or info.probe_valid is None
+    ):
+        return None
+    k = info.probe_alphas.shape[0]
+    if max_replay is not None:
+        n_keep = min(max_replay, k)
+        # Rank valid probes by α (descending): closest-to-accepted first.
+        ranked_alpha = jnp.where(info.probe_valid, info.probe_alphas, -jnp.inf)
+        keep_order = jnp.argsort(-ranked_alpha)[:n_keep]
+        kept_params = info.probe_params[keep_order]
+        kept_grads = info.probe_grads[keep_order]
+        kept_valid = info.probe_valid[keep_order]
+        kept_alphas = info.probe_alphas[keep_order]
+    else:
+        kept_params = info.probe_params
+        kept_grads = info.probe_grads
+        kept_valid = info.probe_valid
+        kept_alphas = info.probe_alphas
+    # Sort the KEPT probes by INCREASING α so replayed secant differences are
+    # consistently oriented along the search ray.
+    inner = jnp.argsort(jnp.where(kept_valid, kept_alphas, jnp.inf))
+    probe_params = kept_params[inner]
+    probe_grads = kept_grads[inner]
+    probe_valid = kept_valid[inner]
+    # Append the accepted point as the final (newest) entry.
+    params_seq = jnp.concatenate([probe_params, info.new_params[None, :]], axis=0)
+    grad_seq = jnp.concatenate([probe_grads, info.new_grad[None, :]], axis=0)
+    valid_seq = jnp.concatenate([probe_valid, jnp.asarray([True])], axis=0)
+    return params_seq, grad_seq, valid_seq
+
+
 class Oracle(NamedTuple):
     """Pure, swappable oracle interface.
 
@@ -106,53 +151,20 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
         # line searches (e.g. the spline-wrapped variant) record probe params
         # and grads but neither alphas nor a valid mask — in that case we
         # cannot meaningfully replay, so fall back to the single-pair update.
-        if (
-            info.probe_params is None
-            or info.probe_alphas is None
-            or info.probe_valid is None
-        ):
-            return update_lbfgs_history(
-                state, info.new_params, info.new_grad, history_size
-            )
+        #
         # All probes are COLLINEAR (they lie on the single ray x + α·d), so
         # they only ever re-estimate curvature *along d*. Replaying many of
         # them flushes the fixed-size buffer of genuine cross-iteration
-        # curvature — strictly worse than a single accepted pair (the prior
-        # benchmark's catastrophic stall). The correct, helpful behavior is:
-        #
-        #   1. Keep at most ``max_probe_replay`` probes, chosen to be the ones
-        #      CLOSEST to the accepted step (largest α among the valid, descent-
-        #      gated probes). These refine the secant *at the t=1 endpoint*
-        #      rather than far down a rejected ray.
-        #   2. Sort the kept probes by increasing α so their secant
-        #      differences are consistently oriented.
-        #   3. Append the accepted point as the newest pair.
-        #
-        # Capping the replay count guarantees the bulk of the real history
-        # survives, so probes can only *add* a mild endpoint refinement.
-        k = info.probe_alphas.shape[0]
-        n_keep = min(max_probe_replay, k)
+        # curvature. ``_ordered_probe_secants`` caps the replay count so the
+        # bulk of the real history survives and probes only add a mild
+        # endpoint refinement.
+        ordered = _ordered_probe_secants(info, max_replay=max_probe_replay)
+        if ordered is None:
+            return update_lbfgs_history(
+                state, info.new_params, info.new_grad, history_size
+            )
 
-        # Rank valid probes by α (descending): the closest-to-accepted probes
-        # first. Invalid slots are pushed to the back with -inf.
-        ranked_alpha = jnp.where(info.probe_valid, info.probe_alphas, -jnp.inf)
-        keep_order = jnp.argsort(-ranked_alpha)[:n_keep]
-        kept_params = info.probe_params[keep_order]
-        kept_grads = info.probe_grads[keep_order]
-        kept_valid = info.probe_valid[keep_order]
-        kept_alphas = info.probe_alphas[keep_order]
-
-        # Now sort the KEPT probes by INCREASING α so the replayed secant
-        # differences s_k = p_k - p_{k-1} are consistently oriented along d.
-        inner = jnp.argsort(jnp.where(kept_valid, kept_alphas, jnp.inf))
-        probe_params = kept_params[inner]
-        probe_grads = kept_grads[inner]
-        probe_valid = kept_valid[inner]
-
-        # Append the accepted point as the final (newest) probe.
-        params_seq = jnp.concatenate([probe_params, info.new_params[None, :]], axis=0)
-        grad_seq = jnp.concatenate([probe_grads, info.new_grad[None, :]], axis=0)
-        valid_seq = jnp.concatenate([probe_valid, jnp.asarray([True])], axis=0)
+        params_seq, grad_seq, valid_seq = ordered
         return update_lbfgs_history_batch(
             state, params_seq, grad_seq, valid_seq, history_size
         )
@@ -182,9 +194,9 @@ class AdamState(NamedTuple):
 
 
 def AdamOracle(
-    beta1: float = 0.9,
-    beta2: float = 0.999,
-    epsilon: float = 1e-8,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        epsilon: float = 1e-8,
 ) -> Oracle:
     """ADAM (adaptive moment estimation) oracle.
     The ``t = 1`` endpoint is the classical ADAM update direction, formed by
@@ -233,13 +245,40 @@ def AdamOracle(
     def update(state, info):
         # Commit the accepted gradient into the running moment estimates. This
         # is the only state the solver persists across iterations.
-        grad = info.grad
-        m = jax.tree_util.tree_map(
-            lambda mi, g: beta1 * mi + (1.0 - beta1) * g, state.m, grad
+        # When line-search probes are populated, fold *every* gradient
+        # evaluated along the path into the moment estimates (oldest-first,
+        # ordered by increasing α), finishing with the accepted gradient as
+        # the newest sample. Each valid probe supplies an additional gradient
+        # observation for the first/second-moment averages, so the adaptive
+        # scaling reflects the whole probed ray rather than a single point.
+        # Absent probes we fall back to the single-gradient update.
+        ordered = _ordered_probe_secants(info)
+
+        def fold(m, v, g):
+            m = beta1 * m + (1.0 - beta1) * g
+            v = beta2 * v + (1.0 - beta2) * (g * g)
+            return m, v
+
+        if ordered is None:
+            m, v = fold(state.m, state.v, info.grad)
+            return AdamState(m=m, v=v, step=state.step + 1)
+
+        _, grad_seq, valid_seq = ordered
+
+        def body(carry, elem):
+            m, v = carry
+            g, valid = elem
+            m_new, v_new = fold(m, v, g)
+            # Skip empty probe slots: retain the moments unchanged.
+            m = jnp.where(valid, m_new, m)
+            v = jnp.where(valid, v_new, v)
+            return (m, v), None
+
+        (m, v), _ = jax.lax.scan(
+            body, (state.m, state.v), (grad_seq, valid_seq)
         )
-        v = jax.tree_util.tree_map(
-            lambda vi, g: beta2 * vi + (1.0 - beta2) * (g * g), state.v, grad
-        )
+        # Advance the step counter once per accepted step (bias correction is
+        # keyed to accepted iterations, not probe count).
         return AdamState(m=m, v=v, step=state.step + 1)
 
     return Oracle(init=init, direction=direction, update=update)
@@ -282,13 +321,35 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
         # Accumulate the *actual per-iteration delta* Δx = x_new − x into the
         # decaying-weight average. This is the only state the solver persists
         # across iterations, so the realized-step momentum must accumulate here.
-        delta = jax.tree_util.tree_map(
-            lambda xn, x: xn - x, info.new_params, info.params
-        )
-        v_new = jax.tree_util.tree_map(
-            lambda v, dx: beta * v + (1.0 - beta) * dx, state.velocity, delta
-        )
-        return MomentumState(velocity=v_new)
+        # When line-search probes are populated, fold the *incremental*
+        # per-probe deltas (relative to the previous point on the ray) into
+        # the decaying average oldest-first, finishing with the accepted
+        # point. This lets the realized-step momentum reflect the whole
+        # probed path rather than just the accepted jump. Absent probes we
+        # fall back to the single accepted-delta update.
+        ordered = _ordered_probe_secants(info)
+        if ordered is None:
+            delta = jax.tree_util.tree_map(
+                lambda xn, x: xn - x, info.new_params, info.params
+            )
+            v_new = jax.tree_util.tree_map(
+                lambda v, dx: beta * v + (1.0 - beta) * dx, state.velocity, delta
+            )
+            return MomentumState(velocity=v_new)
+
+        params_seq, _, valid_seq = ordered
+        # Prepend the pre-step iterate so incremental deltas are anchored on
+        # the true starting point of the ray.
+        anchored = jnp.concatenate([info.params[None, :], params_seq], axis=0)
+        deltas = anchored[1:] - anchored[:-1]  # (k+1, n) incremental deltas
+
+        def body(v, elem):
+            dx, valid = elem
+            v_new = beta * v + (1.0 - beta) * dx
+            return jnp.where(valid, v_new, v), None
+
+        v, _ = jax.lax.scan(body, state.velocity, (deltas, valid_seq))
+        return MomentumState(velocity=v)
 
     return Oracle(init=init, direction=direction, update=update)
 
@@ -345,10 +406,37 @@ def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Orac
     def update(state, info):
         # Push the freshly-realized delta into the front of the circular
         # buffer (most-recent-first), dropping the oldest.
-        delta = info.new_params - info.params
-        shifted = jnp.concatenate([delta[None], state.delta_history[:-1]], axis=0)
-        new_count = jnp.minimum(state.step_count + 1, history_size)
-        return PathHistoryMomentumState(delta_history=shifted, step_count=new_count)
+        # When line-search probes are populated, push each incremental probe
+        # delta (oldest-first) into the buffer so the reconstructed momentum
+        # weights the genuine intermediate path geometry, finishing with the
+        # accepted point. Absent probes we push the single accepted delta.
+        ordered = _ordered_probe_secants(info)
+        if ordered is None:
+            delta = info.new_params - info.params
+            shifted = jnp.concatenate([delta[None], state.delta_history[:-1]], axis=0)
+            new_count = jnp.minimum(state.step_count + 1, history_size)
+            return PathHistoryMomentumState(
+                delta_history=shifted, step_count=new_count
+            )
+
+        params_seq, _, valid_seq = ordered
+        anchored = jnp.concatenate([info.params[None, :], params_seq], axis=0)
+        deltas = anchored[1:] - anchored[:-1]  # (k+1, n) incremental deltas
+
+        def body(carry, elem):
+            hist, count = carry
+            dx, valid = elem
+            pushed = jnp.concatenate([dx[None], hist[:-1]], axis=0)
+            new_hist = jnp.where(valid, pushed, hist)
+            new_count = jnp.where(
+                valid, jnp.minimum(count + 1, history_size), count
+            )
+            return (new_hist, new_count), None
+
+        (hist, count), _ = jax.lax.scan(
+            body, (state.delta_history, state.step_count), (deltas, valid_seq)
+        )
+        return PathHistoryMomentumState(delta_history=hist, step_count=count)
 
     return Oracle(init=init, direction=direction, update=update)
 
@@ -392,15 +480,34 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
         return d, state
 
     def update(state, info):
-        s = jax.tree_util.tree_map(lambda a, b: a - b, info.new_params, info.params)
-        y = jax.tree_util.tree_map(lambda a, b: a - b, info.new_grad, info.grad)
-        ss = sum(jnp.vdot(si, si) for si in jax.tree_util.tree_leaves(s))
-        sy = sum(
-            jnp.vdot(si, yi)
-            for si, yi in zip(
-                jax.tree_util.tree_leaves(s), jax.tree_util.tree_leaves(y)
+        # When line-search probes are populated, use the *finest* secant on
+        # the ray (accepted point relative to the closest valid probe) so the
+        # BB curvature estimate reflects the local geometry at the t=1
+        # endpoint rather than the full accepted jump. Absent probes we use
+        # the accepted secant (x_new − x, ∇f_new − ∇f).
+        ordered = _ordered_probe_secants(info)
+        if ordered is None:
+            s = info.new_params - info.params
+            y = info.new_grad - info.grad
+        else:
+            params_seq, grad_seq, valid_seq = ordered
+            # The accepted point is the last entry; the immediately-preceding
+            # valid probe gives the tightest secant. Anchor on the pre-step
+            # iterate as a guaranteed-valid fallback.
+            anchor_p = jnp.concatenate([info.params[None, :], params_seq[:-1]], axis=0)
+            anchor_g = jnp.concatenate([info.grad[None, :], grad_seq[:-1]], axis=0)
+            # ``valid_seq[:-1]`` marks whether each preceding probe is real;
+            # pick the last valid one (closest to the accepted point).
+            prev_valid = valid_seq[:-1]
+            idx = jnp.max(
+                jnp.where(prev_valid, jnp.arange(prev_valid.shape[0]), 0)
             )
-        )
+            p_prev = anchor_p[idx]
+            g_prev = anchor_g[idx]
+            s = info.new_params - p_prev
+            y = info.new_grad - g_prev
+        ss = jnp.vdot(s, s)
+        sy = jnp.vdot(s, y)
         # BB1 step; guard against non-positive curvature by retaining prior α.
         curvature_ok = sy > eps
         bb = ss / jnp.where(curvature_ok, sy, 1.0)
@@ -432,9 +539,9 @@ def _matrix_inverse_pth_root(mat, p, epsilon):
 
 
 def ShampooOracle(
-    block_size: int = 128,
-    update_freq: int = 20,
-    epsilon: float = 1e-6,
+        block_size: int = 128,
+        update_freq: int = 20,
+        epsilon: float = 1e-6,
 ) -> Oracle:
     """Structure-aware preconditioned oracle (Shampoo).
 
@@ -571,7 +678,7 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
         # downstream safeguard. The ridge guarantees SPD-ness.
         active_mask = active[:, None] & active[None, :]
         A = jnp.where(active_mask, A, eye_m) + (
-            jnp.asarray(1e-12, dtype=grad.dtype) * eye_m
+                jnp.asarray(1e-12, dtype=grad.dtype) * eye_m
         )
         theta = jnp.linalg.solve(A, b)
         theta = jnp.where(active, theta, 0.0)
@@ -586,9 +693,42 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
 
     def update(state, info):
         # Roll the windows, inserting the freshly-accepted (x, g).
-        new_x = jnp.roll(state.x_history, shift=1, axis=0).at[0].set(info.new_params)
-        new_g = jnp.roll(state.g_history, shift=1, axis=0).at[0].set(info.new_grad)
-        new_count = jnp.minimum(state.step_count + 1, window)
+        # When line-search probes are populated, roll each valid probe
+        # (oldest-first) into the windows before the accepted point. Every
+        # probed (x, g) enriches the first-difference matrices ΔG/ΔX with an
+        # extra residual observation, deepening the least-squares window
+        # without extra accepted iterations. Absent probes we roll only the
+        # accepted point.
+        ordered = _ordered_probe_secants(info)
+        if ordered is None:
+            new_x = jnp.roll(state.x_history, shift=1, axis=0).at[0].set(
+                info.new_params
+            )
+            new_g = jnp.roll(state.g_history, shift=1, axis=0).at[0].set(
+                info.new_grad
+            )
+            new_count = jnp.minimum(state.step_count + 1, window)
+            return AndersonState(
+                g_history=new_g, x_history=new_x, step_count=new_count
+            )
+
+        params_seq, grad_seq, valid_seq = ordered
+
+        def body(carry, elem):
+            x_hist, g_hist, count = carry
+            x, g, valid = elem
+            rolled_x = jnp.roll(x_hist, shift=1, axis=0).at[0].set(x)
+            rolled_g = jnp.roll(g_hist, shift=1, axis=0).at[0].set(g)
+            new_x_hist = jnp.where(valid, rolled_x, x_hist)
+            new_g_hist = jnp.where(valid, rolled_g, g_hist)
+            new_count = jnp.where(valid, jnp.minimum(count + 1, window), count)
+            return (new_x_hist, new_g_hist, new_count), None
+
+        (new_x, new_g, new_count), _ = jax.lax.scan(
+            body,
+            (state.x_history, state.g_history, state.step_count),
+            (params_seq, grad_seq, valid_seq),
+        )
         return AndersonState(g_history=new_g, x_history=new_x, step_count=new_count)
 
     return Oracle(init=init, direction=direction, update=update)

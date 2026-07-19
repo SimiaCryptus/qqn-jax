@@ -433,4 +433,126 @@ def spline_wrap(inner_search: Callable) -> Callable:
 spline_search = spline_wrap(backtracking_search)
 
 
-__all__ = ["spline_wrap", "spline_search"]
+def linear_wrap(inner_search: Callable, num_samples: int = 8) -> Callable:
+    """Augment ``inner_search`` with a *linear* (value-only) refinement.
+
+    This is the deliberate opposite of :func:`spline_wrap`: where the spline
+    reuses every probe's *gradient* to build a cubic Hermite model, the linear
+    refinement throws the gradient information away entirely and simply samples
+    the objective along the straight segment between the origin (``α = 0``) and
+    the oracle point (``α = 1``, the ``t = 1`` endpoint of the path). It keeps
+    the lowest-value feasible sample found.
+
+    Because the path direction is consistent, sampling ``params + α·direction``
+    for ``α ∈ [0, 1]`` traces exactly the chord from the current iterate to the
+    oracle endpoint. When the direction degenerates to the (negated) gradient
+    (no genuine oracle point), the samples still interpolate along the gradient
+    ray, so a sensible step is recovered.
+
+    Args:
+        inner_search: any registered line-search strategy to seed the baseline.
+        num_samples: number of interior samples of ``α ∈ (0, 1]`` to probe.
+    """
+
+    def wrapped(
+        value_and_grad_fn: Callable,
+        params,
+        direction,
+        value,
+        grad,
+        *args,
+        region=None,
+        region_state=None,
+        **inner_kwargs,
+    ) -> LineSearchResult:
+        region = resolve_region(region)
+
+        def project(candidate):
+            return region.project(params, candidate, region_state)
+
+        def eval_at(alpha):
+            raw = tree_add_scaled(params, alpha, direction)
+            projected = project(raw)
+            val, g = value_and_grad_fn(projected, *args)
+            return projected, val, g
+
+        dtype = value.dtype
+
+        # 1. Baseline from the inner search.
+        inner = inner_search(
+            value_and_grad_fn,
+            params,
+            direction,
+            value,
+            grad,
+            *args,
+            region=region,
+            region_state=region_state,
+            **inner_kwargs,
+        )
+
+        inner_evals = inner.num_evals
+        if inner_evals is None:
+            inner_evals = jnp.asarray(1, jnp.int32)
+
+        # 2. Sample the straight chord from origin (α=0) to oracle point (α=1),
+        #    discarding all gradient/curvature information. Interior samples at
+        #    α = k / num_samples for k = 1..num_samples.
+        n = num_samples
+        alphas = (jnp.arange(1, n + 1, dtype=dtype)) / jnp.asarray(n, dtype=dtype)
+
+        def sample(alpha):
+            p, v, g = eval_at(alpha)
+            return alpha, v, p, g
+
+        s_alpha, s_val, s_params, s_grad = jax.vmap(sample)(alphas)
+
+        # 3. Pick the best of {inner accepted point, linear samples}.
+        best_sample_idx = jnp.argmin(s_val)
+        best_sample_val = s_val[best_sample_idx]
+        best_sample_alpha = s_alpha[best_sample_idx]
+        best_sample_params = s_params[best_sample_idx]
+        best_sample_grad = s_grad[best_sample_idx]
+
+        use_sample = best_sample_val < inner.new_value
+        fa = jnp.where(use_sample, best_sample_alpha, inner.step_size)
+        fv = jnp.where(use_sample, best_sample_val, inner.new_value)
+        fp = jax.tree_util.tree_map(
+            lambda s, i: jnp.where(use_sample, s, i),
+            best_sample_params,
+            inner.new_params,
+        )
+        fg = jax.tree_util.tree_map(
+            lambda s, i: jnp.where(use_sample, s, i),
+            best_sample_grad,
+            inner.new_grad,
+        )
+
+        done = jnp.logical_or(inner.done, use_sample)
+        return LineSearchResult(
+            step_size=fa,
+            new_value=fv,
+            new_grad=fg,
+            new_params=fp,
+            done=done,
+            probe_params=inner.probe_params,
+            probe_grads=inner.probe_grads,
+            probe_valid=inner.probe_valid,
+            probe_values=inner.probe_values,
+            probe_alphas=inner.probe_alphas,
+            num_evals=inner_evals + jnp.asarray(n, jnp.int32),
+        )
+
+    return wrapped
+
+
+# A ready-to-use linear line search: value-only chord interpolation wrapped
+# around the default backtracking (Armijo) inner search. This is a
+# convenience for testing ``linear_wrap`` in isolation; production use should
+# prefer the orthogonal ``linear=True`` solver flag, which wraps whichever
+# line search the caller actually selected (linear interpolation is a *path*
+# choice, not a line search in its own right).
+linear_search = linear_wrap(backtracking_search)
+
+
+__all__ = ["spline_wrap", "spline_search", "linear_wrap", "linear_search"]

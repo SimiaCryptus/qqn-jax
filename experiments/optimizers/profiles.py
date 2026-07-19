@@ -8,7 +8,27 @@ estimate). Only profiles whose names appear in ``ENABLED`` are returned.
 ``stop``, ``sgd_lr``, ``adam_lr`` and the three runner helpers
 ``run_qqn`` / ``run_optax`` / ``run_optax_lbfgs``. The driver passes the
 canonical runners, so by default this uses ``experiments.optimizers.runners``.
+
+QQN profiles are generated as the *cross product* of a handful of orthogonal
+axes (oracle, line search, spline, region, probe-feeding). Each axis is a
+``{token: kwargs}`` map defined by one of the ``_*_axis`` functions below:
+
+    * ``""`` is always the axis's default and contributes nothing to the
+      generated profile name.
+    * every other entry ``token: kwargs`` means "when this axis takes this
+      value, merge ``kwargs`` into the ``ctx.run_qqn(...)`` call, and append
+      ``token`` to the profile name".
+    * to disable a variant, simply comment out its line -- ``_qqn_registry``
+      only ever sees the entries that are still present in the dict.
+
+The cross product of every axis's *currently enabled* entries is registered
+under a name built by hyphenating the non-empty tokens (in fixed axis order:
+oracle, line_search, spline, region, probes) after a leading ``"QQN"``, e.g.
+``oracle="L80"`` + ``line_search="BT"`` => ``"QQN-L80-BT"``. Only names that
+also appear in ``ENABLED`` are actually built.
 """
+
+import itertools
 
 import optax
 
@@ -30,331 +50,219 @@ __all__ = ["ENABLED", "build_runners"]
 
 ENABLED = [
     "QQN",
-    "QQN-Adam",
-    "QQN-Temp",
-    "QQN-PathMom",
+    "SGD",
     "Adam",
     "L-BFGS",
 ]
 
 
-def _profiles():
-    """Return the ``{name: factory}`` registry."""
+# ---------------------------------------------------------------------------
+# Axis maps.
+#
+# Each function below returns a ``{token: kwargs}`` map for one orthogonal
+# QQN axis. Comment out an entry to remove it from the cross product (and
+# thus from every profile name that would have included its token).
+# ---------------------------------------------------------------------------
 
-    def QQN(ctx):
-        return (
-            lambda: ctx.run_qqn(ctx.loss_fn, ctx.params0, ctx.maxiter, stop=ctx.stop),
-            {},
-        )
 
-    def QQN_S(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn, ctx.params0, ctx.maxiter, stop=ctx.stop, spline=True
-            ),
-            {"spline": True},
-        )
+def _oracle_axis():
+    """Oracle axis: token -> ``run_qqn`` kwargs selecting the oracle."""
+    return {
+        # "": {},
+        "Mom": {"oracle": MomentumOracle(beta=0.9)},
+        "Adam": {"oracle": AdamOracle()},
+        # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
+        # "Sec": {"oracle": SecantOracle()},
+        # "And": {"oracle": AndersonOracle(window=5)},
+        "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
+        # "L20": {"oracle": LBFGSOracle(history_size=20)},
+        # "L50": {"oracle": LBFGSOracle(history_size=50)},
+        # "L80": {"oracle": LBFGSOracle(history_size=80)},
+        # "L120": {"oracle": LBFGSOracle(history_size=120)},
+        # "L160": {"oracle": LBFGSOracle(history_size=160)},
+        # "L80And": {
+        #     "oracle": Fallback(
+        #         [LBFGSOracle(history_size=80), AndersonOracle(window=5)]
+        #     )
+        # },
+        # "L50And": {
+        #     "oracle": Fallback(
+        #         [LBFGSOracle(history_size=50), AndersonOracle(window=5)]
+        #     )
+        # },
+    }
 
-    def QQN_BT(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                line_search="backtracking",
-                stop=ctx.stop,
-            ),
-            {"line_search": "backtracking"},
-        )
 
-    def QQN_BT_S(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                line_search="backtracking",
-                stop=ctx.stop,
-                spline=True,
-            ),
-            {"line_search": "backtracking", "spline": True},
-        )
+def _line_search_axis():
+    """Line-search axis: token -> ``run_qqn`` kwargs selecting the search.
 
-    def QQN_L20(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=20),
-                stop=ctx.stop,
-            ),
-            {},
-        )
+    The line search's role in QQN is *usually permissive*: the quadratic path
+    ``d(t)`` already encodes the curvature, so the search only needs to pick a
+    step that makes sufficient (Armijo) progress along the curve — it is *not*
+    meant to solve the 1-D subproblem to optimality. The tokens below make
+    that spectrum explicit, from most permissive to most exacting:
 
-    def QQN_L20_P(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=20),
-                stop=ctx.stop,
-                feed_probes_to_oracle=True,
-            ),
-            {},
-        )
+      * ``Null`` — the *maximally* permissive extreme: unconditionally accept
+        the ``t = 1`` oracle endpoint (no acceptance test at all).
+      * ``Arm`` (default) — permissive Armijo backtracking: accept the first
+        step meeting sufficient decrease. This is the robust efficiency winner
+        on smooth full-batch problems.
+      * ``ArmLoose`` / ``ArmTight`` — the *same* permissive Armijo search with
+        an explicitly loosened / tightened sufficient-decrease constant ``c1``,
+        via ``line_search_options``. ``ArmLoose`` (tiny ``c1``, few shrinks)
+        underlines "just take a reasonable step"; ``ArmTight`` (larger ``c1``,
+        more shrinks) demands more decrease before accepting.
+      * ``SW`` — strong Wolfe: enforces the curvature condition too, a stricter
+        (less permissive) accept.
+      * ``Bisect`` — the *special-case* exacting extreme: a bisection search
+        that drives the along-path directional derivative to zero, locating a
+        genuine 1-D minimum. Reserve this for problems where an accurate
+        along-path minimizer is worth the extra gradient evaluations.
+    """
+    return {
+        # "": {},
+        # --- Permissive family (the usual role) --------------------------
+        # "Null": {"line_search": "null"},
+        # "BT": {"line_search": "backtracking"},
+        "Arm": {"line_search": "armijo"},
+        # Same Armijo search, but with the sufficient-decrease constant tuned
+        # via ``line_search_options`` to emphasize the permissiveness dial:
+        "ArmLoose": {
+            "line_search": "armijo",
+            "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
+        },
+        # "ArmTight": {
+        #     "line_search": "armijo",
+        #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
+        # },
+        # "Fix": {"line_search": "fixed"},
+        # "SW": {"line_search": "strong_wolfe"},
+        # "HZ": {"line_search": "hager_zhang"},
+        # "Spl": {"line_search": "spline"},
+        # --- Exacting extreme: find a true along-path minimum (special
+        #     cases only) ------------------------------------------------
+        "Bisect": {
+            "line_search": "bisection",
+            # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
+        },
+    }
 
-    def QQN_L50(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=50),
-                stop=ctx.stop,
-            ),
-            {},
-        )
 
-    def QQN_L80(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=80),
-                stop=ctx.stop,
-            ),
-            {},
-        )
+def _spline_axis():
+    """Spline/linear axis: token -> ``run_qqn`` kwargs toggling the path
+    refinement.
 
-    def QQN_Cheap(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                line_search="backtracking",
-                line_search_options={
-                    "init_step": 1.0,
-                    "shrink": 0.7,
-                    "c1": 1e-4,
-                    "max_iter": 20,
-                },
-                oracle=LBFGSOracle(history_size=80),
-                stop=ctx.stop,
-            ),
-            {"line_search": "backtracking", "line_search_options": {"max_iter": 20}},
-        )
+    ``"S"`` enables the cubic Hermite *spline* refinement (reuses every
+    probe's gradient as a control point). ``"L"`` selects the *linear*
+    refinement — the deliberate opposite of the spline: it interpolates
+    value-only between the origin and the oracle point, throwing out the
+    gradient information entirely (falling back to the gradient ray only
+    when there is no genuine oracle point).
+    """
+    return {
+        "": {},
+        # "S": {"spline": True},
+        # "L": {"linear": True},
+    }
 
-    def QQN_L120(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=120),
-                stop=ctx.stop,
-            ),
-            {},
-        )
 
-    def QQN_L160(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=160),
-                stop=ctx.stop,
-            ),
-            {},
-        )
+def _region_axis():
+    """Region axis: token -> ``run_qqn`` kwargs selecting the trust region."""
+    return {
+        "": {},
+        # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
+        # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
+        # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
+    }
 
-    def QQN_L80And(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=Fallback(
-                    [LBFGSOracle(history_size=80), AndersonOracle(window=5)]
+
+def _probes_axis():
+    """Probe-feeding axis: token -> ``run_qqn`` kwargs toggling probe replay."""
+    return {
+        "": {},
+        # "P": {"feed_probes_to_oracle": True},
+    }
+
+def _temperature_axis():
+    """Temperature axis: token -> ``run_qqn`` kwargs enabling a Metropolis-style
+    stochastic line-search acceptance.
+    ``""`` (default) leaves ``temperature`` at its per-line-search default
+    (``0.0`` for the plain backtracking/Armijo family, i.e. no stochastic
+    uphill moves). Every non-empty entry threads a ``temperature`` (and,
+    optionally, ``cooling``/``seed``) into the chosen line search's
+    ``line_search_options`` so the simulated-annealing acceptance path is
+    activated. This composes with any line search that honours ``temperature``
+    (the backtracking/Armijo family); searches that ignore it (strong Wolfe,
+    Hager-Zhang, fixed, null) are unaffected.
+    """
+    return {
+        "": {},
+        "T1": {"line_search_options": {"temperature": 1.0}},
+        # "T01": {"line_search_options": {"temperature": 0.1}},
+        "T10": {"line_search_options": {"temperature": 10.0}},
+    }
+
+
+# Fixed axis order: also the order in which non-empty tokens are hyphenated
+# together to build a profile's name.
+_AXES = [
+    _oracle_axis,
+    _line_search_axis,
+     _temperature_axis,
+    _spline_axis,
+    _region_axis,
+    _probes_axis,
+]
+
+# Only these kwarg keys are surfaced in the eval-cost display map; the rest
+# (oracle/region instances, probe-feeding flags, ...) don't affect the
+# display estimate and aren't cheaply representable.
+_DISPLAY_KWARG_KEYS = ("line_search", "line_search_options", "spline")
+
+
+def _qqn_registry():
+    """Build the ``{name: factory}`` registry for every enabled QQN axis
+    combination (the cross product of each axis's currently enabled entries).
+    """
+    axes = [list(axis().items()) for axis in _AXES]
+    registry = {}
+    for combo in itertools.product(*axes):
+        tokens = [token for token, _kwargs in combo if token]
+        name = "-".join(["QQN", *tokens])
+        kwargs = {}
+        for _token, axis_kwargs in combo:
+             # Deep-merge ``line_search_options`` so orthogonal axes (e.g. a
+             # line-search variant that sets ``init_step``/``shrink`` and the
+             # temperature axis that sets ``temperature``) compose instead of
+             # one axis clobbering the other's options dict.
+             for key, val in axis_kwargs.items():
+                 if key == "line_search_options" and isinstance(val, dict):
+                     merged = dict(kwargs.get("line_search_options", {}))
+                     merged.update(val)
+                     kwargs["line_search_options"] = merged
+                 else:
+                     kwargs[key] = val
+        display_kwargs = {k: v for k, v in kwargs.items() if k in _DISPLAY_KWARG_KEYS}
+
+        def factory(ctx, _kwargs=kwargs, _display=display_kwargs):
+            return (
+                lambda: ctx.run_qqn(
+                    ctx.loss_fn,
+                    ctx.params0,
+                    ctx.maxiter,
+                    stop=ctx.stop,
+                    **_kwargs,
                 ),
-                stop=ctx.stop,
-            ),
-            {},
-        )
+                _display,
+            )
 
-    def QQN_L80_BT(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                line_search="backtracking",
-                line_search_options={
-                    "init_step": 1.0,
-                    "shrink": 0.7,
-                    "c1": 1e-3,
-                    "max_iter": 40,
-                },
-                oracle=LBFGSOracle(history_size=80),
-                stop=ctx.stop,
-            ),
-            {"line_search": "backtracking", "line_search_options": {"max_iter": 40}},
-        )
+        registry[name] = factory
+    return registry
 
-    def QQN_Mom(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=MomentumOracle(beta=0.9),
-                stop=ctx.stop,
-            ),
-            {},
-        )
 
-    def QQN_Adam(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=AdamOracle(),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_PathMom(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=PathHistoryMomentumOracle(history_size=10, beta=0.9),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_Temp(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                line_search="backtracking_temperature",
-                stop=ctx.stop,
-            ),
-            {"line_search": "backtracking_temperature"},
-        )
-
-    def QQN_Mom_S(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=MomentumOracle(beta=0.9),
-                stop=ctx.stop,
-                spline=True,
-            ),
-            {"spline": True},
-        )
-
-    def QQN_Sec(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=SecantOracle(),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_And(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=AndersonOracle(window=5),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_L50And(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=Fallback(
-                    [LBFGSOracle(history_size=50), AndersonOracle(window=5)]
-                ),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_TR(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                region=TrustRegion(radius=1.0, adaptive=True),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_Fast(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=LBFGSOracle(history_size=120),
-                region=TrustRegion(radius=2.0, adaptive=False),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_Max(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                oracle=Fallback(
-                    [LBFGSOracle(history_size=80), AndersonOracle(window=5)]
-                ),
-                region=TrustRegion(radius=2.0, adaptive=False),
-                stop=ctx.stop,
-            ),
-            {},
-        )
-
-    def QQN_Box(ctx):
-        return (
-            lambda: ctx.run_qqn(
-                ctx.loss_fn,
-                ctx.params0,
-                ctx.maxiter,
-                region=BoxRegion(lo=-2.0, hi=2.0),
-                stop=ctx.stop,
-            ),
-            {},
-        )
+def _baseline_profiles():
+    """Non-QQN baselines: these don't participate in the QQN axis cross
+    product since they have no oracle / line-search / region axes."""
 
     def SGD(ctx):
         return (
@@ -389,35 +297,18 @@ def _profiles():
         )
 
     return {
-        "QQN": QQN,
-        "QQN-S": QQN_S,
-        # "QQN-BT": QQN_BT,
-        # "QQN-BT-S": QQN_BT_S,
-        # "QQN-L20": QQN_L20,
-        # "QQN-L20_P": QQN_L20_P,
-        # "QQN-L50": QQN_L50,
-        # "QQN-L80": QQN_L80,
-        # "QQN-Cheap": QQN_Cheap,
-        # "QQN-L120": QQN_L120,
-        # "QQN-L160": QQN_L160,
-        # "QQN-L80And": QQN_L80And,
-        # "QQN-L80-BT": QQN_L80_BT,
-        "QQN-Mom": QQN_Mom,
-        # "QQN-Mom-S": QQN_Mom_S,
-        "QQN-Adam": QQN_Adam,
-        "QQN-PathMom": QQN_PathMom,
-        "QQN-Temp": QQN_Temp,
-        # "QQN-Sec": QQN_Sec,
-        # "QQN-And": QQN_And,
-        # "QQN-L50And": QQN_L50And,
-        # "QQN-TR": QQN_TR,
-        # "QQN-Fast": QQN_Fast,
-        # "QQN-Max": QQN_Max,
-        # "QQN-Box": QQN_Box,
         "SGD": SGD,
         "Adam": Adam,
         "L-BFGS": LBFGS,
     }
+
+
+def _profiles():
+    """Return the ``{name: factory}`` registry: the QQN axis cross product
+    plus the fixed non-QQN baselines."""
+    registry = _qqn_registry()
+    registry.update(_baseline_profiles())
+    return registry
 
 
 def build_runners(ctx, enabled=None):
@@ -435,7 +326,32 @@ def build_runners(ctx, enabled=None):
     names = enabled if enabled is not None else ENABLED
     runners = {}
     qqn_kwarg_map = {}
+    # Expand the bare "QQN" token into every generated cross-product name so
+    # that enabling "QQN" pulls in the full set of currently-enabled axis
+    # combinations, not just a single (non-existent) "QQN" profile.
+    qqn_names = sorted(
+        name
+        for name in registry
+        if name == "QQN" or name.startswith("QQN-")
+    )
+    resolved = []
     for name in names:
+        if name == "QQN":
+            if not qqn_names:
+                raise KeyError(
+                    "Enabled 'QQN' group produced no profiles; every QQN axis "
+                    "must have at least one enabled entry."
+                )
+            resolved.extend(qqn_names)
+        else:
+            resolved.append(name)
+    # Preserve order while removing duplicates (e.g. "QQN" plus an explicit
+    # cross-product name).
+    seen = set()
+    for name in resolved:
+        if name in seen:
+            continue
+        seen.add(name)
         if name not in registry:
             raise KeyError(f"Enabled profile {name!r} has no factory.")
         runner, kwargs = registry[name](ctx)

@@ -20,6 +20,8 @@ from experiments.optimizers import profiles as _profiles
 from experiments.optimizers.eval_counting import estimate_evals_per_iter
 from experiments.reporting.tables import report_tables
 from experiments.reporting.plots import save_plots
+from experiments.reporting.axis_analysis import report_axis_analysis
+from experiments.reporting.json_export import write_results_json
 
 __all__ = ["run_experiment", "build_model", "enrich"]
 
@@ -168,6 +170,8 @@ def run_experiment(config, *, enabled=None, do_plots=True):
         results[name] = result
 
     report_tables(results, config)
+    axis_stats = report_axis_analysis(results)
+    write_results_json(results, config, extra={"axis_analysis": axis_stats})
     if do_plots:
         save_plots(results, config, arch_str=arch_str)
     return results

@@ -33,8 +33,15 @@ from qqn_jax.line_search import (
     hager_zhang_search,
     strong_wolfe_search,
     backtracking_temperature_search,
+    null_search,
+    bisection_search,
 )
-from qqn_jax.spline_search import spline_wrap, spline_search
+from qqn_jax.spline_search import (
+    spline_wrap,
+    spline_search,
+    linear_wrap,
+    linear_search,
+)
 from qqn_jax.oracles import OracleInfo, resolve_oracle
 from qqn_jax.regions import RegionInfo, resolve_region
 from qqn_jax.utils import (
@@ -53,6 +60,8 @@ _LINE_SEARCHES = {
     "fixed": fixed_step_search,
     "spline": spline_search,
     "backtracking_temperature": backtracking_temperature_search,
+    "null": null_search,
+    "bisection": bisection_search,
 }
 
 
@@ -104,7 +113,14 @@ class QQN:
         history_size: L-BFGS memory size ``m``.
         line_search: name of the line-search strategy. One of
              ``"armijo"`` (default), ``"backtracking"``, ``"strong_wolfe"``,
-             ``"hager_zhang"`` or ``"fixed"``. Empirically (see
+             ``"hager_zhang"``, ``"fixed"``, ``"null"`` or ``"bisection"``.
+             The line search's role in QQN is *generally permissive*: since the
+             quadratic path ``d(t)`` already encodes the curvature, the search
+             only needs to pick a step that makes sufficient progress along the
+             curve rather than solve the 1-D subproblem exactly. ``"null"`` is
+             the maximally permissive extreme (accept ``t = 1`` unconditionally)
+             and ``"bisection"`` is the exacting special case that drives the
+             along-path slope to zero to find a *true* minimum. Empirically (see
              ``docs/results.md``) the backtracking/Armijo family is the robust
              efficiency winner on smooth full-batch problems; ``"strong_wolfe"``
              can over-restrict the quadratic-path step and fail to converge.
@@ -134,6 +150,7 @@ class QQN:
         line_search: str = "armijo",
         line_search_options: Optional[Dict[str, Any]] = None,
         spline: bool = False,
+        linear: bool = False,
         has_aux: bool = False,
         region=None,
         oracle="lbfgs",
@@ -148,6 +165,7 @@ class QQN:
         self.line_search = line_search
         self.line_search_options = dict(line_search_options or {})
         self.spline = spline
+        self.linear = linear
         self.has_aux = has_aux
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
@@ -171,6 +189,11 @@ class QQN:
                 f"Unknown line_search: {line_search!r}. "
                 f"Available: {sorted(_LINE_SEARCHES)}."
             )
+        if self.spline and self.linear:
+            raise ValueError(
+                "spline and linear are mutually exclusive path refinements; "
+                "enable at most one."
+            )
         # The spline refinement is orthogonal to the chosen line search: rather
         # than replacing it, it *wraps* it. The spline is an expanded definition
         # of the curve — it reuses every probe (with its gradient) as a control
@@ -189,7 +212,16 @@ class QQN:
             opts = {**opts, "record_probes": False}
         if opts:
             base_ls = partial(base_ls, **opts)
-        self._ls = spline_wrap(base_ls) if self.spline else base_ls
+        # The linear refinement is, like the spline, an orthogonal *path*
+        # choice that wraps whatever inner line search was selected: it
+        # samples the straight chord to the oracle endpoint (throwing out
+        # gradient/curvature information) and keeps the best feasible point.
+        if self.spline:
+            self._ls = spline_wrap(base_ls)
+        elif self.linear:
+            self._ls = linear_wrap(base_ls)
+        else:
+            self._ls = base_ls
 
     # --- Internal helpers -------------------------------------------------
 

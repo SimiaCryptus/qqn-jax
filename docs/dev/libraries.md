@@ -54,9 +54,8 @@ pip install --upgrade "jax[cuda12_local]" \
 
 ### Verifying the install
 
-```python
-import jax
-print(jax.devices())   # should list a GpuDevice if CUDA is working
+```shell
+python -c "import jax; print(jax.devices())"
 ```
 
 If `jax.devices()` shows only `CpuDevice`, the CPU fallback is still in
