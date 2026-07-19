@@ -5,12 +5,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from qqn_jax.regions.box import BoxRegion
 from qqn_jax.line_search import (
     fixed_step_search,
     hager_zhang_search,
     strong_wolfe_search,
 )
-from qqn_jax.line_search.backtracking import backtracking_search, BoxRegion
+from qqn_jax.line_search.backtracking import backtracking_search
 
 
 def quad_value_and_grad(x):

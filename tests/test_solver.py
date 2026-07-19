@@ -92,9 +92,7 @@ def test_unknown_line_search_raises():
         QQN(quadratic, line_search="does_not_exist")
 
 
-@pytest.mark.parametrize(
-    "ls", ["armijo", "backtracking", "strong_wolfe", "hager_zhang", "fixed"]
-)
+@pytest.mark.parametrize("ls", ["backtracking", "strong_wolfe", "hager_zhang", "fixed"])
 def test_all_line_searches_construct_and_run(ls):
     solver = QQN(quadratic, maxiter=200, tol=1e-5, line_search=ls)
     x0 = jnp.array([1.0, 1.0, 1.0])

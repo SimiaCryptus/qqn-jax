@@ -111,14 +111,13 @@ def _line_search_axis():
         # --- Permissive family (the usual role) --------------------------
         # "Null": {"line_search": "null"},
         "BT": {"line_search": "backtracking"},
-        "Arm": {"line_search": "armijo"},
         "AW": {"line_search": "armijo_wolfe"},
         "ArmLoose": {
-            "line_search": "armijo",
+            "line_search": "backtracking",
             "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
         },
         # "ArmTight": {
-        #     "line_search": "armijo",
+        #     "line_search": "backtracking",
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
         # },
         "Fix": {"line_search": "fixed"},
