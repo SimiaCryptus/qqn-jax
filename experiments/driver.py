@@ -38,6 +38,7 @@ class _Ctx:
     run_qqn: Any
     run_optax: Any
     run_optax_lbfgs: Any
+    partition_sizes: Any
 
 
 def build_model(config, dim):
@@ -152,6 +153,12 @@ def run_experiment(config, *, enabled=None, do_plots=True):
     ctx.run_qqn = _runners.run_qqn
     ctx.run_optax = _runners.run_optax
     ctx.run_optax_lbfgs = _runners.run_optax_lbfgs
+    # Per-layer partitioning needs the flat block sizes of each weight/bias
+    # segment. Prefer an explicit model API; fall back to None so only the
+    # "Part" profiles (which pop the sentinel) will complain.
+    ctx.partition_sizes = getattr(model, "partition_sizes", None)
+    if callable(ctx.partition_sizes):
+        ctx.partition_sizes = ctx.partition_sizes()
     runners, qqn_kwarg_map = _profiles.build_runners(ctx, enabled=enabled)
 
     # --- Run each variant under a profiling span (invariant #5) ---

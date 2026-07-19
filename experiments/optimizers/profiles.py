@@ -69,8 +69,8 @@ def _oracle_axis():
     return {
         # "": {},
         "Mom": {"oracle": MomentumOracle(beta=0.9)},
-        # "Adam": {"oracle": AdamOracle()},
-        # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
+        "Adam": {"oracle": AdamOracle()},
+        "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
         # "Sec": {"oracle": SecantOracle()},
         # "And": {"oracle": AndersonOracle(window=5)},
         # "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
@@ -217,9 +217,9 @@ def _temperature_axis():
     return {
         "": {},
         # "T1": {"line_search_options": {"temperature": 1.0}},
-        "T01": {"line_search_options": {"temperature": 0.1}},
+        # "T01": {"line_search_options": {"temperature": 0.1}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
-        "T100": {"line_search_options": {"temperature": 100.0}},
+        # "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 

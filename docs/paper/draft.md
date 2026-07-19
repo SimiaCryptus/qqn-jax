@@ -24,14 +24,36 @@ and wall-clock time to target on smooth, ill-conditioned objectives.
 
 ## 1. Introduction
 
-### 1.1 Goals
+### 1.1 Orientation: The Anatomy of an Optimizer
 
-This paper has two intertwined goals. The first is expository: to discuss a
-range of optimization methods and explain how they relate to one another
-through a single unifying lens. The second is constructive: to introduce a
-new framework for building *pluggable* optimizers, in which the tangled
-concerns of a classical monolithic method are separated into independently
-composable strategies.
+We assume the reader is comfortable with the basic theory of numerical
+optimization — the language of gradients, descent directions, and line
+searches. What we do *not* assume is a particular way of *carving up* an
+optimizer into parts, because that carving is precisely our contribution. So
+before the innovations, a brief orientation.
+
+A first-order iterative optimizer, viewed abstractly, repeatedly answers four
+questions at each iterate `x`:
+
+1. **Gradient** — In which direction does the objective locally decrease?
+This is `-∇f(x)`, the one piece of information every method requires.
+2. **Oracle** — Is there a *better-aimed* direction than the raw gradient?
+Curvature-aware methods answer with `-H∇f` (quasi-Newton, Newton),
+momentum methods with a smoothed history, adaptive methods with a
+per-coordinate rescaling.
+3. **Search** — How far, and along what shape, do we move? Classically this
+is a line search that scales a *fixed* direction.
+4. **Region** — Is the proposed point *allowed*? Constraints, trust regions,
+and sparsity structure all remap a proposed step onto a feasible set.
+
+Classical methods answer all four questions at once, welded into a single
+monolithic procedure. L-BFGS *is* a particular oracle plus a particular line
+search plus (implicitly) the whole real line as its region. Newton's method,
+OWL-QN, projected gradient descent, trust-region methods — each fuses a
+specific choice on each axis into an indivisible algorithm. The literature is
+a catalog of *points*, each proven, none of them *factored*.
+
+### 1.2 The Classical Trade-off, and the Classical Reconciliation
 
 Unconstrained smooth optimization has long been dominated by a trade-off
 between two families of methods. First-order methods (gradient descent,
@@ -52,7 +74,7 @@ commits to a *single* direction per iteration. When the oracle direction is
 poor, a backtracking search along it can waste evaluations without ever
 exploring the reliable gradient direction.
 
-### 1.2 The QQN Idea: Blend, Don't Choose
+### 1.3 The QQN Idea: Blend, Don't Choose
 
 QQN's core insight is to refuse the binary choice. Instead of selecting
 either the gradient or the quasi-Newton direction, it constructs a
@@ -66,7 +88,7 @@ This single curve has three decisive properties:
 
 - `d(0) = 0` — the path starts at the current iterate `x`.
 - `d'(0) = -∇f` — the path *begins* tangent to steepest descent, so it is
-  guaranteed to decrease `f` for small `t` whenever `∇f ≠ 0`.
+guaranteed to decrease `f` for small `t` whenever `∇f ≠ 0`.
 - `d(1) = -H∇f` — the path *ends* exactly at the quasi-Newton (oracle) step.
 
 The line search then walks `t ∈ [0, 1]` directly. Near `t = 0` the path *is*
@@ -80,19 +102,46 @@ retaining superlinear behavior when the oracle direction dominates.
 > two competing directions with a continuous, globally-anchored
 > interpolation.
 
-### 1.3 New Components
+### 1.4 Contributions
 
-This paper contributes two categories of new components:
+This paper makes contributions on two fronts, expository and constructive.
 
-1. **Quadratic and spline path methods** for continuous optimization. The
-   quadratic path is the geometric heart of QQN; the cubic Hermite spline
-   refinement extends it by reusing the gradient information measured at
-   every probe as a control point of a richer path model.
+**The QQN innovations.** At the heart of the framework sit four ideas:
 
-2. **A strategy framework that unifies various optimization methods.** By
-   factoring an optimizer into (gradient, oracle, search, region), we obtain
-   a configuration space in which classical methods are simply the points
-   where one or two axes are fixed to a canonical choice.
+- **The quadratic path** — a geometrically principled interpolation between
+gradient and oracle, whose parabolic form is not an arbitrary choice but
+the simplest curve satisfying the three endpoint/tangent constraints of
+§1.3.
+- **The strategy pattern** — the factoring of optimization into four
+orthogonal, independently swappable axes (gradient, oracle, search,
+region), each hidden behind a small pure-functional interface.
+- **Geometric principle** — the path is invariant to rescaling of its
+endpoints; only the parameterization changes, never the set of reachable
+states. The curve, not a discretized blend grid, *is* the search space.
+- **Provable convergence** — the tangent anchor `d'(0) = -∇f` guarantees a
+valid descent step exists on every path, so global convergence is inherited
+regardless of oracle quality, while superlinear behavior returns when the
+oracle dominates near the optimum.
+
+**Cross-cutting enhancements.** Two orthogonal features layer on top of any
+configuration:
+
+- **Temperature** — a Metropolis-style stochastic acceptance that permits
+*controlled exploration* (uphill moves) on non-convex landscapes, cooling
+to pure Armijo backtracking at `temperature = 0`.
+- **Projective regions** — a means of *constraining the search* onto a
+feasible or preferred set, applied *inside* the line-search loop so that
+descent guarantees hold on the projected path.
+
+**Core enhancements.** Three deeper extensions push the framework further:
+
+- **Spline** — reuse *all* measured gradients, treating each line-search probe
+as a control point of a richer cubic-Hermite path model.
+- **Partitioned oracles** — partition the weights (e.g. by layer) and treat
+each partition as its own oracle regime, making certain strategies faster.
+- **Recursive descent** — parallelize the QQN path-building itself, remapping
+each step onto a low-dimensional regime solvable by an inner multidimensional
+continuous optimizer (e.g. a basic L-BFGS-driven QQN).
 
 The deeper contribution is architectural rather than mathematical. Classical
 optimization is a literature of monolithic methods — each proven, none of
@@ -133,9 +182,9 @@ is L-BFGS, but the oracle is a swappable, pure-functional interface:
 
 ```python
 class Oracle(NamedTuple):
-    init:      Callable[[Params], OracleState]
-    direction: Callable[[Params, Grad, OracleState], Tuple[Direction, OracleState]]
-    update:    Callable[[OracleState, OracleInfo], OracleState]
+  init:      Callable[[Params], OracleState]
+  direction: Callable[[Params, Grad, OracleState], Tuple[Direction, OracleState]]
+  update:    Callable[[OracleState, OracleInfo], OracleState]
 ```
 
 Because the line search always retains the gradient direction's influence at
@@ -185,15 +234,15 @@ computes the direction directly via the standard two-loop recursion
 (Nocedal & Wright, Algorithm 7.4):
 
 1. **History**: most-recent-first buffers of `s`, `y`, and `ρ = 1/⟨y, s⟩`,
-   plus a rolling scale `γ = ⟨y, s⟩ / ⟨y, y⟩`.
+plus a rolling scale `γ = ⟨y, s⟩ / ⟨y, y⟩`.
 2. **Curvature safeguard**: a new pair is admitted only if `⟨y, s⟩ > ε`
-   (relative to the Cauchy-Schwarz scale), protecting positive-definiteness
-   on non-convex problems.
+(relative to the Cauchy-Schwarz scale), protecting positive-definiteness
+on non-convex problems.
 3. **First loop** (newest → oldest): `αᵢ = ρᵢ⟨sᵢ, q⟩`, `q ← q − αᵢ yᵢ`.
 4. **Scaling**: `r = γ·q` applies the initial Hessian approximation
-   `H₀ = γI`.
+`H₀ = γI`.
 5. **Second loop** (oldest → newest): `βᵢ = ρᵢ⟨yᵢ, r⟩`,
-   `r ← r + (αᵢ − βᵢ)sᵢ`.
+`r ← r + (αᵢ − βᵢ)sᵢ`.
 6. **Direction**: return `-r = -H∇f`.
 
 Unfilled history slots hold zeros and contribute nothing to either loop, so
@@ -234,7 +283,28 @@ value/gradient evaluations.
 children carry their own (history size, momentum decay, etc.). The ordering
 of the child list encodes priority and is the only structural choice.
 
-### 3.3 Orthogonal Concern: Feeding Line-Search Probes to the Oracle
+### 3.3 Partitioned Oracles
+
+A structural generalization of the oracle axis is to **partition the
+parameters** — for instance by layer, by tensor, or by any user-supplied
+block structure — and run an independent oracle regime on each partition.
+Two motivations drive this. First, several oracle strategies have superlinear
+per-step cost in the dimension of their working subspace (Shampoo's
+Kronecker factors, dense secant updates); confining each oracle to a small
+partition makes those strategies dramatically faster. Second, partitioning
+can be *statistically* beneficial: curvature that couples strongly within a
+layer but weakly across layers is captured more faithfully by per-layer
+histories than by a single flattened buffer whose fixed memory is spread thin
+across the whole parameter vector.
+
+Because each partition still exposes the same `(init, direction, update)`
+interface, the partitioned oracle is itself just an oracle — it composes with
+`Fallback` and `Blend`, threads through the same `QQNState`, and remains
+`vmap`/`jit`-compatible. The path construction is unchanged: the per-partition
+directions are concatenated back into a single `-H∇f` endpoint before the
+quadratic path is formed, so the line search still traverses one scalar `t`.
+
+### 3.4 Orthogonal Concern: Feeding Line-Search Probes to the Oracle
 
 An optional, orthogonal enhancement forwards every gradient evaluated
 *during the line search* — not just the accepted point — into the oracle's
@@ -279,10 +349,10 @@ the vector-valued quadratic
 
 ```
 d(t) = -t(1-t)·∇f - t²·H∇f
-     = -t·∇f + t²·(∇f - H∇f)
+    = -t·∇f + t²·(∇f - H∇f)
 ```
 
-whose endpoints and initial tangent were derived in Section 1.2. Because
+whose endpoints and initial tangent were derived in Section 1.3. Because
 `d'(0) = -∇f`, the directional derivative of `f` along the path at the
 origin is `⟨∇f, d'(0)⟩ = -‖∇f‖² ≤ 0`. This is what anchors QQN's global
 convergence: regardless of how poor the oracle direction is, the *beginning*
@@ -293,7 +363,7 @@ The key properties bear restating:
 - **t = 0**: pure steepest descent direction (the path's tangent).
 - **t = 1**: pure oracle / L-BFGS direction.
 - **0 < t < 1**: a smooth quadratic blend, weighting the gradient by
-  `t(1-t)` and the oracle by `t²`.
+`t(1-t)` and the oracle by `t²`.
 
 The points along `d(t)` are **states**, not directions to be re-scaled by a
 separate inner line search. The line search traverses the parameter
@@ -375,15 +445,15 @@ properties are realized in practice. The line search traverses the path over
 `t ∈ [0, 1]` and must:
 
 - **Select the path parameter `t`** — walk the curve to satisfy
-  sufficient-decrease conditions (Armijo/Wolfe). Each probe `x + d(t)` is a
-  state, not a direction to be re-scaled.
+sufficient-decrease conditions (Armijo/Wolfe). Each probe `x + d(t)` is a
+state, not a direction to be re-scaled.
 - **Enforce descent** — guarantee `f(x + d(t)) < f(x)` (or report failure),
-  the foundation of global convergence.
+the foundation of global convergence.
 - **Exploit curvature** — a strong Wolfe condition keeps the curvature
-  information `(s, y)` fed back into the L-BFGS oracle accurate and
-  well-conditioned.
+information `(s, y)` fed back into the L-BFGS oracle accurate and
+well-conditioned.
 - **Navigate the feasible path** — when a region is configured, evaluate the
-  *projected* candidate `project_R(x, x + d(t))`.
+*projected* candidate `project_R(x, x + d(t))`.
 
 Walking `t` directly is what lets QQN **automatically discover the right
 blend** of gradient and oracle without manual tuning. The quality of the
@@ -443,6 +513,27 @@ extra evaluations, which are tracked honestly in the eval accounting.
 | `hager_zhang`  | Optax backtracking      | approximate Wolfe        | robust approximate-Wolfe scheme         |
 | `fixed`        | constant step           | none                     | debugging / benchmarking baseline       |
 | `null`         | accept `t = 1`          | none                     | pure oracle-endpoint step               |
+
+### 5.5 Recursive Descent
+
+The line search over `t` is itself a one-dimensional continuous optimization
+problem — and QQN is a continuous optimizer. This suggests a recursive
+possibility. Rather than parameterizing the path with a single scalar `t`, we
+can **parallelize the path-building** by allowing several path parameters at
+once (for instance, one per partition of §3.3, or a small set of blend
+coefficients over multiple oracle directions). Each outer QQN step then
+remaps to a *low-dimensional* continuous subproblem — a handful of blend
+coordinates rather than the full parameter dimension — which is itself solved
+by an inner multidimensional continuous optimizer, e.g. a basic
+L-BFGS-driven QQN.
+
+Because the inner problem lives in a tiny space, the inner optimizer is cheap
+and its own curvature estimate is dense and accurate. The outer loop supplies
+the (gradient, oracle) endpoints; the inner loop discovers a *multi*-parameter
+blend that no single scalar `t` could express. The construction is
+self-similar — QQN wrapping QQN — and inherits the same descent guarantee at
+each level, because the innermost search still bottoms out in a
+sufficient-decrease test along a gradient-tangent path.
 
 ---
 
@@ -533,16 +624,16 @@ initializes the oracle and region states; and sets the convergence metric
 1. **Oracle**: query the `t = 1` endpoint `-H∇f`.
 2. **Gradient**: form the tangent `-∇f`.
 3. **Path + Search**: run a single configured line search that traverses
-   `d(t) = t(1-t)·(-∇f) + t²·(-H∇f)` over `t ∈ [0, 1]`, evaluating projected
-   candidate states and selecting the step `t`.
+`d(t) = t(1-t)·(-∇f) + t²·(-H∇f)` over `t ∈ [0, 1]`, evaluating projected
+candidate states and selecting the step `t`.
 4. **Selection**: extract `new_params`, `new_value`, `new_grad`, `step_size`.
 5. **Oracle update**: push the new curvature pair (admitted only if
-   `⟨y, s⟩ > ε`).
+`⟨y, s⟩ > ε`).
 6. **Region update**: update adaptive state (e.g. trust radius) from the
-   predicted/actual reduction.
+predicted/actual reduction.
 7. **Convergence**: recompute `error` and `done`; increment `iter`. A run
-   also terminates if an iterate becomes non-finite, so a single bad start in
-   a `vmap` batch does not waste the batch's remaining iterations.
+also terminates if an iterate becomes non-finite, so a single bad start in
+a `vmap` batch does not waste the batch's remaining iterations.
 
 The **driver** wraps the iteration in a `lax.while_loop` that continues while
 `¬done ∧ iter < maxiter`, so the entire optimization is JIT/vmap compatible —
@@ -578,15 +669,15 @@ where the second-order rate proofs do not strictly apply.
 Three measures capture optimizer quality, with differing honesty:
 
 - **Iterations** (bad — not representative): a raw iteration count ignores
-  the varying per-iteration cost of different line searches (the Optax zoom
-  search inside standalone L-BFGS costs ~2.1 evaluations/iteration versus
-  ~1.0–1.1 for bare Armijo).
+the varying per-iteration cost of different line searches (the Optax zoom
+search inside standalone L-BFGS costs ~2.1 evaluations/iteration versus
+~1.0–1.1 for bare Armijo).
 - **Time** (honest): wall-clock to a loss target reflects the true cost the
-  user pays, but is sensitive to hardware and JIT warmup.
+user pays, but is sensitive to hardware and JIT warmup.
 - **Evaluations** (stable): the cumulative count of value-and-gradient
-  evaluations is the most reproducible, hardware-independent measure. The
-  implementation tracks this explicitly through every line-search probe,
-  spline probe, aux recompute, and probe-value recovery.
+evaluations is the most reproducible, hardware-independent measure. The
+implementation tracks this explicitly through every line-search probe,
+spline probe, aux recompute, and probe-value recovery.
 
 ### 8.3 Analysis
 
@@ -619,14 +710,14 @@ Under standard assumptions (smooth objective, bounded gradients), and
 contingent on a line search that satisfies sufficient-decrease conditions:
 
 - **Global convergence** — guaranteed by the steepest-descent contribution.
-  Because `d'(0) = -∇f`, a valid decreasing step always exists along any path
-  `d(t)` for sufficiently small `α`, *regardless of oracle direction
-  quality*.
+Because `d'(0) = -∇f`, a valid decreasing step always exists along any path
+`d(t)` for sufficiently small `α`, *regardless of oracle direction
+quality*.
 - **Superlinear convergence** — near the optimum, when the L-BFGS direction
-  dominates (the selected `t` approaches `1`), QQN inherits L-BFGS's
-  superlinear behavior.
+dominates (the selected `t` approaches `1`), QQN inherits L-BFGS's
+superlinear behavior.
 - **Descent property** — every accepted step decreases the function value,
-  enforced by the line search's sufficient-decrease test.
+enforced by the line search's sufficient-decrease test.
 
 All three guarantees are contingent on the line search. The steepest-descent
 fallback provides global convergence only because the line search can always
@@ -648,15 +739,15 @@ QQN's factoring is what makes a broad catalog of equivalences possible: many
 classical methods are QQN with one or two axes fixed to a canonical choice.
 
 - **Gradient descent** is the `t → 0` regime (fixed search, suppressed
-  oracle).
+oracle).
 - **L-BFGS** is the `t = 1` corner with the default oracle.
 - **Newton's method** arises from an exact-Hessian oracle accepting `t = 1`.
 - **Momentum, Barzilai-Borwein, Anderson acceleration** arise from oracle
-  choices.
+choices.
 - **Trust regions, OWL-QN, projected gradient descent** arise from region
-  choices.
+choices.
 - **Conjugate gradient** arises from a CG-as-oracle configuration (the
-  conjugacy `β` correction encoded in the oracle, not the search).
+conjugacy `β` correction encoded in the oracle, not the search).
 
 These equivalences follow from three structural facts: the tangent anchor
 (`d'(0) = -∇f`) means every configuration contains gradient descent as its

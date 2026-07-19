@@ -125,7 +125,7 @@ class QQN:
             feed_probes_to_oracle: bool = False,
             probe_descent_gate: bool = True,
             max_probes: int = 32,
-            max_t: float = 10.0,
+            max_t: float = 1000.0,
             partition_sizes: Optional[tuple[int, ...]] = None
     ):
         self.fun = fun
