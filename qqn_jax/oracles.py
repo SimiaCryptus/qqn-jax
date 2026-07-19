@@ -26,7 +26,6 @@ from qqn_jax.lbfgs import (
 )
 from qqn_jax.utils import tree_negative
 
-
 def _ordered_probe_secants(info, max_replay=None):
     """Extract probe points ordered by increasing α, masked by validity.
     Returns ``(params_seq, grad_seq, valid_seq)`` where the sequence runs
@@ -71,7 +70,6 @@ def _ordered_probe_secants(info, max_replay=None):
     valid_seq = jnp.concatenate([probe_valid, jnp.asarray([True])], axis=0)
     return params_seq, grad_seq, valid_seq
 
-
 class Oracle(NamedTuple):
     """Pure, swappable oracle interface.
 
@@ -85,7 +83,6 @@ class Oracle(NamedTuple):
     init: Callable[[Any], Any]
     direction: Callable[[Any, Any, Any], Tuple[Any, Any]]
     update: Callable[[Any, Any], Any]
-
 
 class OracleInfo(NamedTuple):
     """Information passed to ``Oracle.update`` after a step is accepted.
@@ -112,10 +109,6 @@ class OracleInfo(NamedTuple):
     probe_grads: Any = None
     probe_valid: Any = None
     probe_alphas: Any = None
-
-
-# --- L-BFGS Oracle (default) ------------------------------------------
-
 
 def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
     """Limited-memory BFGS quasi-Newton oracle.
@@ -171,15 +164,11 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
 
     return Oracle(init=init, direction=direction, update=update)
 
-
-# --- Momentum Oracle --------------------------------------------------
 class MomentumState(NamedTuple):
     # ``velocity`` is the decaying-weight average of the *actual* per-iteration
     # parameter deltas Δx = x_new − x (the realized steps), NOT of gradients.
     velocity: jnp.ndarray
 
-
-# --- ADAM Oracle ------------------------------------------------------
 class AdamState(NamedTuple):
     """State for the ADAM oracle.
     Attributes:
@@ -191,7 +180,6 @@ class AdamState(NamedTuple):
     m: jnp.ndarray
     v: jnp.ndarray
     step: jnp.ndarray
-
 
 def AdamOracle(
         beta1: float = 0.9,
@@ -283,7 +271,6 @@ def AdamOracle(
 
     return Oracle(init=init, direction=direction, update=update)
 
-
 def MomentumOracle(beta: float = 0.9) -> Oracle:
     """First-order accelerated (heavy-ball) oracle.
 
@@ -353,8 +340,6 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
 
     return Oracle(init=init, direction=direction, update=update)
 
-
-# --- Path-History-Momentum Oracle ------------------------------------
 class PathHistoryMomentumState(NamedTuple):
     """State for the path-history-momentum oracle.
     Attributes:
@@ -365,7 +350,6 @@ class PathHistoryMomentumState(NamedTuple):
 
     delta_history: jnp.ndarray
     step_count: jnp.ndarray
-
 
 def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Oracle:
     """Momentum oracle that integrates the *actual accepted iteration history*.
@@ -440,15 +424,11 @@ def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Orac
 
     return Oracle(init=init, direction=direction, update=update)
 
-
-# --- Shampoo Oracle ---------------------------------------------------
-# --- Secant (Barzilai-Borwein) Oracle --------------------------------
 class SecantState(NamedTuple):
     prev_params: jnp.ndarray
     prev_grad: jnp.ndarray
     alpha: jnp.ndarray  # current inverse-curvature step scale
     step_count: jnp.ndarray
-
 
 def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
     """Barzilai-Borwein curvature oracle (matrix-free, O(n) memory).
@@ -521,12 +501,10 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
 
     return Oracle(init=init, direction=direction, update=update)
 
-
 class ShampooState(NamedTuple):
     L: jnp.ndarray
     R: jnp.ndarray
     step: jnp.ndarray
-
 
 def _matrix_inverse_pth_root(mat, p, epsilon):
     """Compute ``mat^{-1/p}`` for a symmetric PSD matrix via eigh."""
@@ -536,7 +514,6 @@ def _matrix_inverse_pth_root(mat, p, epsilon):
     w = jnp.maximum(w, epsilon)
     inv_root = w ** (-1.0 / p)
     return (v * inv_root) @ v.T
-
 
 def ShampooOracle(
         block_size: int = 128,
@@ -596,8 +573,6 @@ def ShampooOracle(
 
     return Oracle(init=init, direction=direction, update=update)
 
-
-# --- Anderson Acceleration Oracle ------------------------------------
 class AndersonState(NamedTuple):
     """Residual/iterate windows for Anderson (Type-II) acceleration.
 
@@ -610,7 +585,6 @@ class AndersonState(NamedTuple):
     g_history: jnp.ndarray
     x_history: jnp.ndarray
     step_count: jnp.ndarray
-
 
 def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Oracle:
     """Anderson-accelerated (Type-II) oracle — the variational ideal that
@@ -733,10 +707,6 @@ def AndersonOracle(window: int = 5, reg: float = 1e-8, beta: float = 1.0) -> Ora
 
     return Oracle(init=init, direction=direction, update=update)
 
-
-# --- Combinator: Fallback ---------------------------------------------
-
-
 def Fallback(oracles: Sequence[Oracle]) -> Oracle:
     """Use the first oracle's direction when valid, else fall back.
 
@@ -791,10 +761,6 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
         return tuple(o.update(s, info) for o, s in zip(oracles, state))
 
     return Oracle(init=init, direction=direction, update=update)
-
-
-# --- Resolution -------------------------------------------------------
-
 
 def resolve_oracle(oracle, history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
     """Map a string shortcut or ``Oracle`` instance to a concrete oracle."""

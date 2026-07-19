@@ -36,7 +36,8 @@ a wide range of well-known algorithms.
 | Trust Region                   | `lbfgs`              | `t`-search w/ ρ-acceptance        | `TrustRegion`       | adaptive radius                        |
 | OWL-QN                         | `lbfgs`              | line search                       | `OrthantRegion(l1)` | sparsity via orthant                   |
 | Projected Gradient             | any                  | line search near `t=0`            | `BoxRegion`         | bound constraints                      |
-| Conjugate Gradient             | no-op / CG oracle    | bisecting line search             | `None`              | see caveats below                      |
+| Conjugate Gradient             | CG oracle            | exact / strong-Wolfe line search  | `None`              | route (1); see caveats below           |
+| Steepest Descent (exact)       | no-op / gradient     | `bisection` line search           | `None`              | CG's degenerate `β = 0` case           |
 
 ---
 
@@ -230,8 +231,8 @@ etc.). QQN approaches CG along two complementary routes:
 
 2. **No-op oracle + bisecting line search**: With an oracle that returns the
    pure gradient (so `d(1) = -∇f` and the path degenerates to scaled steepest
-   descent), a **bisecting** (exact) line search performs an exact line
-   minimization along `-∇f`. On a quadratic, exact line searches along
+    descent), the **`bisection`** line search performs an exact line
+    minimization along `-∇f`. This route is directly available:
    successive negative gradients are *not* conjugate by themselves — true CG
    requires the conjugate `β` correction — so this route reproduces **steepest
    descent with exact line search**, the degenerate `β = 0` case of CG, not
@@ -239,9 +240,15 @@ etc.). QQN approaches CG along two complementary routes:
 
 **Caveat**: The faithful CG reproduction is route (1), where conjugacy is
 encoded *in the oracle*. Route (2) only recovers CG's degenerate special case.
-A bisecting line search is the natural "exact line minimization" subroutine
+The `bisection` line search is the natural "exact line minimization" subroutine
 that both CG and steepest descent share; QQN supplies the conjugacy via the
 oracle, not the search.
+> **Note.** The `bisection` search is exactly this "exact line minimization"
+> subroutine. Because it seeks a true along-path stationary point (rather than
+> merely a sufficient-decrease step like the Armijo family), it is the natural
+> search to pair with a CG-as-oracle configuration for a faithful nonlinear-CG
+> reproduction — route (1) — and with a gradient/no-op oracle for exact
+> steepest descent — route (2).
 
 ---
 
@@ -277,9 +284,10 @@ where one or two axes are fixed to a canonical choice.
 * **Line-search fidelity.** Newton, CG, and exact-line-search methods assume an
   *exact* (or strong-Wolfe) line search. The default `armijo` / `backtracking`
   searches are inexact; for faithful reproduction of methods that depend on
-  exact line minimization, use `strong_wolfe` or a bisecting search — while
-  noting `strong_wolfe` can over-restrict the path step (see
-  [`algorithm.md`](algorithm.md)).
+   exact line minimization, use the `bisection` search (which drives the
+   along-path directional derivative to zero) or `strong_wolfe` — while
+   noting `strong_wolfe` can over-restrict the path step (see
+   [`algorithm.md`](algorithm.md)).
 * **Reparameterization invariance.** Rescaling the gradient or oracle direction
   does not change the geometric path, only the `t`-clock. Equivalences are
   stated up to this reparameterization.

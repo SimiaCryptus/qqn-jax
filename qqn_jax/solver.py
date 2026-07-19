@@ -157,6 +157,7 @@ class QQN:
         feed_probes_to_oracle: bool = False,
         probe_descent_gate: bool = True,
         max_probes: int = 32,
+         max_t: float = 10.0,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -183,6 +184,11 @@ class QQN:
         # genuinely improving probes enrich the curvature memory.
         self.probe_descent_gate = probe_descent_gate
         self.max_probes = max_probes
+        # Maximum path parameter ``t`` the line search may explore. Values
+        # greater than 1 enable *extrapolation* past the oracle endpoint. The
+        # backtracking/Armijo family grows the step (capped here) before
+        # shrinking; the bisection search caps its bracket expansion here.
+        self.max_t = max_t
 
         if line_search not in _LINE_SEARCHES:
             raise ValueError(
@@ -202,6 +208,21 @@ class QQN:
         # line search.
         base_ls = _LINE_SEARCHES[line_search]
         opts = self.line_search_options
+        # Line searches that support extrapolation (t > 1) accept ``max_step``.
+        # Only inject it for those to avoid passing an unexpected kwarg to
+        # searches that don't accept it. The user may still override via
+        # ``line_search_options``.
+        _EXTRAP_LINE_SEARCHES = {
+         "backtracking",
+         "armijo",
+         "backtracking_temperature",
+         "bisection",
+        }
+        if (
+         line_search in _EXTRAP_LINE_SEARCHES
+         and "max_step" not in opts
+        ):
+             opts = {**opts, "max_step": self.max_t}
         # When feeding probes to the oracle, size the line-search probe buffers
         # to ``max_probes`` so they match the oracle's replay capacity.
         if self.feed_probes_to_oracle:
