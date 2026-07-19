@@ -2,11 +2,11 @@ from typing import Callable
 
 from jax import numpy as jnp
 
-from qqn_jax.line_search.strategy import (
-    LineSearchResult,
+from qqn_jax.line_search.util import (
     _empty_probes,
     _record_probe,
 )
+from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 

@@ -1,7 +1,7 @@
 import jax
 from jax import numpy as jnp
 from typing import NamedTuple
-from qqn_jax.oracles.strategy import Oracle
+from qqn_jax.oracles.oracle import Oracle
 
 
 class ShampooState(NamedTuple):

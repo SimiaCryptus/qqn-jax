@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 
 try:  # rolling-window activations are optional (qqn_jax extra)
-    from qqn_jax.rolling_window_activation import (
+    from qqn_jax.experimental.rolling_window_activation import (
         rolling_sin_diff,
         rolling_atan2_ramp,
     )

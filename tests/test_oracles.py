@@ -5,13 +5,11 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qqn_jax import QQN, AndersonOracle
+from qqn_jax import QQN, AndersonOracle, Oracle, OracleInfo
 from qqn_jax.oracles.strategy import (
     Fallback,
     LBFGSOracle,
     MomentumOracle,
-    Oracle,
-    OracleInfo,
     SecantOracle,
     ShampooOracle,
     resolve_oracle,

@@ -13,57 +13,11 @@ All regions are pure, functional JAX so they compose with ``jit``,
 equivalent to the un-regioned optimizer.
 """
 
-from typing import Any, Callable, NamedTuple, Optional
+from typing import Any, Optional
 
-import jax
-
+from qqn_jax.regions.types import Region, RegionInfo, _tree_add, _tree_sub
 from qqn_jax.regions.identity import IdentityRegion
 from qqn_jax.regions.trustregion import TrustRegionState
-
-
-class Region(NamedTuple):
-    """Pure, composable projection interface.
-
-    Attributes:
-        init: ``params -> region_state`` (use ``()`` when stateless).
-        project: ``(params, candidate, state) -> projected_candidate``.
-        update: ``(state, info) -> state`` (no-op for stateless regions).
-    """
-
-    init: Callable[[Any], Any]
-    project: Callable[[Any, Any, Any], Any]
-    update: Callable[[Any, Any], Any]
-
-
-class RegionInfo(NamedTuple):
-    """Information passed to ``Region.update`` after a step.
-
-    Attributes:
-        params: iterate ``x`` before the step.
-        new_params: accepted iterate ``x + α·d_R(t)``.
-        pred_reduction: predicted reduction from the along-path model.
-        actual_reduction: actual reduction ``f(x) - f(x_new)``.
-        t: chosen interpolation parameter.
-        step_size: accepted step size ``α``.
-    """
-
-    params: Any = None
-    new_params: Any = None
-    pred_reduction: Any = None
-    actual_reduction: Any = None
-    t: Any = None
-    step_size: Any = None
-
-
-# --- Tree helpers -----------------------------------------------------
-
-
-def _tree_add(a, b):
-    return jax.tree_util.tree_map(lambda x, y: x + y, a, b)
-
-
-def _tree_sub(a, b):
-    return jax.tree_util.tree_map(lambda x, y: x - y, a, b)
 
 
 def resolve_region(region: Optional[Region]) -> Region:
@@ -81,4 +35,6 @@ __all__ = [
     "RegionState",
     "TrustRegionState",
     "resolve_region",
+    "_tree_add",
+    "_tree_sub",
 ]

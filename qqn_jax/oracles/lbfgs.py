@@ -7,7 +7,7 @@ from qqn_jax.lbfgs import (
     update_lbfgs_history,
     update_lbfgs_history_batch,
 )
-from qqn_jax.oracles.strategy import Oracle
+from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.secant import _ordered_probe_secants
 
 

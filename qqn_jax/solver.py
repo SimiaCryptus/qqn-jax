@@ -27,8 +27,8 @@ import jax
 import jax.numpy as jnp
 
 from qqn_jax.oracles.strategy import resolve_oracle
-from qqn_jax.oracles.strategy import OracleInfo
-from qqn_jax.line_search.strategy import _LINE_SEARCHES
+from qqn_jax.oracles.oracle import OracleInfo
+from qqn_jax.line_search import LINE_SEARCHES
 from qqn_jax.spline_search import (
     spline_wrap,
     linear_wrap,
@@ -181,10 +181,10 @@ class QQN:
         # shrinking; the bisection search caps its bracket expansion here.
         self.max_t = max_t
 
-        if line_search not in _LINE_SEARCHES:
+        if line_search not in LINE_SEARCHES:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
-                f"Available: {sorted(_LINE_SEARCHES)}."
+                f"Available: {sorted(LINE_SEARCHES)}."
             )
         if self.spline and self.linear:
             raise ValueError(
@@ -197,7 +197,7 @@ class QQN:
         # point of a cubic Hermite spline along the consistent path, then tries
         # to improve on the inner search's accepted point. It composes with any
         # line search.
-        base_ls = _LINE_SEARCHES[line_search]
+        base_ls = LINE_SEARCHES[line_search]
         opts = self.line_search_options
         # Line searches that support extrapolation (t > 1) accept ``max_step``.
         # Only inject it for those to avoid passing an unexpected kwarg to

@@ -3,7 +3,7 @@ from jax import numpy as jnp
 
 from qqn_jax.utils import tree_negative
 from typing import NamedTuple
-from qqn_jax.oracles.strategy import Oracle
+from qqn_jax.oracles.oracle import Oracle
 
 
 class SecantState(NamedTuple):

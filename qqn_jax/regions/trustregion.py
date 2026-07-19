@@ -3,7 +3,7 @@ from typing import NamedTuple
 import jax
 from jax import numpy as jnp
 
-from qqn_jax.regions.strategy import Region, _tree_sub
+from qqn_jax.regions.types import Region, _tree_sub
 from qqn_jax.utils import tree_l2_norm
 
 

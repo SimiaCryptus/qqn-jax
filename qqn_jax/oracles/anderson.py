@@ -1,9 +1,9 @@
 from typing import NamedTuple
-from qqn_jax.oracles.strategy import Oracle
 
 import jax
 from jax import numpy as jnp
 
+from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.secant import _ordered_probe_secants
 
 

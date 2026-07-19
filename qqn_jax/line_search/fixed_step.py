@@ -3,12 +3,12 @@ from typing import Callable
 import jax
 from jax import numpy as jnp
 
-from qqn_jax.line_search.strategy import (
-    LineSearchResult,
+from qqn_jax.line_search.util import (
     _metropolis_accept,
     _empty_probes,
     _record_probe,
 )
+from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_add_scaled
 

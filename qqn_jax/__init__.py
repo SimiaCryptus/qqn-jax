@@ -17,11 +17,11 @@ from qqn_jax.oracles.momentum import MomentumOracle
 from qqn_jax.oracles.path_history import PathHistoryMomentumOracle
 from qqn_jax.oracles.secant import SecantOracle
 from qqn_jax.oracles.shampoo import ShampooOracle
-from qqn_jax.oracles.strategy import Oracle, OracleInfo
+from qqn_jax.oracles import Oracle, OracleInfo
 from qqn_jax.regions.box import BoxRegion
 from qqn_jax.regions.sequence import Sequential
 from qqn_jax.regions.trustregion import TrustRegion
-from qqn_jax.rolling_window_activation import (
+from qqn_jax.experimental.rolling_window_activation import (
     make_rolling_window,
     rolling_sin_diff,
     rolling_atan2_ramp,

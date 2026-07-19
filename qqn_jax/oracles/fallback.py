@@ -1,7 +1,7 @@
 from typing import Sequence
 
 from jax import numpy as jnp
-from qqn_jax.oracles.strategy import Oracle
+from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.utils import tree_negative
 
 

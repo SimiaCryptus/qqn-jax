@@ -5,13 +5,12 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qqn_jax.line_search.strategy import (
-    armijo_search,
+from qqn_jax.line_search import (
     fixed_step_search,
     hager_zhang_search,
     strong_wolfe_search,
 )
-from qqn_jax import backtracking_search, BoxRegion
+from qqn_jax.line_search.backtracking import backtracking_search, BoxRegion
 
 
 def quad_value_and_grad(x):
@@ -59,16 +58,6 @@ def test_line_search_jittable():
     assert float(step) > 0.0
 
 
-def test_armijo_alias_matches_backtracking():
-    x = jnp.array([2.0, 2.0])
-    value, grad = quad_value_and_grad(x)
-    direction = -grad
-    a = armijo_search(quad_value_and_grad, x, direction, value, grad)
-    b = backtracking_search(quad_value_and_grad, x, direction, value, grad)
-    np.testing.assert_allclose(a.step_size, b.step_size)
-    np.testing.assert_allclose(a.new_value, b.new_value)
-
-
 def test_backtracking_no_probes_when_disabled():
     x = jnp.array([5.0, 5.0])
     value, grad = quad_value_and_grad(x)
@@ -113,7 +102,7 @@ def test_region_restricted_search_stays_feasible():
     value, grad = quad_value_and_grad(x)
     direction = -grad
     region = BoxRegion(lo=1.0, hi=5.0)
-    for search in (backtracking_search, armijo_search, fixed_step_search):
+    for search in (backtracking_search, fixed_step_search):
         res = search(
             quad_value_and_grad,
             x,
@@ -133,7 +122,6 @@ def test_all_searches_return_finite(quadratic_problem=None):
     direction = -grad
     for search in (
         backtracking_search,
-        armijo_search,
         fixed_step_search,
         strong_wolfe_search,
         hager_zhang_search,
@@ -176,7 +164,7 @@ def test_backtracking_respects_region():
 
 @pytest.mark.parametrize(
     "search",
-    [backtracking_search, armijo_search, fixed_step_search],
+    [backtracking_search, fixed_step_search],
 )
 def test_line_searches_are_vmappable(search):
     xs = jnp.array([[2.0, 2.0], [1.0, -1.0], [3.0, 0.5]])

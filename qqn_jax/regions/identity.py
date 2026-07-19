@@ -1,4 +1,4 @@
-from qqn_jax.regions.strategy import Region
+from qqn_jax.regions.types import Region
 
 
 def _identity_init(params):

@@ -29,8 +29,8 @@ import jax.numpy as jnp
 
 from qqn_jax.utils import tree_add_scaled, tree_vdot
 from qqn_jax.regions.strategy import resolve_region
-from qqn_jax.line_search.strategy import LineSearchResult
-from qqn_jax import backtracking_search
+from qqn_jax.line_search.result import LineSearchResult
+from qqn_jax.line_search.backtracking import backtracking_search
 
 
 def _orient_tangents(m0, m1):
