@@ -33,7 +33,7 @@ from qqn_jax.spline_search import (
     spline_wrap,
     linear_wrap,
 )
-from qqn_jax.regions import RegionInfo, resolve_region
+from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
     tree_l2_norm,

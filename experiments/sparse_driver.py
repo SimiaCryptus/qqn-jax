@@ -19,12 +19,10 @@ import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
+from qqn_jax.regions.quantization import QuantizationRegion
+from qqn_jax.regions.sequence import Sequential
 from qqn_jax.solver import QQN
-from qqn_jax.regions import (
-    OrthantRegion,
-    QuantizationRegion,
-    Sequential,
-)
+from qqn_jax import OrthantRegion
 from qqn_jax.regularizers import l1_penalty, quantization_delta_penalty
 
 from experiments.data.loaders import load_image_dataset

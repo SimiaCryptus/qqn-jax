@@ -4,15 +4,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from qqn_jax import QQN
-from qqn_jax.regions import (
-    BoxRegion,
+from qqn_jax import QQN, OrthantRegion, BoxRegion, TrustRegion, Sequential
+from qqn_jax.regions.no_decrease import NoDecreaseRegion
+from qqn_jax.regions.strategy import (
     IdentityRegion,
-    NoDecreaseRegion,
-    OrthantRegion,
     RegionInfo,
-    Sequential,
-    TrustRegion,
     resolve_region,
 )
 

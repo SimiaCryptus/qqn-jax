@@ -10,7 +10,7 @@ from qqn_jax.line_search.strategy import (
     _record_probe,
     _metropolis_accept,
 )
-from qqn_jax.regions import resolve_region
+from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_vdot, tree_add_scaled
 
 

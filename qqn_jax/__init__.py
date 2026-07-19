@@ -18,6 +18,9 @@ from qqn_jax.oracles.path_history import PathHistoryMomentumOracle
 from qqn_jax.oracles.secant import SecantOracle
 from qqn_jax.oracles.shampoo import ShampooOracle
 from qqn_jax.oracles.strategy import Oracle, OracleInfo
+from qqn_jax.regions.box import BoxRegion
+from qqn_jax.regions.sequence import Sequential
+from qqn_jax.regions.trustregion import TrustRegion
 from qqn_jax.rolling_window_activation import (
     make_rolling_window,
     rolling_sin_diff,
@@ -27,15 +30,12 @@ from qqn_jax.solver import QQN, QQNState
 from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.spline_search import spline_wrap, spline_search
 from qqn_jax.oracles.anderson import AndersonOracle
-from qqn_jax.regions import (
+from qqn_jax.regions.strategy import (
     Region,
     RegionInfo,
     IdentityRegion,
-    BoxRegion,
-    OrthantRegion,
-    TrustRegion,
-    Sequential,
 )
+from qqn_jax.regions.orthant import OrthantRegion
 
 __version__ = "0.1.0"
 

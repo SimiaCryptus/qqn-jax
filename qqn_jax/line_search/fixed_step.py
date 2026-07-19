@@ -9,7 +9,7 @@ from qqn_jax.line_search.strategy import (
     _empty_probes,
     _record_probe,
 )
-from qqn_jax.regions import resolve_region
+from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.utils import tree_add_scaled
 
 

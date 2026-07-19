@@ -235,8 +235,9 @@ Convenience constructors:
 
 ```python
 from qqn_jax.regions import (
-    OrthantRegion, TrustRegion, BoxRegion, Sequential,
+    TrustRegion, BoxRegion, Sequential,
 )
+from qqn_jax import OrthantRegion
 
 region = Sequential([
     BoxRegion(lo=0.0, hi=1.0),

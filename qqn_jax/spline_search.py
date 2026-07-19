@@ -28,7 +28,7 @@ import jax
 import jax.numpy as jnp
 
 from qqn_jax.utils import tree_add_scaled, tree_vdot
-from qqn_jax.regions import resolve_region
+from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.line_search.strategy import LineSearchResult
 from qqn_jax import backtracking_search
 

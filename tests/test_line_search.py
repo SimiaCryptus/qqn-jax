@@ -11,8 +11,7 @@ from qqn_jax.line_search.strategy import (
     hager_zhang_search,
     strong_wolfe_search,
 )
-from qqn_jax import backtracking_search
-from qqn_jax.regions import BoxRegion
+from qqn_jax import backtracking_search, BoxRegion
 
 
 def quad_value_and_grad(x):
