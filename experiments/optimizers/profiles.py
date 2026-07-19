@@ -157,6 +157,7 @@ def _region_axis():
         # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
     }
 
+
 def _spline_axis():
     """Spline/linear axis: token -> ``run_qqn`` kwargs toggling the path
     refinement.
@@ -175,13 +176,31 @@ def _spline_axis():
     }
 
 
-
 def _probes_axis():
     """Probe-feeding axis: token -> ``run_qqn`` kwargs toggling probe replay."""
     return {
         "": {},
         # "P": {"feed_probes_to_oracle": True},
     }
+
+
+def _partition_axis():
+    """Partition axis: token -> ``run_qqn`` kwargs selecting per-layer
+    partitioning of the flat parameter vector.
+    ``""`` (default) leaves the solver unpartitioned (a single oracle drives
+    the whole flat parameter vector). ``"Part"`` requests per-layer
+    partitioning: each weight/bias block gets its own oracle curvature
+    history so incompatible per-layer scales never mix.
+    Because the concrete segment sizes depend on the model geometry (only
+    known at runtime), the ``"Part"`` entry carries a sentinel marker rather
+    than a literal ``partition_sizes`` tuple; the factory resolves the real
+    sizes from ``ctx.partition_sizes`` when the runner is built.
+    """
+    return {
+        "": {},
+        "Part": {"_per_layer": True},
+    }
+
 
 def _temperature_axis():
     """Temperature axis: token -> ``run_qqn`` kwargs enabling a Metropolis-style
@@ -209,10 +228,11 @@ def _temperature_axis():
 _AXES = [
     _oracle_axis,
     _line_search_axis,
-     _temperature_axis,
+    _temperature_axis,
     _spline_axis,
     _region_axis,
     _probes_axis,
+    _partition_axis,
 ]
 
 # Only these kwarg keys are surfaced in the eval-cost display map; the rest
@@ -232,27 +252,41 @@ def _qqn_registry():
         name = "-".join(["QQN", *tokens])
         kwargs = {}
         for _token, axis_kwargs in combo:
-             # Deep-merge ``line_search_options`` so orthogonal axes (e.g. a
-             # line-search variant that sets ``init_step``/``shrink`` and the
-             # temperature axis that sets ``temperature``) compose instead of
-             # one axis clobbering the other's options dict.
-             for key, val in axis_kwargs.items():
-                 if key == "line_search_options" and isinstance(val, dict):
-                     merged = dict(kwargs.get("line_search_options", {}))
-                     merged.update(val)
-                     kwargs["line_search_options"] = merged
-                 else:
-                     kwargs[key] = val
+            # Deep-merge ``line_search_options`` so orthogonal axes (e.g. a
+            # line-search variant that sets ``init_step``/``shrink`` and the
+            # temperature axis that sets ``temperature``) compose instead of
+            # one axis clobbering the other's options dict.
+            for key, val in axis_kwargs.items():
+                if key == "line_search_options" and isinstance(val, dict):
+                    merged = dict(kwargs.get("line_search_options", {}))
+                    merged.update(val)
+                    kwargs["line_search_options"] = merged
+                else:
+                    kwargs[key] = val
         display_kwargs = {k: v for k, v in kwargs.items() if k in _DISPLAY_KWARG_KEYS}
 
         def factory(ctx, _kwargs=kwargs, _display=display_kwargs):
+            # Resolve the runtime-only ``partition_sizes`` from ``ctx`` when the
+            # partition axis requested per-layer partitioning. The sentinel
+            # flag never reaches ``run_qqn`` — it is popped here and replaced
+            # with the concrete per-layer segment sizes carried by ``ctx``.
+            run_kwargs = dict(_kwargs)
+            if run_kwargs.pop("_per_layer", False):
+                partition_sizes = getattr(ctx, "partition_sizes", None)
+                if not partition_sizes:
+                    raise ValueError(
+                        "Profile requested per-layer partitioning but "
+                        "ctx.partition_sizes is missing/empty. The driver must "
+                        "expose the flat per-layer block sizes on ctx."
+                    )
+                run_kwargs["partition_sizes"] = tuple(partition_sizes)
             return (
                 lambda: ctx.run_qqn(
                     ctx.loss_fn,
                     ctx.params0,
                     ctx.maxiter,
                     stop=ctx.stop,
-                    **_kwargs,
+                    **run_kwargs,
                 ),
                 _display,
             )

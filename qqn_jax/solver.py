@@ -126,6 +126,7 @@ class QQN:
             probe_descent_gate: bool = True,
             max_probes: int = 32,
             max_t: float = 10.0,
+            partition_sizes: Optional[tuple[int, ...]] = None
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -139,6 +140,30 @@ class QQN:
         self._value_and_grad = make_value_and_grad(fun, has_aux=has_aux)
         self.region = resolve_region(region)
         self.oracle = resolve_oracle(oracle, history_size=history_size)
+        # Per-layer partitioning is a *cross-cutting solver* concern: the
+        # single oracle above stays completely unaware of it. When
+        # ``partition_sizes`` is supplied, the solver splits the flat
+        # params/grad (and probe buffers) into contiguous segments and drives
+        # the oracle independently on each segment, holding a tuple of
+        # per-segment oracle states and concatenating the per-segment t=1
+        # endpoints back into the full direction. This matters for QN oracles
+        # (each layer keeps its own curvature history, so incompatible
+        # per-layer scales never mix) and is a harmless no-op for first-order
+        # oracles (their per-coordinate moments are identical either way).
+        self.partition_sizes = (
+            tuple(int(s) for s in partition_sizes)
+            if partition_sizes is not None
+            else None
+        )
+        if self.partition_sizes is not None:
+            # Static cumulative offsets delimiting each segment; kept as plain
+            # Python ints so all slicing stays jit/vmap/grad friendly.
+            self._partition_offsets = tuple(
+                int(o)
+                for o in jnp.cumsum(jnp.asarray((0,) + self.partition_sizes))
+            )
+        else:
+            self._partition_offsets = None
         self.feed_probes_to_oracle = feed_probes_to_oracle
         # When feeding probes, only admit those that (a) strictly *decrease* the
         # objective relative to the current iterate and (b) lie on the accepted
@@ -211,6 +236,67 @@ class QQN:
             value, grad = self._value_and_grad(params, *args)
             aux = None
         return value, grad, aux
+    # --- Per-layer partitioning helpers -----------------------------------
+    def _segments(self, x):
+        """Split a flat ``(n,)`` array into the configured contiguous
+        segments (static offsets -> jit/vmap/grad safe)."""
+        off = self._partition_offsets
+        return [x[off[i]:off[i + 1]] for i in range(len(self.partition_sizes))]
+    def _oracle_init(self, params):
+        """Initialize the oracle state, respecting partitioning.
+        Returns a single oracle state when unpartitioned, or a tuple of
+        per-segment oracle states when ``partition_sizes`` is set."""
+        if self.partition_sizes is None:
+            return self.oracle.init(params)
+        return tuple(self.oracle.init(seg) for seg in self._segments(params))
+    def _oracle_direction(self, params, grad, oracle_state):
+        """Compute the oracle's t=1 endpoint, respecting partitioning.
+        When partitioned, the oracle is driven independently on each segment
+        and the per-segment endpoints are concatenated back into the full
+        direction. The returned oracle state mirrors the input structure."""
+        if self.partition_sizes is None:
+            return self.oracle.direction(params, grad, oracle_state)
+        p_segs = self._segments(params)
+        g_segs = self._segments(grad)
+        dirs = []
+        new_states = []
+        for p_i, g_i, s_i in zip(p_segs, g_segs, oracle_state):
+            d_i, ns_i = self.oracle.direction(p_i, g_i, s_i)
+            dirs.append(d_i)
+            new_states.append(ns_i)
+        return jnp.concatenate(dirs, axis=0), tuple(new_states)
+    def _slice_oracle_info(self, info, i):
+        """Project an ``OracleInfo`` onto segment ``i``.
+        Flat per-iterate fields (params/new_params/grad/new_grad) are sliced
+        to the segment; probe buffers (shape ``(k, n)``) are sliced along
+        their parameter axis. Scalar / mask fields (t, step_size,
+        probe_valid, probe_alphas) are shared verbatim."""
+        off = self._partition_offsets
+        lo, hi = off[i], off[i + 1]
+        def seg(v):
+            return None if v is None else v[lo:hi]
+        def seg_probe(v):
+            return None if v is None else v[:, lo:hi]
+        return OracleInfo(
+            params=seg(info.params),
+            new_params=seg(info.new_params),
+            grad=seg(info.grad),
+            new_grad=seg(info.new_grad),
+            t=info.t,
+            step_size=info.step_size,
+            probe_params=seg_probe(info.probe_params),
+            probe_grads=seg_probe(info.probe_grads),
+            probe_valid=info.probe_valid,
+            probe_alphas=info.probe_alphas,
+        )
+    def _oracle_update(self, oracle_state, info):
+        """Update the oracle state, respecting partitioning."""
+        if self.partition_sizes is None:
+            return self.oracle.update(oracle_state, info)
+        return tuple(
+            self.oracle.update(s_i, self._slice_oracle_info(info, i))
+            for i, s_i in enumerate(oracle_state)
+        )
 
     def _plain_value_and_grad(self, params, *args):
         """Value-and-grad returning only ``(value, grad)`` for line search."""
@@ -225,7 +311,7 @@ class QQN:
     def init_state(self, params, *args) -> QQNState:
         """Initialize solver state at ``params``."""
         value, grad, aux = self._eval(params, *args)
-        oracle_state = self.oracle.init(params)
+        oracle_state = self._oracle_init(params)
         error = tree_l2_norm(grad)
         region_state = self.region.init(params)
         return QQNState(
@@ -259,7 +345,7 @@ class QQN:
         grad = state.grad
 
         # 1. Oracle: L-BFGS direction (-H∇f), the t=1 endpoint of the path.
-        qn_dir, _ = self.oracle.direction(params, grad, state.oracle_state)
+        qn_dir, _ = self._oracle_direction(params, grad, state.oracle_state)
         # Diagnostic: directional derivative along the oracle direction. A
         # non-negative value means the oracle handed back a non-descent
         # direction at t=1 (degenerate curvature) — worth surfacing.
@@ -378,7 +464,7 @@ class QQN:
                 t=best_t,
                 step_size=step_size,
             )
-        new_oracle_state = self.oracle.update(state.oracle_state, oracle_info)
+        new_oracle_state = self._oracle_update(state.oracle_state, oracle_info)
         # Update region state (e.g. adaptive trust-region radius).
         actual_reduction = state.value - new_value
         # Honest predicted reduction from the along-path quadratic model.
