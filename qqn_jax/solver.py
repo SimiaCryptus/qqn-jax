@@ -29,7 +29,7 @@ import jax.numpy as jnp
 from qqn_jax.oracles.strategy import resolve_oracle
 from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.line_search import LINE_SEARCHES
-from qqn_jax.spline_search import (
+from qqn_jax.paths import (
     spline_wrap,
     linear_wrap,
 )

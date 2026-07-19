@@ -28,7 +28,7 @@ from qqn_jax.experimental.rolling_window_activation import (
 )
 from qqn_jax.solver import QQN, QQNState
 from qqn_jax.line_search.backtracking import backtracking_search
-from qqn_jax.spline_search import spline_wrap, spline_search
+from qqn_jax.paths import spline_wrap, spline_search
 from qqn_jax.oracles.anderson import AndersonOracle
 from qqn_jax.regions.strategy import (
     Region,

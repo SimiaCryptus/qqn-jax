@@ -6,7 +6,7 @@ import numpy as np
 
 from qqn_jax import QQN, spline_search, backtracking_search
 from qqn_jax.utils import make_value_and_grad
-from qqn_jax.spline_search import (
+from qqn_jax.paths.spline import (
     _orient_tangents,
     _segment_stationary_candidates,
     _segment_value,

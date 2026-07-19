@@ -1,18 +1,21 @@
 """Spline (cubic Hermite) augmentation for QQN line searches.
 
-Each evaluation along the quadratic path ``d(t)`` yields both a fitness
-value ``f(d(t))`` and a directional derivative ``m = ⟨∇f, d'(t)⟩``. The
-spline does *not* replace the line search; it is an **expanded definition
-of the curve** that reuses every measured point as a reusable *control
-point* of a piecewise cubic Hermite spline model of the objective along
-the (consistent) path.
+Each evaluation along the path ``d(t)`` yields both a fitness value
+``f(d(t))`` and a directional derivative ``m = ⟨∇f, d'(t)⟩``. The spline
+does *not* replace the line search; it is an **expanded definition of the
+curve** that reuses every measured point as a reusable *control point* of a
+piecewise cubic Hermite spline model of the objective along the
+(consistent) path.
 
 ``spline_wrap(inner_search)`` returns a line-search-compatible callable
 that first runs ``inner_search`` (any registered strategy), then attempts
 to *improve* on its accepted point by probing the stationary points of the
-cubic Hermite spline fit through the control points gathered so far. Because
-the path direction is consistent across all measured points, every probe —
-regardless of the underlying line search — is a valid control point.
+cubic Hermite spline fit through the control points gathered so far.
+Because every probe is built through the same shared ``PathStrategy``
+(``qqn_jax.paths.base.make_evaluator``) as the canonical quadratic path
+(``qqn_jax.paths.quadratic.QUADRATIC_PATH``) by default, every probe —
+regardless of the underlying line search — is a valid control point on the
+*same* curve.
 
 Candidate steps are proposed by locating stationary points of the cubic
 segments (closed-form roots of the quadratic derivative). Tangents are
@@ -27,10 +30,12 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import tree_add_scaled, tree_vdot
+from qqn_jax.utils import tree_negative, tree_vdot
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.line_search.backtracking import backtracking_search
+from qqn_jax.paths.base import PathStrategy, make_evaluator
+from qqn_jax.paths.quadratic import QUADRATIC_PATH
 
 
 def _orient_tangents(m0, m1):
@@ -150,7 +155,9 @@ def _segment_stationary_candidates(t0, t1, f0, m0, f1, m1):
     return t_cands, val_cands, valid
 
 
-def spline_wrap(inner_search: Callable) -> Callable:
+def spline_wrap(
+    inner_search: Callable, path: PathStrategy = QUADRATIC_PATH
+) -> Callable:
     """Augment ``inner_search`` with a cubic Hermite spline refinement.
 
     Returns a line-search-compatible callable with the same signature as the
@@ -163,16 +170,25 @@ def spline_wrap(inner_search: Callable) -> Callable:
     The wrapped search:
 
     1. Runs ``inner_search`` to obtain a baseline accepted point.
-    2. Forms control points from ``α = 0`` (current point, slope ``gᵀd``)
-       and ``α = α_inner`` (the inner search's accepted point, with its
-       measured slope).
+    2. Forms control points from ``t = 0`` (current point, slope
+       ``⟨∇f, d'(0)⟩``) and ``t = t_inner`` (the inner search's accepted
+       point, with its measured slope ``⟨∇f, d'(t_inner)⟩``).
     3. Probes the spline's stationary points, projecting through the region
        and keeping the lowest-value feasible point found.
     4. Returns the better of the inner result and the spline probes.
 
-    Because every probe lies on the *same* fixed direction ``d`` (the path
-    stays consistent w.r.t. all measured points), this composes correctly
-    with any underlying line search.
+    Because every probe lies on the *same* path (built through the shared
+    ``PathStrategy`` component — ``QUADRATIC_PATH`` by default, matching the
+    curve the wrapped inner search itself traverses), this composes
+    correctly with any underlying line search.
+
+    Args:
+        inner_search: any registered line-search strategy to seed the
+            baseline.
+        path: the ``PathStrategy`` used to remap ``t`` into a probe point
+            and its velocity ``d'(t)``. Defaults to ``QUADRATIC_PATH``, the
+            canonical QQN curve, so spline probes stay on the exact curve
+            the inner search traversed.
     """
 
     def wrapped(
@@ -189,15 +205,23 @@ def spline_wrap(inner_search: Callable) -> Callable:
     ) -> LineSearchResult:
         region = resolve_region(region)
 
-        def project(candidate):
-            return region.project(params, candidate, region_state)
-
-        def eval_at(alpha):
-            raw = tree_add_scaled(params, alpha, direction)
-            projected = project(raw)
-            val, g = value_and_grad_fn(projected, *args)
-            slope = tree_vdot(g, direction)
-            return projected, val, g, slope
+        # Shared path-strategy evaluator: remaps the scalar path parameter
+        # ``t`` into the probe point ``x + d(t)`` (and slope ``⟨∇f,
+        # d'(t)⟩``), projecting every probe through the region.
+        eval_at = make_evaluator(
+            value_and_grad_fn,
+            params,
+            grad,
+            direction,
+            region,
+            region_state,
+            path,
+            *args,
+        )
+        # ``grad_dir`` fixes the path's tangent at the origin; needed here
+        # (in addition to inside ``eval_at``) to evaluate the velocity at
+        # already-measured control points (t=0, t=a1) without re-probing.
+        grad_dir = tree_negative(grad)
 
         dtype = value.dtype
 
@@ -222,11 +246,14 @@ def spline_wrap(inner_search: Callable) -> Callable:
         #    larger t, not only inside [0, a1].
         a0 = jnp.asarray(0.0, dtype=dtype)
         f0 = value
-        m0 = tree_vdot(grad, direction)  # slope at alpha=0 is gᵀd
+        # Slope at t=0 is the path's tangent ⟨∇f, d'(0)⟩, evaluated through
+        # the shared ``path`` component (for the canonical quadratic path
+        # this reduces to ⟨∇f, -∇f⟩ = -‖∇f‖²).
+        m0 = tree_vdot(grad, path.velocity(a0, grad_dir, direction))
 
         a1 = inner.step_size
         f1 = inner.new_value
-        m1 = tree_vdot(inner.new_grad, direction)
+        m1 = tree_vdot(inner.new_grad, path.velocity(a1, grad_dir, direction))
         # Correct the first measured tangent (the *oracle* tangent at the inner
         # search's accepted point) based on its agreement with the secant from
         # the current point (alpha=0) to the oracle point (alpha=a1). The vector
@@ -369,12 +396,11 @@ def spline_wrap(inner_search: Callable) -> Callable:
             n_bg = jax.tree_util.tree_map(
                 lambda new, old: jnp.where(improves, new, old), cg, bg
             )
-
             # Correct bracketing: keep the candidate and the endpoint on the
-            # OPPOSITE side of it from the descent. We use the slope sign at the
-            # candidate to decide which half still contains the minimum: if the
-            # candidate slope is negative the minimum is to its right, so the
-            # new bracket is [cand, ra]; otherwise it is [la, cand].
+            # OPPOSITE side of it from the descent. We use the slope sign at
+            # the candidate to decide which half still contains the minimum:
+            # if the candidate slope is negative the minimum is to its right,
+            # so the new bracket is [cand, ra]; otherwise it is [la, cand].
             min_to_right = cm < 0.0
             n_la = jnp.where(min_to_right, cand_alpha, la)
             n_lf = jnp.where(min_to_right, cf, lf)
@@ -382,7 +408,6 @@ def spline_wrap(inner_search: Callable) -> Callable:
             n_ra = jnp.where(min_to_right, ra, cand_alpha)
             n_rf = jnp.where(min_to_right, rf, cf)
             n_rm = jnp.where(min_to_right, rm, cm)
-
             return (
                 n_la,
                 n_lf,
@@ -400,7 +425,6 @@ def spline_wrap(inner_search: Callable) -> Callable:
 
         final = jax.lax.while_loop(cond, body, InitCarry)
         (_, _, _, _, _, _, fa, fv, fp, fg, _, spline_evals) = final
-
         # The spline starts from the best measured point, so it can only match
         # or improve on the inner result.
         done = jnp.logical_or(inner.done, fv < inner.new_value)
@@ -429,131 +453,7 @@ def spline_wrap(inner_search: Callable) -> Callable:
 
 
 # A ready-to-use spline line search: the cubic Hermite refinement wrapped
-# around the default backtracking (Armijo) inner search. This is the
-# callable referenced by ``line_search="spline"`` and by the public API.
+# around the default backtracking (Armijo) inner search, using the canonical
+# quadratic path (matching the curve traversed by the wrapped inner search).
 spline_search = spline_wrap(backtracking_search)
-
-
-def linear_wrap(inner_search: Callable, num_samples: int = 8) -> Callable:
-    """Augment ``inner_search`` with a *linear* (value-only) refinement.
-
-    This is the deliberate opposite of :func:`spline_wrap`: where the spline
-    reuses every probe's *gradient* to build a cubic Hermite model, the linear
-    refinement throws the gradient information away entirely and simply samples
-    the objective along the straight segment between the origin (``α = 0``) and
-    the oracle point (``α = 1``, the ``t = 1`` endpoint of the path). It keeps
-    the lowest-value feasible sample found.
-
-    Because the path direction is consistent, sampling ``params + α·direction``
-    for ``α ∈ [0, 1]`` traces exactly the chord from the current iterate to the
-    oracle endpoint. When the direction degenerates to the (negated) gradient
-    (no genuine oracle point), the samples still interpolate along the gradient
-    ray, so a sensible step is recovered.
-
-    Args:
-        inner_search: any registered line-search strategy to seed the baseline.
-        num_samples: number of interior samples of ``α ∈ (0, 1]`` to probe.
-    """
-
-    def wrapped(
-        value_and_grad_fn: Callable,
-        params,
-        direction,
-        value,
-        grad,
-        *args,
-        region=None,
-        region_state=None,
-        **inner_kwargs,
-    ) -> LineSearchResult:
-        region = resolve_region(region)
-
-        def project(candidate):
-            return region.project(params, candidate, region_state)
-
-        def eval_at(alpha):
-            raw = tree_add_scaled(params, alpha, direction)
-            projected = project(raw)
-            val, g = value_and_grad_fn(projected, *args)
-            return projected, val, g
-
-        dtype = value.dtype
-
-        # 1. Baseline from the inner search.
-        inner = inner_search(
-            value_and_grad_fn,
-            params,
-            direction,
-            value,
-            grad,
-            *args,
-            region=region,
-            region_state=region_state,
-            **inner_kwargs,
-        )
-
-        inner_evals = inner.num_evals
-        if inner_evals is None:
-            inner_evals = jnp.asarray(1, jnp.int32)
-
-        # 2. Sample the straight chord from origin (α=0) to oracle point (α=1),
-        #    discarding all gradient/curvature information. Interior samples at
-        #    α = k / num_samples for k = 1..num_samples.
-        n = num_samples
-        alphas = (jnp.arange(1, n + 1, dtype=dtype)) / jnp.asarray(n, dtype=dtype)
-
-        def sample(alpha):
-            p, v, g = eval_at(alpha)
-            return alpha, v, p, g
-
-        s_alpha, s_val, s_params, s_grad = jax.vmap(sample)(alphas)
-
-        # 3. Pick the best of {inner accepted point, linear samples}.
-        best_sample_idx = jnp.argmin(s_val)
-        best_sample_val = s_val[best_sample_idx]
-        best_sample_alpha = s_alpha[best_sample_idx]
-        best_sample_params = s_params[best_sample_idx]
-        best_sample_grad = s_grad[best_sample_idx]
-
-        use_sample = best_sample_val < inner.new_value
-        fa = jnp.where(use_sample, best_sample_alpha, inner.step_size)
-        fv = jnp.where(use_sample, best_sample_val, inner.new_value)
-        fp = jax.tree_util.tree_map(
-            lambda s, i: jnp.where(use_sample, s, i),
-            best_sample_params,
-            inner.new_params,
-        )
-        fg = jax.tree_util.tree_map(
-            lambda s, i: jnp.where(use_sample, s, i),
-            best_sample_grad,
-            inner.new_grad,
-        )
-
-        done = jnp.logical_or(inner.done, use_sample)
-        return LineSearchResult(
-            step_size=fa,
-            new_value=fv,
-            new_grad=fg,
-            new_params=fp,
-            done=done,
-            probe_params=inner.probe_params,
-            probe_grads=inner.probe_grads,
-            probe_valid=inner.probe_valid,
-            probe_values=inner.probe_values,
-            probe_alphas=inner.probe_alphas,
-            num_evals=inner_evals + jnp.asarray(n, jnp.int32),
-        )
-
-    return wrapped
-
-
-# A ready-to-use linear line search: value-only chord interpolation wrapped
-# around the default backtracking (Armijo) inner search. This is a
-# convenience for testing ``linear_wrap`` in isolation; production use should
-# prefer the orthogonal ``linear=True`` solver flag, which wraps whichever
-# line search the caller actually selected (linear interpolation is a *path*
-# choice, not a line search in its own right).
-linear_search = linear_wrap(backtracking_search)
-
-
-__all__ = ["spline_wrap", "spline_search", "linear_wrap", "linear_search"]
+__all__ = ["spline_wrap", "spline_search"]

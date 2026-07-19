@@ -34,7 +34,7 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import MomentumOracle, AdamOracle, PathHistoryMomentumOracle
+from qqn_jax import AdamOracle, LBFGSOracle
 
 ENABLED = [
     "QQN",
@@ -56,12 +56,12 @@ def _oracle_axis():
     """Oracle axis: token -> ``run_qqn`` kwargs selecting the oracle."""
     return {
         # "": {},
-        "Mom": {"oracle": MomentumOracle(beta=0.9)},
+        # "Mom": {"oracle": MomentumOracle(beta=0.9)},
         "Adam": {"oracle": AdamOracle()},
-        "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
+        # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
         # "Sec": {"oracle": SecantOracle()},
         # "And": {"oracle": AndersonOracle(window=5)},
-        # "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
+        "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
         # "L20": {"oracle": LBFGSOracle(history_size=20)},
         # "L50": {"oracle": LBFGSOracle(history_size=50)},
         # "L80": {"oracle": LBFGSOracle(history_size=80)},
@@ -180,7 +180,7 @@ def _partition_axis():
     """
     return {
         "": {},
-        # "Part": {"_per_layer": True},
+        "Part": {"_per_layer": True},
     }
 
 
@@ -199,9 +199,10 @@ def _temperature_axis():
     return {
         "": {},
         # "T1": {"line_search_options": {"temperature": 1.0}},
+        "T001": {"line_search_options": {"temperature": 0.01}},
         # "T01": {"line_search_options": {"temperature": 0.1}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
-        # "T100": {"line_search_options": {"temperature": 100.0}},
+        "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 
