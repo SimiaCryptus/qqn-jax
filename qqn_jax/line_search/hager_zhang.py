@@ -33,7 +33,6 @@ def hager_zhang_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
-    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """Hager-Zhang line search via Optax ``scale_by_backtracking_linesearch``.
     The Hager-Zhang scheme is a robust approximate-Wolfe line search. We use

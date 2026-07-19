@@ -26,7 +26,6 @@ import jax.numpy as jnp
 from qqn_jax.utils import tree_scale
 from qqn_jax.regions.strategy import resolve_region
 from qqn_jax.line_search.result import LineSearchResult
-from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.paths.base import PathStrategy, make_evaluator
 
 
@@ -171,13 +170,4 @@ def linear_wrap(
     return wrapped
 
 
-# A ready-to-use linear line search: value-only chord interpolation wrapped
-# around the default backtracking (Armijo) inner search. This is a
-# convenience for testing ``linear_wrap`` in isolation; production use should
-# prefer the orthogonal ``linear=True`` solver flag, which wraps whichever
-# line search the caller actually selected (linear interpolation is a *path*
-# choice, not a line search in its own right).
-linear_search = linear_wrap(backtracking_search)
-
-
-__all__ = ["linear_wrap", "linear_search", "LINEAR_PATH"]
+__all__ = ["LINEAR_PATH"]

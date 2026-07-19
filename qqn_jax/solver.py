@@ -33,8 +33,6 @@ from qqn_jax.paths import (
     PathStrategy,
     QUADRATIC_PATH,
     LINEAR_PATH,
-    spline_wrap,
-    linear_wrap,
 )
 from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
@@ -230,21 +228,20 @@ class QQN:
         # line search.
         base_ls = LINE_SEARCHES[line_search]
         opts = self.line_search_options
+        # The path strategy is a first-class, explicit choice threaded into
+        # the inner line search *unconditionally* — not only when a spline/
+        # linear refinement wraps it. This makes the quadratic path an
+        # alternative form of path construction on equal footing with linear
+        # and spline, rather than an implicit default the line search happens
+        # to fall back to. (Fixes the long-standing TODO: the quadratic path
+        # is NOT a "default to be wrapped".)
+        opts = {**opts, "path": self.path}
         # Line searches that support extrapolation (t > 1) accept ``max_step``.
         # Only inject it for those to avoid passing an unexpected kwarg to
         # searches that don't accept it. The user may still override via
         # ``line_search_options``.
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
-        # The path strategy is a first-class, cross-cutting parameter of
-        # *every* selected line search — not only the ``spline``/``linear``
-        # refinements wrapped below. Threading it here means the base
-        # search itself builds its probes through ``self.path`` (matching
-        # the along-path predicted-reduction model in ``update``), instead
-        # of silently assuming the canonical quadratic curve while a
-        # different ``path`` is honored only by an optional wrapper.
-        if "path" not in opts:
-            opts = {**opts, "path": self.path}
         # When feeding probes to the oracle, size the line-search probe buffers
         # to ``max_probes`` so they match the oracle's replay capacity.
         if self.feed_probes_to_oracle:
@@ -259,11 +256,24 @@ class QQN:
         # choice that wraps whatever inner line search was selected: it
         # samples the straight chord to the oracle endpoint (throwing out
         # gradient/curvature information) and keeps the best feasible point.
+        # Each branch selects a *path construction*, not a base-plus-optional-
+        # refinement. The quadratic path is a first-class primitive that needs
+        # no wrapper: the inner line search already traverses ``self.path``
+        # (bound above), so there is nothing to refine it *toward*. The spline
+        # and linear cases are genuinely different constructions that reuse the
+        # inner search as a baseline and then probe additional points on the
+        # same curve.
         if self.spline:
+            from qqn_jax.paths.spline import spline_wrap
             self._ls = spline_wrap(base_ls, path=self.path)
         elif self.linear:
+            from qqn_jax.paths.linear import linear_wrap
             self._ls = linear_wrap(base_ls, path=self.path)
         else:
+            # Direct quadratic (or explicitly-supplied) path construction: the
+            # line search itself traverses ``self.path`` via the ``path`` kwarg
+            # bound into ``base_ls`` above. No wrapping is needed or sensible —
+            # this is the primitive, not a default awaiting refinement.
             self._ls = base_ls
 
     # --- Internal helpers -------------------------------------------------

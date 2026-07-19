@@ -30,7 +30,6 @@ def null_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
-    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """ "Null" line search: unconditionally accept the ``t = 1`` oracle point.
     The ``direction`` handed to the line search is the oracle endpoint

@@ -34,7 +34,6 @@ def bisection_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
-    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """Bisection line search that seeks a *true* one-dimensional minimum.
     Whereas the backtracking/Armijo family is deliberately *permissive* — it

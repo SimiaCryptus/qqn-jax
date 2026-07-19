@@ -35,7 +35,6 @@ def backtracking_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
-    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """Backtracking line search (Armijo), self-contained for Optax.
 

@@ -34,7 +34,6 @@ def strong_wolfe_search(
     max_probes: int = 32,
     record_probes: bool = True,
     max_step: float = 1.0,
-    path: PathStrategy = QUADRATIC_PATH,
 ) -> LineSearchResult:
     """Strong Wolfe line search via Optax ``scale_by_zoom_linesearch``.
 

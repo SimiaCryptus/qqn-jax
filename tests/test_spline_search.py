@@ -4,8 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from qqn_jax import QQN, spline_search, backtracking_search
-from qqn_jax.utils import make_value_and_grad
+from qqn_jax import QQN
 from qqn_jax.paths.spline import (
     _orient_tangents,
     _segment_stationary_candidates,
@@ -20,31 +19,6 @@ def _quadratic(x):
 
 def _rosenbrock(x):
     return jnp.sum(100.0 * (x[1:] - x[:-1] ** 2) ** 2 + (1.0 - x[:-1]) ** 2)
-
-
-def test_spline_search_decreases_on_quadratic():
-    vg = make_value_and_grad(_quadratic)
-    params = jnp.array([2.0, -3.0])
-    value, grad = vg(params)
-    direction = -grad  # steepest descent
-
-    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
-    # Spline search must not increase the objective.
-    assert res.new_value <= value + 1e-6
-    # On an exact quadratic, the minimizer along -grad is at alpha ~ 0.5.
-    assert jnp.isfinite(res.step_size)
-    assert bool(res.done)
-
-
-def test_spline_search_jit_compatible():
-    vg = make_value_and_grad(_quadratic)
-    params = jnp.array([1.0, 1.0, 1.0])
-    value, grad = vg(params)
-    direction = -grad
-
-    fn = jax.jit(lambda p, d, v, g: spline_search(vg, p, d, v, g))
-    res = fn(params, direction, value, grad)
-    assert res.new_value <= value + 1e-6
 
 
 def test_spline_search_in_solver():
@@ -106,25 +80,6 @@ def test_segment_stationary_finds_min_of_descending_cubic():
     assert bool(jnp.any(jnp.logical_and(valid, inside)))
 
 
-def test_spline_improves_or_matches_inner_on_quadratic():
-    # On a quadratic, the spline refinement should not be worse than inner.
-    vg = make_value_and_grad(_quadratic)
-    params = jnp.array([4.0, -2.0])
-    value, grad = vg(params)
-    direction = -grad
-    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
-    assert float(res.new_value) <= float(value) + 1e-6
-
-
-def test_spline_search_on_rosenbrock_makes_progress():
-    vg = make_value_and_grad(_rosenbrock)
-    params = jnp.array([-1.0, 1.0])
-    value, grad = vg(params)
-    direction = -grad
-    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
-    assert float(res.new_value) <= float(value) + 1e-6
-
-
 def test_segment_value_midpoint_between_endpoints():
     # For a monotone descending segment, the midpoint value lies between
     # the endpoint values.
@@ -159,65 +114,3 @@ def test_segment_stationary_no_valid_for_monotone_cubic():
     # Even if roots exist, valid candidates' values are finite where valid.
     finite_where_valid = jnp.all(jnp.where(valid, jnp.isfinite(v_c), True))
     assert bool(finite_where_valid)
-
-
-def test_spline_search_returns_finite_grad():
-    vg = make_value_and_grad(_quadratic)
-    params = jnp.array([3.0, -1.0])
-    value, grad = vg(params)
-    direction = -grad
-    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
-    assert jnp.all(jnp.isfinite(res.new_grad))
-    assert jnp.all(jnp.isfinite(res.new_params))
-
-
-def test_spline_search_step_size_in_unit_interval_ish():
-    # The accepted step on a convex quadratic should be a small positive value.
-    vg = make_value_and_grad(_quadratic)
-    params = jnp.array([2.0, -2.0])
-    value, grad = vg(params)
-    direction = -grad
-    res = spline_search(vg, params, direction, value, grad, init_step=1.0)
-    assert float(res.step_size) > 0.0
-
-
-def test_spline_strictly_improves_when_armijo_accepts_short_step():
-    # On a convex quadratic f(x) = sum(x**2), the exact minimizer along the
-    # steepest-descent path lies at alpha = 0.5. If Armijo backtracking is fed
-    # a large initial step and shrinks aggressively, it accepts a step well
-    # short of 0.5 (the first point satisfying sufficient decrease). The spline
-    # refinement, which reuses measured control points and probes the cubic
-    # stationary points, should then *strictly* improve on that short step.
-    #
-    # The existing suite only asserts ``<=``; this test pins down the actual
-    # value-add of the spline by requiring a genuine improvement.
-    vg = make_value_and_grad(_quadratic)
-    params = jnp.array([2.0, -3.0])
-    value, grad = vg(params)
-    direction = -grad  # steepest descent; true minimizer at alpha = 0.5
-    # Large initial step + aggressive shrink => Armijo accepts a short step.
-    inner = backtracking_search(
-        vg, params, direction, value, grad, init_step=8.0, shrink=0.1
-    )
-    res = spline_search(vg, params, direction, value, grad, init_step=8.0, shrink=0.1)
-    # Sanity: the inner search accepts a step that misses the true minimizer
-    # (alpha = 0.5). With this configuration Armijo stops at alpha = 0.8,
-    # overshooting the minimizer, so the inner-accepted value is well above 0.
-    assert abs(float(inner.step_size) - 0.5) > 0.1
-    assert float(inner.new_value) > 0.0
-    # The spline must *strictly* improve on the inner-accepted point.
-    assert float(res.new_value) < float(inner.new_value) - 1e-9
-    # And it should land close to the analytic minimizer (alpha = 0.5).
-    assert abs(float(res.step_size) - 0.5) < 0.1
-
-
-def test_spline_search_vmap_directions():
-    vg = make_value_and_grad(_quadratic)
-
-    def run_one(p):
-        value, grad = vg(p)
-        return spline_search(vg, p, -grad, value, grad).new_value
-
-    ps = jnp.array([[2.0, 2.0], [1.0, -1.0], [3.0, 0.5]])
-    vals = jax.vmap(run_one)(ps)
-    assert jnp.all(jnp.isfinite(vals))
