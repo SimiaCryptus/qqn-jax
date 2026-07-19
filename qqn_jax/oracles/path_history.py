@@ -2,7 +2,7 @@ import jax
 from jax import numpy as jnp
 from typing import NamedTuple
 from qqn_jax.oracles.oracle import Oracle
-from qqn_jax.oracles.secant import _ordered_probe_secants
+from qqn_jax.oracles.point_history import publish, secant_view
 
 
 class PathHistoryMomentumState(NamedTuple):
@@ -53,16 +53,16 @@ def PathHistoryMomentumOracle(history_size: int = 10, beta: float = 0.9) -> Orac
 
     def update(state, info):
 
-        ordered = _ordered_probe_secants(info)
-        if ordered is None:
+        points = publish(info)
+        if points is None:
             delta = info.new_params - info.params
             shifted = jnp.concatenate([delta[None], state.delta_history[:-1]], axis=0)
             new_count = jnp.minimum(state.step_count + 1, history_size)
             return PathHistoryMomentumState(delta_history=shifted, step_count=new_count)
 
-        params_seq, _, valid_seq = ordered
-        anchored = jnp.concatenate([info.params[None, :], params_seq], axis=0)
-        deltas = anchored[1:] - anchored[:-1]
+        view = secant_view(points)
+        deltas = view.deltas
+        valid_seq = view.valid_seq
 
         def body(carry, elem):
             hist, count = carry

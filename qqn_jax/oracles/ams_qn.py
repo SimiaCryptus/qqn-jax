@@ -4,7 +4,7 @@ import jax
 from jax import numpy as jnp
 
 from qqn_jax.oracles.oracle import Oracle
-from qqn_jax.oracles.secant import _ordered_probe_secants
+from qqn_jax.oracles.point_history import publish
 
 
 class AnchoredMultiSecantState(NamedTuple):
@@ -124,8 +124,8 @@ def AnchoredMultiSecantOracle(
 
     def update(state, info):
 
-        ordered = _ordered_probe_secants(info)
-        if ordered is None:
+        points = publish(info)
+        if points is None:
             new_x = (
                 jnp.roll(state.x_history, shift=1, axis=0).at[0].set(info.new_params)
             )
@@ -135,7 +135,9 @@ def AnchoredMultiSecantOracle(
                 g_history=new_g, x_history=new_x, step_count=new_count
             )
 
-        params_seq, grad_seq, valid_seq = ordered
+        params_seq = points.params_seq
+        grad_seq = points.grad_seq
+        valid_seq = points.valid_seq
 
         def body(carry, elem):
             x_hist, g_hist, count = carry

@@ -12,6 +12,12 @@ from qqn_jax.oracles.anderson import AndersonOracle, AndersonState
 from qqn_jax.oracles.ams_qn import AnchoredMultiSecantOracle, AnchoredMultiSecantState
 from qqn_jax.oracles.shampoo import ShampooOracle, ShampooState
 from qqn_jax.oracles.fallback import Fallback
+from qqn_jax.oracles.point_history import (
+    PublishedPoints,
+    SecantStoreView,
+    publish,
+    secant_view,
+)
 
 __all__ = [
     "Oracle",
@@ -33,4 +39,8 @@ __all__ = [
     "ShampooOracle",
     "ShampooState",
     "Fallback",
+    "PublishedPoints",
+    "SecantStoreView",
+    "publish",
+    "secant_view",
 ]

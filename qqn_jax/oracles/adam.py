@@ -3,7 +3,7 @@ from jax import numpy as jnp
 
 from typing import NamedTuple
 from qqn_jax.oracles.oracle import Oracle
-from qqn_jax.oracles.secant import _ordered_probe_secants
+from qqn_jax.oracles.point_history import publish
 
 
 class AdamState(NamedTuple):
@@ -74,18 +74,18 @@ def AdamOracle(
 
     def update(state, info):
 
-        ordered = _ordered_probe_secants(info)
-
         def fold(m, v, g):
             m = beta1 * m + (1.0 - beta1) * g
             v = beta2 * v + (1.0 - beta2) * (g * g)
             return m, v
 
-        if ordered is None:
+        points = publish(info)
+        if points is None:
             m, v = fold(state.m, state.v, info.grad)
             return AdamState(m=m, v=v, step=state.step + 1)
 
-        _, grad_seq, valid_seq = ordered
+        grad_seq = points.grad_seq
+        valid_seq = points.valid_seq
 
         def body(carry, elem):
             m, v = carry

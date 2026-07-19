@@ -8,7 +8,7 @@ from qqn_jax.lbfgs import (
     update_lbfgs_history_batch,
 )
 from qqn_jax.oracles.oracle import Oracle
-from qqn_jax.oracles.secant import _ordered_probe_secants
+from qqn_jax.oracles.point_history import publish
 
 
 def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
@@ -36,13 +36,15 @@ def LBFGSOracle(history_size: int = 10, max_probe_replay: int = 2) -> Oracle:
 
     def update(state, info):
 
-        ordered = _ordered_probe_secants(info, max_replay=max_probe_replay)
-        if ordered is None:
+        points = publish(info, max_replay=max_probe_replay)
+        if points is None:
             return update_lbfgs_history(
                 state, info.new_params, info.new_grad, history_size
             )
 
-        params_seq, grad_seq, valid_seq = ordered
+        params_seq = points.params_seq
+        grad_seq = points.grad_seq
+        valid_seq = points.valid_seq
         return update_lbfgs_history_batch(
             state, params_seq, grad_seq, valid_seq, history_size
         )

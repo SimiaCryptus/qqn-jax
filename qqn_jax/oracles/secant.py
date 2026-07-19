@@ -4,6 +4,7 @@ from jax import numpy as jnp
 from qqn_jax.utils import tree_negative
 from typing import NamedTuple
 from qqn_jax.oracles.oracle import Oracle
+from qqn_jax.oracles.point_history import publish, secant_view
 
 
 class SecantState(NamedTuple):
@@ -44,22 +45,12 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
 
     def update(state, info):
 
-        ordered = _ordered_probe_secants(info)
-        if ordered is None:
+        points = publish(info)
+        if points is None:
             s = info.new_params - info.params
             y = info.new_grad - info.grad
         else:
-            params_seq, grad_seq, valid_seq = ordered
-
-            anchor_p = jnp.concatenate([info.params[None, :], params_seq[:-1]], axis=0)
-            anchor_g = jnp.concatenate([info.grad[None, :], grad_seq[:-1]], axis=0)
-
-            prev_valid = valid_seq[:-1]
-            idx = jnp.max(jnp.where(prev_valid, jnp.arange(prev_valid.shape[0]), 0))
-            p_prev = anchor_p[idx]
-            g_prev = anchor_g[idx]
-            s = info.new_params - p_prev
-            y = info.new_grad - g_prev
+            s, y = secant_view(points).newest_secant()
         ss = jnp.vdot(s, s)
         sy = jnp.vdot(s, y)
 
@@ -77,44 +68,16 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
 
 
 def _ordered_probe_secants(info, max_replay=None):
-    """Extract probe points ordered by increasing α, masked by validity.
-    Returns ``(params_seq, grad_seq, valid_seq)`` where the sequence runs
-    oldest-first (increasing α) and terminates with the accepted point as the
-    newest (always-valid) entry. When ``max_replay`` is given only the probes
-    CLOSEST to the accepted step (largest α among valid, descent-gated probes)
-    are retained, capping how many collinear probes are folded in.
-    Returns ``None`` when the probe buffers are not populated (no alphas /
-    valid mask / params), signalling the caller to fall back to a single-pair
-    (accepted-point-only) update.
+    """Backward-compatible shim over the point-history store.
+
+    Deprecated: prefer :func:`qqn_jax.oracles.point_history.publish` /
+    :func:`~qqn_jax.oracles.point_history.secant_view`. Retained so existing
+    oracles keep working while they migrate to the store view.
+
+    Returns ``(params_seq, grad_seq, valid_seq)`` oldest-first (increasing α),
+    terminating with the accepted point, or ``None`` when unavailable.
     """
-    if (
-        info.probe_params is None
-        or info.probe_alphas is None
-        or info.probe_valid is None
-    ):
+    points = publish(info, max_replay=max_replay)
+    if points is None:
         return None
-    k = info.probe_alphas.shape[0]
-    if max_replay is not None:
-        n_keep = min(max_replay, k)
-
-        ranked_alpha = jnp.where(info.probe_valid, info.probe_alphas, -jnp.inf)
-        keep_order = jnp.argsort(-ranked_alpha)[:n_keep]
-        kept_params = info.probe_params[keep_order]
-        kept_grads = info.probe_grads[keep_order]
-        kept_valid = info.probe_valid[keep_order]
-        kept_alphas = info.probe_alphas[keep_order]
-    else:
-        kept_params = info.probe_params
-        kept_grads = info.probe_grads
-        kept_valid = info.probe_valid
-        kept_alphas = info.probe_alphas
-
-    inner = jnp.argsort(jnp.where(kept_valid, kept_alphas, jnp.inf))
-    probe_params = kept_params[inner]
-    probe_grads = kept_grads[inner]
-    probe_valid = kept_valid[inner]
-
-    params_seq = jnp.concatenate([probe_params, info.new_params[None, :]], axis=0)
-    grad_seq = jnp.concatenate([probe_grads, info.new_grad[None, :]], axis=0)
-    valid_seq = jnp.concatenate([probe_valid, jnp.asarray([True])], axis=0)
-    return params_seq, grad_seq, valid_seq
+    return points.params_seq, points.grad_seq, points.valid_seq

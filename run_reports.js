@@ -83,11 +83,11 @@ const ACTIVATION_TYPES = [
 // Uniform parameters applied to every generated activation-sweep variant.
 // Tune these once to change the whole sweep consistently.
 const SWEEP_PARAMS = {
-     N_TRAIN: '16000',
+     N_TRAIN: '8000',
      N_TEST: '2000',
      HIDDEN: '128',
-     DEPTH: '2',
-     TIME_BUDGET: '45',   // seconds
+     DEPTH: '1',
+     TIME_BUDGET: '30',   // seconds
      F_TARGET: '0.01',
 };
 // The reports to sweep and their default dataset.

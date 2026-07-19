@@ -3,7 +3,7 @@ from jax import numpy as jnp
 
 from typing import NamedTuple
 from qqn_jax.oracles.oracle import Oracle
-from qqn_jax.oracles.secant import _ordered_probe_secants
+from qqn_jax.oracles.point_history import publish, secant_view
 
 
 class MomentumState(NamedTuple):
@@ -35,14 +35,12 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
         return MomentumState(velocity=zeros)
 
     def direction(params, grad, state):
-
         d = jax.tree_util.tree_map(lambda g, v: -g + beta * v, grad, state.velocity)
         return d, state
 
     def update(state, info):
-
-        ordered = _ordered_probe_secants(info)
-        if ordered is None:
+        points = publish(info)
+        if points is None:
             delta = jax.tree_util.tree_map(
                 lambda xn, x: xn - x, info.new_params, info.params
             )
@@ -51,10 +49,9 @@ def MomentumOracle(beta: float = 0.9) -> Oracle:
             )
             return MomentumState(velocity=v_new)
 
-        params_seq, _, valid_seq = ordered
-
-        anchored = jnp.concatenate([info.params[None, :], params_seq], axis=0)
-        deltas = anchored[1:] - anchored[:-1]
+        view = secant_view(points)
+        deltas = view.deltas
+        valid_seq = view.valid_seq
 
         def body(v, elem):
             dx, valid = elem

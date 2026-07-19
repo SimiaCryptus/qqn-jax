@@ -46,9 +46,29 @@ ENABLED = [
 def _oracle_axis():
     """Oracle axis: token -> ``run_qqn`` kwargs selecting the oracle."""
     return {
-        "Adam": {"_adam_oracle": True},
+        # "": {},
+        # "Mom": {"oracle": MomentumOracle(beta=0.9)},
+        # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
+        "Adam": {"oracle": AdamOracle()},
+        # "Sec": {"oracle": SecantOracle()},
+        # "And": {"oracle": AndersonOracle(window=5)},
         "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
-        "L10": {"oracle": LBFGSOracle(history_size=10)},
+        "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
+        # "L20": {"oracle": LBFGSOracle(history_size=20)},
+        # "L50": {"oracle": LBFGSOracle(history_size=50)},
+        # "L80": {"oracle": LBFGSOracle(history_size=80)},
+        # "L120": {"oracle": LBFGSOracle(history_size=120)},
+        # "L160": {"oracle": LBFGSOracle(history_size=160)},
+        # "L80And": {
+        #     "oracle": Fallback(
+        #         [LBFGSOracle(history_size=80), AndersonOracle(window=5)]
+        #     )
+        # },
+        # "L50And": {
+        #     "oracle": Fallback(
+        #         [LBFGSOracle(history_size=50), AndersonOracle(window=5)]
+        #     )
+        # },
     }
 
 
@@ -79,10 +99,26 @@ def _line_search_axis():
         along-path minimizer is worth the extra gradient evaluations.
     """
     return {
+        # "": {},
+        # --- Permissive family (the usual role) --------------------------
+        # "Null": {"line_search": "null"},
         "BT": {"line_search": "backtracking"},
         "AW": {"line_search": "armijo_wolfe"},
-        "Fix": {"line_search": "fixed"},
-        "SW": {"line_search": "strong_wolfe"},
+        # "Fix": {"line_search": "fixed"},
+        # "SW": {"line_search": "strong_wolfe"},
+        # "ArmLoose": {
+        #     "line_search": "backtracking",
+        #     "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
+        # },
+        # "ArmTight": {
+        #     "line_search": "backtracking",
+        #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
+        # },
+        # "HZ": {"line_search": "hager_zhang"},
+        # "Bisect": {
+        #     "line_search": "bisection",
+        #     # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
+        # },
     }
 
 
@@ -90,6 +126,9 @@ def _region_axis():
     """Region axis: token -> ``run_qqn`` kwargs selecting the trust region."""
     return {
         "": {},
+        # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
+        # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
+        # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
     }
 
 
@@ -106,6 +145,8 @@ def _spline_axis():
     """
     return {
         "": {},
+        # "S": {"spline": True},
+        # "L": {"linear": True},
     }
 
 
@@ -113,6 +154,7 @@ def _probes_axis():
     """Probe-feeding axis: token -> ``run_qqn`` kwargs toggling probe replay."""
     return {
         "": {},
+        # "P": {"feed_probes_to_oracle": True},
     }
 
 
@@ -130,7 +172,7 @@ def _partition_axis():
     """
     return {
         "": {},
-        "Part": {"_per_layer": True},
+        # "Part": {"_per_layer": True},
     }
 
 
@@ -148,6 +190,11 @@ def _temperature_axis():
     """
     return {
         "": {},
+        # "T1": {"line_search_options": {"temperature": 1.0}},
+        # "T001": {"line_search_options": {"temperature": 0.01}},
+        # "T01": {"line_search_options": {"temperature": 0.1}},
+        # "T10": {"line_search_options": {"temperature": 10.0}},
+        # "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 
@@ -188,10 +235,6 @@ def _qqn_registry():
         def factory(ctx, _kwargs=kwargs, _display=display_kwargs):
 
             run_kwargs = dict(_kwargs)
-            if run_kwargs.pop("_adam_oracle", False):
-                run_kwargs["oracle"] = AdamOracle(
-                    learning_rate=getattr(ctx, "adam_lr", 1e-3)
-                )
             if run_kwargs.pop("_per_layer", False):
                 partition_sizes = getattr(ctx, "partition_sizes", None)
                 if not partition_sizes:
