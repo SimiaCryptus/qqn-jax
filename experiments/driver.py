@@ -17,7 +17,6 @@ from experiments.data.loaders import load_image_dataset
 from experiments.models.mlp import FlatMLP
 from experiments.optimizers import runners as _runners
 from experiments.optimizers import profiles as _profiles
-from experiments.optimizers.eval_counting import estimate_evals_per_iter
 from experiments.reporting.tables import report_tables
 from experiments.reporting.plots import save_plots
 from experiments.reporting.axis_analysis import report_axis_analysis
@@ -164,9 +163,12 @@ def run_experiment(config, *, enabled=None, do_plots=True):
         if result.evals_to_target is not None and result.iters_to_target:
             result.evals_per_iter = result.evals_to_target / result.iters_to_target
         else:
-            result.evals_per_iter = estimate_evals_per_iter(
-                name, qqn_kwarg_map.get(name, {})
-            )
+            if name in ("SGD", "Adam"):
+                result.evals_per_iter = 1.0
+            elif name == "L-BFGS":
+                result.evals_per_iter = 3.0
+            else:
+                result.evals_per_iter = -1.0
         results[name] = result
 
     report_tables(results, config)

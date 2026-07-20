@@ -101,6 +101,14 @@ class QQN:
                  path is reused as a control point and the spline's stationary
                  points guide the search. It composes with any chosen line
                  search.
+        spline_max_control_points: hard upper bound (minimum 2) on the number
+             of control points the spline refinement may accumulate. Bounding
+             the spline's complexity prevents a fractal / Zeno's-paradox effect
+             in which ever-finer subdivision of the interval stalls line-search
+             progress. When the seed control points (origin, probes, endpoint)
+             plus ``spline_refine_rounds`` would exceed this bound, the seed
+             buffer is trimmed to its lowest-fitness points and the number of
+             refinement rounds is capped accordingly. Defaults to ``32``.
 
         region: optional trust-region / projective-region strategy selector.
              Passed to ``qqn_jax.regions.strategy.resolve_region``. When
@@ -151,6 +159,7 @@ class QQN:
         max_t: float = 1000.0,
         partition_sizes: Optional[tuple[int, ...]] = None,
         spline_refine_rounds: int = 4,
+        spline_max_control_points: int = 32,
         remember_step_size: bool = False,
     ):
         self.fun = fun
@@ -181,6 +190,7 @@ class QQN:
         self.max_probes = max_probes
         self.max_t = max_t
         self.spline_refine_rounds = int(spline_refine_rounds)
+        self.spline_max_control_points = max(2, int(spline_max_control_points))
         self.remember_step_size = bool(remember_step_size)
         if line_search not in LINE_SEARCHES:
             raise ValueError(
@@ -405,6 +415,7 @@ class QQN:
                 slope0,
                 dtype,
                 rounds=self.spline_refine_rounds,
+                max_control_points=self.spline_max_control_points,
             )
 
         new_params = res.new_params

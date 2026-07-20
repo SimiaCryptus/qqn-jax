@@ -316,6 +316,7 @@ def spline_refine(
     slope0,
     dtype,
     rounds: int = 4,
+    max_control_points: int = 32,
 ) -> LineSearchResult:
     """Refine an inner line-search result by *accumulating* control points.
 
@@ -347,7 +348,16 @@ def spline_refine(
         dtype: working dtype.
         rounds: number of accumulate-and-repropose rounds (each costs one
             evaluation and adds one control point).
+        max_control_points: hard upper bound (minimum 2) on the number of
+            control points the spline may hold. This bounds the spline's
+            complexity and prevents a fractal / Zeno's-paradox effect where
+            ever-finer subdivision stalls the line search. When the seed
+            control points plus the requested ``rounds`` would exceed this
+            bound, the seed buffer is trimmed to the lowest-fitness points
+            (always retaining the origin) and ``rounds`` is capped so the
+            total never exceeds the bound.
     """
+    max_control_points = max(2, int(max_control_points))
     inner_evals = inner.num_evals
     if inner_evals is None:
         inner_evals = jnp.asarray(1, jnp.int32)
@@ -378,6 +388,34 @@ def spline_refine(
     seed_ms = jnp.concatenate([p_slopes, jnp.stack([origin_m, end_m])])
     seed_valid = jnp.concatenate([p_valid, jnp.array([True, True])])
     n_seed = seed_ts.shape[0]
+    # Cap the rounds so that seed points + rounds never exceed the bound.
+    # We always keep room for the origin and endpoint (2 points), so the
+    # seed contribution is bounded by ``max_control_points - rounds`` when
+    # possible, otherwise rounds are reduced.
+    rounds = int(rounds)
+    # Reserve at least the origin + endpoint (2) so a genuine segment exists.
+    max_seed_keep = max(2, max_control_points - rounds)
+    if n_seed > max_seed_keep:
+        # Keep the lowest-fitness seed control points, but always retain the
+        # origin (last-but-one) and the endpoint (last) entries so the spline
+        # spans the searched interval.
+        keep = max_seed_keep
+        # rank probes by fitness (invalid -> +inf), reserving 2 slots for the
+        # origin/endpoint that are appended explicitly.
+        n_probe = p_valid.shape[0]
+        probe_keep = max(0, keep - 2)
+        probe_key = jnp.where(p_valid, p_values, jnp.inf)
+        probe_order = jnp.argsort(probe_key)
+        keep_mask = jnp.zeros((n_probe,), bool)
+        if probe_keep > 0:
+            sel = probe_order[:probe_keep]
+            keep_mask = keep_mask.at[sel].set(True)
+        p_valid = jnp.logical_and(p_valid, keep_mask)
+        seed_valid = jnp.concatenate([p_valid, jnp.array([True, True])])
+    # Total control-point capacity is bounded.
+    rounds = min(rounds, max_control_points - 2)
+    rounds = max(0, rounds)
+
 
     ts = jnp.concatenate([seed_ts, jnp.zeros((rounds,), dtype)])
     fs = jnp.concatenate([seed_fs, jnp.full((rounds,), jnp.inf, dtype)])

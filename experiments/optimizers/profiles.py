@@ -238,8 +238,11 @@ def _spline_axis():
     when there is no genuine oracle point).
     """
     return {
-        "": {},
-        # "S": {"path_strategy": "spline"},
+        "": {}, # quadratic
+        #
+        # "S2": {"path_strategy": "spline", "spline_max_control_points": "2"},
+        "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
+        # "S32": {"path_strategy": "spline"},
         # "L": {"path_strategy": "linear"},
     }
 
