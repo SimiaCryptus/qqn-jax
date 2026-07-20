@@ -19,6 +19,7 @@ def strong_wolfe_search(
     grad,
     slope0,
     *,
+     init_step: float = 1.0,
     c1: float = 1e-3,
     c2: float = 0.7,
     max_iter: int = 10,
@@ -38,6 +39,7 @@ def strong_wolfe_search(
     ``φ``, then recompute value/grad along the real path at that ``t``.
     """
     dtype = value.dtype
+    del init_step  # Optax uses its own initial-guess strategy ("one").
     t0 = jnp.zeros((1,), dtype=dtype)
     unit = jnp.ones((1,), dtype=dtype)
 
@@ -75,9 +77,10 @@ def strong_wolfe_search(
     )
     done = jnp.logical_or(new_value < value, stochastic)
 
-    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    eff_probes = max_probes if record_probes else 1
+    pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
     pp, pg, pv, pval, pa = _record_probe(
-        pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, max_probes
+         pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, eff_probes
     )
 
     return LineSearchResult(

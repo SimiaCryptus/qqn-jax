@@ -83,11 +83,11 @@ const ACTIVATION_TYPES = [
 // Uniform parameters applied to every generated activation-sweep variant.
 // Tune these once to change the whole sweep consistently.
 const SWEEP_PARAMS = {
-     N_TRAIN: '10000',
+     N_TRAIN: '30000',
      N_TEST: '2000',
      HIDDEN: '16',
      DEPTH: '3',
-     TIME_BUDGET: '60',   // seconds
+     TIME_BUDGET: '90',   // seconds
      F_TARGET: '0.0001',
 };
 // The reports to sweep and their default dataset.
@@ -132,34 +132,34 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
     [
         "comparison_act_tanh",
         "comparison_act_sigmoid",
-        "comparison_act_relu",
-        "comparison_act_sine",
-        "comparison_act_gaussian",
-        "comparison_act_triangle",
-        "comparison_act_logabs",
         "comparison_act_gelu",
-        "comparison_act_swish",
-        "comparison_act_softplus",
-        "comparison_act_sawtooth",
-        "comparison_act_abs",
-        "comparison_act_identity",
-        "comparison_act_rolling_sin",
-        "comparison_act_rolling_atan2",
-        "sparse_act_relu",
-        "sparse_act_sigmoid",
-        "sparse_act_sine",
-        "sparse_act_gaussian",
-        "sparse_act_triangle",
-        "sparse_act_logabs",
-        "sparse_act_tanh",
-        "sparse_act_gelu",
-        "sparse_act_swish",
-        "sparse_act_softplus",
-        "sparse_act_sawtooth",
-        "sparse_act_abs",
-        "sparse_act_identity",
-        "sparse_act_rolling_sin",
-        "sparse_act_rolling_atan2"
+        "comparison_act_relu",
+        // "comparison_act_sine",
+        // "comparison_act_gaussian",
+        // "comparison_act_triangle",
+        // "comparison_act_logabs",
+        // "comparison_act_swish",
+        // "comparison_act_softplus",
+        // "comparison_act_sawtooth",
+        // "comparison_act_abs",
+        // "comparison_act_identity",
+        // "comparison_act_rolling_sin",
+        // "comparison_act_rolling_atan2",
+        // "sparse_act_relu",
+        // "sparse_act_sigmoid",
+        // "sparse_act_sine",
+        // "sparse_act_gaussian",
+        // "sparse_act_triangle",
+        // "sparse_act_logabs",
+        // "sparse_act_tanh",
+        // "sparse_act_gelu",
+        // "sparse_act_swish",
+        // "sparse_act_softplus",
+        // "sparse_act_sawtooth",
+        // "sparse_act_abs",
+        // "sparse_act_identity",
+        // "sparse_act_rolling_sin",
+        // "sparse_act_rolling_atan2"
     ];
 
 // ---------------------------------------------------------------------------

@@ -12,23 +12,23 @@ from qqn_jax.line_search.result import LineSearchResult
 
 
 def backtracking_search(
-    eval_at: Callable,
-    params,
-    value,
-    grad,
-    slope0,
-    *,
-    init_step: float = 1.0,
-    c1: float = 1e-2,
-    shrink: float = 0.5,
-    max_iter: int = 5,
-    temperature: float = 0.0,
-    cooling: float = 0.95,
-    seed: int = 0,
-    max_probes: int = 32,
-    record_probes: bool = True,
-    max_step: float = 1.0,
-) -> LineSearchResult:
+      eval_at: Callable,
+      params,
+      value,
+      grad,
+      slope0,
+      *,
+      init_step: float = 1.0,
+      c1: float = 1e-2,
+      shrink: float = 0.5,
+      max_iter: int = 5,
+      temperature: float = 0.0,
+      cooling: float = 0.95,
+      seed: int = 0,
+      max_probes: int = 32,
+      record_probes: bool = True,
+      max_step: float = 1.0,
+  ) -> LineSearchResult:
     """Backtracking line search (Armijo) over a 1-D scalar problem.
 
     Operates purely on the scalar problem ``φ(t)`` exposed via

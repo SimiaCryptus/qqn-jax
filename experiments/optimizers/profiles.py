@@ -93,27 +93,124 @@ def _line_search_axis():
         that drives the along-path directional derivative to zero, locating a
         genuine 1-D minimum. Reserve this for problems where an accurate
         along-path minimizer is worth the extra gradient evaluations.
+    Every entry below lists its ``line_search_options`` *explicitly and in
+    full* (including each search's own defaults) so that any knob can be
+    retuned in-place without cross-referencing the underlying search's
+    signature. Deleting an option from an entry simply falls back to that
+    search's built-in default; keeping it pinned makes the intended value
+    self-documenting and diffable.
     """
     return {
         # "": {},
         # --- Permissive family (the usual role) --------------------------
-        # "Null": {"line_search": "null"},
-        "BT": {"line_search": "backtracking"},
-        "AW": {"line_search": "armijo_wolfe"},
-        # "Fix": {"line_search": "fixed"},
-        # "SW": {"line_search": "strong_wolfe"},
+        # "Null": {
+        #     "line_search": "null",
+        #     "line_search_options": {
+        #         "step_size": 1.0,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
+        # },
+        "BT": {
+            "line_search": "backtracking",
+            "line_search_options": {
+                "init_step": 1.0,
+                "c1": 1e-2,
+                "shrink": 0.5,
+                "max_iter": 5,
+                "temperature": 0.0,
+                "cooling": 0.95,
+                "seed": 0,
+                "max_step": 1.0,
+            },
+        },
+        "AW": {
+            "line_search": "armijo_wolfe",
+            "line_search_options": {
+                "init_step": 1.0,
+                "c1": 1e-4,
+                "c2": 0.9,
+                "max_iter": 20,
+                "temperature": 0.0,
+                "cooling": 0.95,
+                "seed": 0,
+                "max_step": 1.0,
+            },
+        },
+        # "Fix": {
+        #     "line_search": "fixed",
+        #     "line_search_options": {
+        #         "step_size": 1.0,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
+        # },
+        # "SW": {
+        #     "line_search": "strong_wolfe",
+        #     "line_search_options": {
+        #         "init_step": 1.0,
+        #         "c1": 1e-3,
+        #         "c2": 0.7,
+        #         "max_iter": 10,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
+        # },
         "ArmLoose": {
             "line_search": "backtracking",
-            "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
+            "line_search_options": {
+                "init_step": 1.0,
+                "c1": 1e-4,
+                "shrink": 0.5,
+                "max_iter": 3,
+                "temperature": 0.0,
+                "cooling": 0.95,
+                "seed": 0,
+                "max_step": 1.0,
+            },
         },
         # "ArmTight": {
         #     "line_search": "backtracking",
-        #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
+        #     "line_search_options": {
+        #         "init_step": 1.0,
+        #         "c1": 1e-1,
+        #         "shrink": 0.5,
+        #         "max_iter": 20,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
         # },
-        # "HZ": {"line_search": "hager_zhang"},
+        # "HZ": {
+        #     "line_search": "hager_zhang",
+        #     "line_search_options": {
+        #         "init_step": 1.0,
+        #         "c1": 0.1,
+        #         "max_iter": 30,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
+        # },
         # "Bisect": {
         #     "line_search": "bisection",
-        #     # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
+        #     "line_search_options": {
+        #         "init_step": 1.0,
+        #         "c1": 1e-4,
+        #         "max_iter": 25,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
         # },
     }
 
@@ -165,7 +262,7 @@ def _max_t_axis():
     """
     return {
         "": {},
-        "t1": {"max_t": 1.0},
+        # "t1": {"max_t": 1.0},
         # "t2": {"max_t": 2.0},
         # "t4": {"max_t": 4.0},
         # "t8": {"max_t": 8.0},

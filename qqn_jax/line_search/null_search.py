@@ -38,9 +38,10 @@ def null_search(
         jnp.asarray(max_step, dtype=value.dtype),
     )
     new_params, new_val, new_g, _slope = eval_at(alpha)
-    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    eff_probes = max_probes if record_probes else 1
+    pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
     pp, pg, pv, pval, pa = _record_probe(
-        pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, max_probes
+         pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, eff_probes
     )
     return LineSearchResult(
         step_size=alpha,

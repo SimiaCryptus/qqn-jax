@@ -50,9 +50,10 @@ def fixed_step_search(
         jnp.logical_or(new_val < value, stochastic),
         jnp.asarray(True),
     )
-    pp, pg, pv, pval, pa = _empty_probes(params, max_probes)
+    eff_probes = max_probes if record_probes else 1
+    pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
     pp, pg, pv, pval, pa = _record_probe(
-        pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, max_probes
+         pp, pg, pv, pval, pa, 0, new_params, new_g, new_val, alpha, eff_probes
     )
     return LineSearchResult(
         step_size=alpha,
