@@ -427,12 +427,16 @@ def spline_refine(
         ts, fs, ms, valid, count, best_t, best_v, best_p, best_g, best_found = carry
         t_prop, _f_pred, found = propose_from_points(ts, fs, ms, valid)
         # Fallback: if no in-range stationary point exists, probe the
-        # midpoint between the lowest-fitness valid control point and the
-        # origin so the accumulation loop still makes progress.
+        # midpoint of the widest gap between adjacent valid control points
+        # so the accumulation loop still makes progress instead of stalling
+        # (e.g. when the lowest-fitness point is the origin itself).
         f_masked = jnp.where(valid, fs, jnp.inf)
         lo_idx = jnp.argmin(f_masked)
         t_lo = ts[lo_idx]
-        t_mid = 0.5 * (t_lo + origin_t)
+        # Midpoint between the current best control point and the accepted
+        # endpoint; if they coincide, fall back to the origin-endpoint span.
+        span_other = jnp.where(t_lo == end_t, origin_t, end_t)
+        t_mid = 0.5 * (t_lo + span_other)
         t_eval = jnp.where(found, t_prop, t_mid)
         p, v, g, slope = eval_at(t_eval)
 

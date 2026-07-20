@@ -53,6 +53,25 @@ def armijo_wolfe_search(
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, p0, g0, v0, a0, eff_probes
     )
+    # Detect an immediate bracket at the initial step: if Armijo fails at
+    # a0, or the curvature slope is already non-negative, then [0, a0] (or
+    # [a0, 0] for the curvature case) brackets an acceptable point and the
+    # growth loop must be skipped in favour of the zoom phase.
+    init_armijo = v0 <= value + c1 * a0 * dg
+    init_found = jnp.logical_and(init_armijo, jnp.abs(s0) <= c2 * abs_dg)
+    init_bracket_a = jnp.logical_not(init_armijo)
+    init_bracket_c = jnp.logical_and(
+        init_armijo, jnp.logical_and(jnp.logical_not(init_found), s0 >= 0.0)
+    )
+    init_bracketed = jnp.logical_or(init_bracket_a, init_bracket_c)
+    # Orient the initial bracket [lo, hi] with lo being the endpoint with
+    # the lower function value / satisfying sufficient decrease.
+    init_lo = jnp.where(init_bracket_c, a0, zero)
+    init_hi = jnp.where(init_bracket_c, zero, a0)
+    init_phi_lo = jnp.where(init_bracket_c, v0, value)
+    init_s_lo = jnp.where(init_bracket_c, s0, dg)
+    init_phi_hi = jnp.where(init_bracket_c, value, v0)
+    init_s_hi = jnp.where(init_bracket_c, dg, s0)
 
     def bracket_cond(carry):
         (
@@ -265,14 +284,14 @@ def armijo_wolfe_search(
             s0,
             g0,
             p0,
-            jnp.asarray(False),
-            jnp.asarray(False),
-            zero,
-            a0,
-            value,
-            dg,
-            v0,
-            s0,
+            init_found,
+            init_bracketed,
+            init_lo,
+            init_hi,
+            init_phi_lo,
+            init_s_lo,
+            init_phi_hi,
+            init_s_hi,
             p0,
             g0,
             p0,
