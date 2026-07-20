@@ -40,6 +40,8 @@ def armijo_wolfe_search(
     dg = slope0
     max_alpha = jnp.asarray(max_step, dtype=value.dtype)
     zero = jnp.asarray(0.0, dtype=value.dtype)
+    temp0 = jnp.asarray(temperature, dtype=value.dtype)
+    key0 = jax.random.PRNGKey(seed)
 
     eff_probes = max_probes if record_probes else 1
     pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
@@ -54,7 +56,10 @@ def armijo_wolfe_search(
     )
 
     init_armijo = v0 <= value + c1 * a0 * dg
-    init_found = jnp.logical_and(init_armijo, jnp.abs(s0) <= c2 * abs_dg)
+    init_wolfe = jnp.logical_and(init_armijo, jnp.abs(s0) <= c2 * abs_dg)
+    init_stoch, key0 = _metropolis_accept(v0 - value, temp0, key0, value.dtype)
+    temp0 = temp0 * cooling
+    init_found = jnp.logical_or(init_wolfe, init_stoch)
     init_bracket_a = jnp.logical_not(init_armijo)
     init_bracket_c = jnp.logical_and(
         init_armijo, jnp.logical_and(jnp.logical_not(init_found), s0 >= 0.0)
@@ -96,6 +101,8 @@ def armijo_wolfe_search(
             best_g,
             i,
             evals,
+            temp,
+            key,
             pp,
             pg,
             pv,
@@ -134,6 +141,8 @@ def armijo_wolfe_search(
             best_g,
             i,
             evals,
+            temp,
+            key,
             pp,
             pg,
             pv,
@@ -153,7 +162,10 @@ def armijo_wolfe_search(
             jnp.logical_and(i > 0, phi_cur >= phi_prev),
         )
 
-        cond_found = jnp.abs(s_cur) <= c2 * abs_dg
+        cond_wolfe = jnp.abs(s_cur) <= c2 * abs_dg
+        stoch_cur, key = _metropolis_accept(phi_cur - value, temp, key, value.dtype)
+        temp = temp * cooling
+        cond_found = jnp.logical_or(cond_wolfe, stoch_cur)
 
         cond_c = s_cur >= 0.0
 
@@ -228,6 +240,8 @@ def armijo_wolfe_search(
             best_g,
             i + 1,
             evals + 1,
+            temp0,
+            key0,
             pp,
             pg,
             pv,
@@ -262,6 +276,8 @@ def armijo_wolfe_search(
         best_g,
         bracket_iters,
         bracket_evals,
+        bracket_temp,
+        bracket_key,
         pp,
         pg,
         pv,
@@ -297,6 +313,8 @@ def armijo_wolfe_search(
             g0,
             jnp.asarray(1),
             jnp.asarray(1, jnp.int32),
+            temp0,
+            key0,
             pp,
             pg,
             pv,
@@ -327,6 +345,8 @@ def armijo_wolfe_search(
             best_v,
             best_p,
             best_g,
+            temp,
+            key,
             pp,
             pg,
             pv,
@@ -354,6 +374,8 @@ def armijo_wolfe_search(
             best_v,
             best_p,
             best_g,
+            temp,
+            key,
             pp,
             pg,
             pv,
@@ -375,7 +397,10 @@ def armijo_wolfe_search(
 
         shrink_hi = jnp.logical_or(jnp.logical_not(armijo), higher)
         curv_ok = jnp.abs(s) <= c2 * abs_dg
-        this_found = jnp.logical_and(armijo, curv_ok)
+        wolfe_found = jnp.logical_and(armijo, curv_ok)
+        stoch_found, key = _metropolis_accept(v - value, temp, key, value.dtype)
+        temp = temp * cooling
+        this_found = jnp.logical_or(wolfe_found, stoch_found)
 
         flip = jnp.logical_and(jnp.logical_not(shrink_hi), s * (hi - lo) >= 0.0)
         new_hi = jnp.where(shrink_hi, mid, jnp.where(flip, lo, hi))
@@ -402,6 +427,8 @@ def armijo_wolfe_search(
             best_v,
             best_p,
             best_g,
+            temp0,
+            key0,
             pp,
             pg,
             pv,
@@ -425,6 +452,8 @@ def armijo_wolfe_search(
         best_v,
         best_p,
         best_g,
+        zoom_temp,
+        zoom_key,
         pp,
         pg,
         pv,
@@ -449,6 +478,8 @@ def armijo_wolfe_search(
             best_v,
             best_p,
             best_g,
+            bracket_temp,
+            bracket_key,
             pp,
             pg,
             pv,
@@ -468,7 +499,7 @@ def armijo_wolfe_search(
     out_g = jnp.where(use_found, found_g, jnp.where(use_zoom, z_g, best_g))
 
     stochastic, _key = _metropolis_accept(
-        out_v - value, temperature, jax.random.PRNGKey(seed), value.dtype
+        out_v - value, zoom_temp, zoom_key, value.dtype
     )
     done = jnp.logical_or(jnp.logical_or(use_found, use_zoom), stochastic)
     return LineSearchResult(

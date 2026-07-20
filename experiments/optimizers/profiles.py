@@ -112,10 +112,10 @@ def _line_search_axis():
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
         # },
         # "HZ": {"line_search": "hager_zhang"},
-        "Bisect": {
-            "line_search": "bisection",
-            # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
-        },
+        # "Bisect": {
+        #     "line_search": "bisection",
+        #     # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
+        # },
     }
 
 
@@ -143,7 +143,7 @@ def _spline_axis():
     """
     return {
         "": {},
-        "S": {"path_strategy": "spline"},
+        # "S": {"path_strategy": "spline"},
         # "L": {"path_strategy": "linear"},
     }
 
@@ -152,7 +152,7 @@ def _probes_axis():
     """Probe-feeding axis: token -> ``run_qqn`` kwargs toggling probe replay."""
     return {
         "": {},
-        "P": {"feed_probes_to_oracle": True},
+        # "P": {"feed_probes_to_oracle": True},
     }
 
 
@@ -189,10 +189,10 @@ def _temperature_axis():
     return {
         "": {},
         # "T1": {"line_search_options": {"temperature": 1.0}},
-        # "T001": {"line_search_options": {"temperature": 0.01}},
+        "T001": {"line_search_options": {"temperature": 0.01}},
         # "T01": {"line_search_options": {"temperature": 0.1}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
-        # "T100": {"line_search_options": {"temperature": 100.0}},
+        "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 
@@ -242,6 +242,7 @@ def _qqn_registry():
                         "expose the flat per-layer block sizes on ctx."
                     )
                 run_kwargs["partition_sizes"] = tuple(partition_sizes)
+
             return (
                 lambda: ctx.run_qqn(
                     ctx.loss_fn,

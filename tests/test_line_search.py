@@ -14,11 +14,9 @@ import numpy as np
 import pytest
 
 from qqn_jax.line_search.util import (
-    make_scalar_problem,
     _metropolis_accept,
     _empty_probes,
     _record_probe,
-    _make_projected_point,
 )
 from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.line_search import (
@@ -32,6 +30,57 @@ from qqn_jax.line_search import (
     LINE_SEARCHES,
 )
 
+def make_scalar_problem(
+        value_and_grad_fn,
+        params,
+        grad,
+        direction,
+        region,
+        region_state,
+        path,
+        *args,
+):
+    """Prepare the 1-D differentiable problem the line search solves.
+    This is the *single* place the multidimensional path/region machinery
+    lives. It returns:
+      * ``eval_at(t) -> (projected_params, value, grad, slope)`` where
+        ``slope = φ'(t) = ⟨∇f, d'(t)⟩`` is the 1-D directional derivative
+        along the path, and
+      * ``slope0`` — the directional derivative at ``t = 0`` (i.e.
+        ``⟨∇f, d'(0)⟩``), the ``φ'(0)`` every Armijo/Wolfe test needs.
+    Line searches receive only ``eval_at`` and ``slope0``; they are entirely
+    unaware of ``direction``, ``path`` or ``region``.
+    """
+    from qqn_jax.utils import tree_add_scaled, tree_negative, tree_vdot
+
+    grad_dir = tree_negative(grad)
+
+    def project(candidate):
+        return region.project(params, candidate, region_state)
+
+    def eval_at(t):
+        d = path.offset(t, grad_dir, direction)
+        raw = tree_add_scaled(params, 1.0, d)
+        projected = project(raw)
+        val, g = value_and_grad_fn(projected, *args)
+        v = path.velocity(t, grad_dir, direction)
+        slope = tree_vdot(g, v)
+        return projected, val, g, slope
+
+    v0 = path.velocity(jnp.asarray(0.0, dtype=grad.dtype), grad_dir, direction)
+    slope0 = tree_vdot(grad, v0)
+    return eval_at, slope0
+def _make_projected_point(region, region_state, params):
+    """Return a fn ``α -> projected(x + α·d)`` for a given direction.
+    The caller curries the direction in; here we build a helper that, given
+    a tentative point ``x + α·d``, projects it onto the region. When the
+    region is the identity, this is a no-op (zero overhead).
+    """
+
+    def project_candidate(candidate):
+        return region.project(params, candidate, region_state)
+
+    return project_candidate
 
 class IdentityRegion:
     """A trivial region whose projection is a no-op."""
