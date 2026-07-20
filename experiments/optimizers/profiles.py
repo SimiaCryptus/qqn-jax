@@ -105,49 +105,27 @@ def _line_search_axis():
         # --- Permissive family (the usual role) --------------------------
         # "Null": {
         #     "line_search": "null",
-        #     "line_search_options": {
-        #         "step_size": 1.0,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
-        #     },
+        #     "line_search_options": { },
         # },
         "BT": {
             "line_search": "backtracking",
             "line_search_options": {
-                "init_step": 1.0,
-                "c1": 1e-2,
+                "c1": 1e-6,
                 "shrink": 0.5,
-                "max_iter": 5,
-                "temperature": 0.0,
-                "cooling": 0.95,
-                "seed": 0,
-                "max_step": 1.0,
+                "max_iter": 10,
             },
         },
         "AW": {
             "line_search": "armijo_wolfe",
             "line_search_options": {
-                "init_step": 1.0,
-                "c1": 1e-4,
-                "c2": 0.9,
-                "max_iter": 20,
-                "temperature": 0.0,
-                "cooling": 0.95,
-                "seed": 0,
-                "max_step": 1.0,
+                "c1": 1e-6,
+                "c2": 0.99,
+                "max_iter": 10,
             },
         },
         # "Fix": {
         #     "line_search": "fixed",
-        #     "line_search_options": {
-        #         "step_size": 1.0,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
-        #     },
+        #     "line_search_options": {  },
         # },
         "SW": {
             "line_search": "strong_wolfe",
@@ -156,60 +134,20 @@ def _line_search_axis():
                 "c1": 1e-3,
                 "c2": 0.7,
                 "max_iter": 10,
-                "temperature": 0.0,
-                "cooling": 0.95,
-                "seed": 0,
-                "max_step": 1.0,
             },
         },
-        # "ArmLoose": {
-        #     "line_search": "backtracking",
-        #     "line_search_options": {
-        #         "init_step": 1.0,
-        #         "c1": 1e-4,
-        #         "shrink": 0.5,
-        #         "max_iter": 3,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
-        #     },
-        # },
-        # "ArmTight": {
-        #     "line_search": "backtracking",
-        #     "line_search_options": {
-        #         "init_step": 1.0,
-        #         "c1": 1e-1,
-        #         "shrink": 0.5,
-        #         "max_iter": 20,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
-        #     },
-        # },
         # "HZ": {
         #     "line_search": "hager_zhang",
         #     "line_search_options": {
-        #         "init_step": 1.0,
         #         "c1": 0.1,
-        #         "max_iter": 30,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
+        #         "max_iter": 10,
         #     },
         # },
         # "Bisect": {
         #     "line_search": "bisection",
         #     "line_search_options": {
-        #         "init_step": 1.0,
         #         "c1": 1e-4,
         #         "max_iter": 25,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
         #     },
         # },
     }
@@ -238,7 +176,7 @@ def _spline_axis():
     when there is no genuine oracle point).
     """
     return {
-        "": {}, # quadratic
+        "": {},  # quadratic
         #
         # "S2": {"path_strategy": "spline", "spline_max_control_points": "2"},
         "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
@@ -266,7 +204,7 @@ def _remember_step_size_axis():
     """
     return {
         # "": {},
-        "Rem": {"remember_step_size": True},
+        # "Rem": {"remember_step_size": True},
         "NoRem": {"remember_step_size": False},
     }
 
@@ -321,7 +259,7 @@ def _temperature_axis():
     return {
         "": {},
         # "T001": {"line_search_options": {"temperature": 0.01}},
-        # "T01": {"line_search_options": {"temperature": 0.1}},
+        # "T01": {"line_search_options": {"temperature": 0.1, "cooling": 0.95,}},
         # "T1": {"line_search_options": {"temperature": 1.0}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
         # "T100": {"line_search_options": {"temperature": 100.0}},

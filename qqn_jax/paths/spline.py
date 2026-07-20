@@ -416,7 +416,6 @@ def spline_refine(
     rounds = min(rounds, max_control_points - 2)
     rounds = max(0, rounds)
 
-
     ts = jnp.concatenate([seed_ts, jnp.zeros((rounds,), dtype)])
     fs = jnp.concatenate([seed_fs, jnp.full((rounds,), jnp.inf, dtype)])
     ms = jnp.concatenate([seed_ms, jnp.zeros((rounds,), dtype)])

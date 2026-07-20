@@ -81,7 +81,7 @@ def _pareto(results):
         tot_s = "—" if tot is None else f"{tot}"
         print(
             f"  {name:<14} loss={r.final_loss:.4e}  "
-            f"time={r.wall:.3f}s  total_evals~{tot_s:>8}"
+            f"time={r.wall:.3f}s  evals={tot_s:>8}"
         )
 
 
