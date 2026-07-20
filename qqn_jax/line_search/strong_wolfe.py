@@ -39,7 +39,7 @@ def strong_wolfe_search(
     ``φ``, then recompute value/grad along the real path at that ``t``.
     """
     dtype = value.dtype
-    del init_step  # Optax uses its own initial-guess strategy ("one").
+    del init_step                                                      
     t0 = jnp.zeros((1,), dtype=dtype)
     unit = jnp.ones((1,), dtype=dtype)
 

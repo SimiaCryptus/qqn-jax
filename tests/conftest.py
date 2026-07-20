@@ -3,7 +3,7 @@
 import jax
 import pytest
 
-# Enable double precision globally for numerical accuracy in tests.
+                                                                   
 jax.config.update("jax_enable_x64", True)
 
 

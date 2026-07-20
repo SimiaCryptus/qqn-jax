@@ -140,9 +140,9 @@ def _milestone_profiles(results, config):
         hit = kv[1].milestone_hits.get(tightest)
         return hit[1] if hit is not None else float("inf")
 
-    # Race-to-milestone: the honest cross-optimizer comparison is *time*
-    # and *total work* (fwd+bwd evals) to first reach each loss level —
-    # not iterations, which are apples-to-oranges across methods.
+                                                                        
+                                                                       
+                                                                 
     print(
         "\nRace to each milestone (wall-clock seconds / total fwd+bwd evals "
         "to first reach each loss):"

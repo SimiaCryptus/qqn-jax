@@ -398,19 +398,19 @@ class QQN:
         new_grad = res.new_grad
         step_size = res.step_size
         best_t = step_size
-        # Guard against line-search failure / divergence: if the proposed
-        # step is non-finite or does not reduce the objective, reject it and
-        # keep the current iterate so the run terminates cleanly rather than
-        # blowing up.
+                                                                         
+                                                                            
+                                                                            
+                     
         step_finite = jnp.logical_and(
             jnp.isfinite(new_value),
             jnp.all(jnp.isfinite(new_grad)),
         )
         accept = jnp.logical_and(step_finite, new_value <= state.value)
-        # Fallback: if the path step was rejected, try a small safeguarded
-        # steepest-descent step so the solver makes progress instead of
-        # stalling immediately (important for ill-conditioned problems such
-        # as Rosenbrock where the first path step may not reduce f).
+                                                                          
+                                                                       
+                                                                           
+                                                                    
         gnorm_sq = tree_vdot(grad, grad)
         safe_scale = jnp.asarray(1.0, dtype=dtype) / (
             jnp.asarray(1.0, dtype=dtype) + gnorm_sq
@@ -494,8 +494,8 @@ class QQN:
 
         finite = jnp.logical_and(jnp.isfinite(new_value), jnp.isfinite(error))
         converged = error <= self.tol
-        # Stop when converged, when we hit a non-finite state, or when the
-        # line search failed to make progress (rejected step).
+                                                                          
+                                                              
         stalled = jnp.logical_not(accept)
         done = jnp.logical_or(
             converged,

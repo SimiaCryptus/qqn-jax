@@ -28,7 +28,7 @@ class TestTypeExports:
 
 class TestTypeAnnotationsUsable:
     def test_objective_fn_callable_annotation(self):
-        # A function matching the ObjectiveFn signature should be usable.
+                                                                         
         def f(x) -> qtypes.Scalar:
             return jnp.sum(x**2)
 

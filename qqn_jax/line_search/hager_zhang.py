@@ -37,7 +37,7 @@ def hager_zhang_search(
     recomputed along the real path at ``t``.
     """
     dtype = value.dtype
-    del init_step  # Optax backtracking uses its own initial-guess strategy.
+    del init_step                                                           
     t0 = jnp.zeros((1,), dtype=dtype)
     unit = jnp.ones((1,), dtype=dtype)
 

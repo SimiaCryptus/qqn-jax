@@ -90,8 +90,8 @@ def _orient_tangents(m0, m1, delta):
     """
 
     def reflect(m):
-        # Reflect the tangent if it opposes the segment secant slope. When
-        # `delta == 0` no reflection is applied.
+                                                                          
+                                                
         opposes = jnp.logical_and(m * delta < 0.0, delta != 0.0)
         return jnp.where(opposes, -m, m)
 
@@ -361,10 +361,10 @@ def spline_refine(
     def slope_of(alpha, g):
         v = path.velocity(alpha, grad_dir, direction)
         m = tree_vdot(g, v)
-        # Path-simplicity heuristic: the stored tangent must point along
-        # increasing t. If the measured directional derivative opposes the
-        # forward path direction, reflect it so we don't fold the spline
-        # back on itself. (Gate over f0 in the round loop keeps this safe.)
+                                                                        
+                                                                          
+                                                                        
+                                                                           
         return jnp.abs(m)
 
     p_slopes = jax.vmap(slope_of)(p_alphas, p_grads)
@@ -414,10 +414,10 @@ def spline_refine(
         t_mid = 0.5 * (t_lo + span_other)
         t_eval = jnp.where(found, t_prop, t_mid)
         p, v, g, slope = eval_at(t_eval)
-        # Keep the carry dtype stable: `eval_at` may promote to float64
-        # (e.g. under x64), but the carry was seeded from float32 inner
-        # results. Cast scalars/leaves back to the working dtype so the
-        # scan carry input/output types match.
+                                                                       
+                                                                       
+                                                                       
+                                              
         t_eval = jnp.asarray(t_eval, dtype)
         v = jnp.asarray(v, dtype)
         slope = jnp.asarray(slope, dtype)
@@ -431,11 +431,11 @@ def spline_refine(
         valid = valid.at[i].set(True)
         count = count + jnp.asarray(1, jnp.int32)
 
-        # Strict-improvement gate: only accept a measurement that strictly
-        # beats the best-so-far *and* the origin f0. This is what actually
-        # keeps the orientation heuristic safe -- the gate is over f0, not
-        # merely over the inner endpoint. `found` is intentionally NOT part
-        # of the gate: a fallback midpoint probe may legitimately improve.
+                                                                          
+                                                                          
+                                                                          
+                                                                           
+                                                                          
         improve = jnp.logical_and(v < best_v, v < origin_f)
         best_t = jnp.where(improve, t_eval, best_t)
         best_v = jnp.where(improve, v, best_v)
