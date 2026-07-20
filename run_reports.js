@@ -83,12 +83,12 @@ const ACTIVATION_TYPES = [
 // Uniform parameters applied to every generated activation-sweep variant.
 // Tune these once to change the whole sweep consistently.
 const SWEEP_PARAMS = {
-     N_TRAIN: '16000',
+     N_TRAIN: '10000',
      N_TEST: '2000',
-     HIDDEN: '128',
-     DEPTH: '2',
-     TIME_BUDGET: '45',   // seconds
-     F_TARGET: '0.01',
+     HIDDEN: '16',
+     DEPTH: '3',
+     TIME_BUDGET: '60',   // seconds
+     F_TARGET: '0.0001',
 };
 // The reports to sweep and their default dataset.
 const SWEEP_REPORTS = {
@@ -130,9 +130,9 @@ const VARIANTS = {};
 Object.assign(VARIANTS, buildActivationVariants());
 const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
     [
-        "comparison_act_relu",
-        "comparison_act_sigmoid",
         "comparison_act_tanh",
+        "comparison_act_sigmoid",
+        "comparison_act_relu",
         "comparison_act_sine",
         "comparison_act_gaussian",
         "comparison_act_triangle",

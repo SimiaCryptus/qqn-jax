@@ -19,7 +19,6 @@ __all__ = ["axis_analysis", "report_axis_analysis"]
 
 _METRICS = [
     ("final_loss", False),
-    ("iters_to_target", False),
     ("time_to_target", False),
     ("evals_to_target", False),
     ("traj_auc", False),

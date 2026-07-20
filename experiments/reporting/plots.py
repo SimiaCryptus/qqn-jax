@@ -2,6 +2,7 @@
 
 import os
 import time
+import math
 
 __all__ = ["save_plots"]
 
@@ -39,16 +40,23 @@ def save_plots(results, config, *, arch_str=None):
         "(QQN variants vs baselines)"
     )
 
-    def _draw(x_key, x_label, file_suffix):
+    def _draw(x_key, x_label, file_suffix, *, log_fitness=False):
         plt.figure(figsize=(7, 5))
         for name, r in results.items():
             xs = r.times if x_key == "times" else range(len(r.history))
-            if name in baselines:
-                plt.semilogy(xs, r.history, label=name, linestyle="--", linewidth=2)
+            if log_fitness:
+                ys = [math.log10(max(v, 1e-12)) for v in r.history]
+                if name in baselines:
+                    plt.plot(xs, ys, label=name, linestyle="--", linewidth=2)
+                else:
+                    plt.plot(xs, ys, label=name, alpha=0.85)
             else:
-                plt.semilogy(xs, r.history, label=name, alpha=0.85)
+                if name in baselines:
+                    plt.semilogy(xs, r.history, label=name, linestyle="--", linewidth=2)
+                else:
+                    plt.semilogy(xs, r.history, label=name, alpha=0.85)
         plt.xlabel(x_label)
-        plt.ylabel("full-batch loss")
+        plt.ylabel("log10(full-batch loss)" if log_fitness else "full-batch loss")
         plt.title(config_title)
         plt.legend(ncol=2, fontsize=8)
         plt.grid(True, which="both", alpha=0.3)
@@ -63,3 +71,4 @@ def save_plots(results, config, *, arch_str=None):
     print()
     _draw("iteration", "iteration", "vs_iter")
     _draw("times", "wall-clock time (s)", "vs_time")
+    _draw("evals_to_target", "evals", "vs_evals")

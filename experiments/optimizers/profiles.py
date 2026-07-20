@@ -35,7 +35,6 @@ import optax
 __all__ = ["ENABLED", "build_runners"]
 
 from qqn_jax import AdamOracle, LBFGSOracle
-from qqn_jax.oracles import AnchoredMultiSecantOracle
 
 ENABLED = ["QQN", "Adam", "L-BFGS"]
 
@@ -103,10 +102,10 @@ def _line_search_axis():
         "AW": {"line_search": "armijo_wolfe"},
         # "Fix": {"line_search": "fixed"},
         # "SW": {"line_search": "strong_wolfe"},
-        # "ArmLoose": {
-        #     "line_search": "backtracking",
-        #     "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
-        # },
+        "ArmLoose": {
+            "line_search": "backtracking",
+            "line_search_options": {"c1": 1e-4, "shrink": 0.5, "max_iter": 3},
+        },
         # "ArmTight": {
         #     "line_search": "backtracking",
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
@@ -166,8 +165,8 @@ def _max_t_axis():
     """
     return {
         "": {},
-        # "t1": {"max_t": 1.0},
-        "t2": {"max_t": 2.0},
+        "t1": {"max_t": 1.0},
+        # "t2": {"max_t": 2.0},
         # "t4": {"max_t": 4.0},
         # "t8": {"max_t": 8.0},
     }
@@ -206,8 +205,8 @@ def _temperature_axis():
     return {
         "": {},
         # "T001": {"line_search_options": {"temperature": 0.01}},
-        "T01": {"line_search_options": {"temperature": 0.1}},
-        #"T1": {"line_search_options": {"temperature": 1.0}},
+        # "T01": {"line_search_options": {"temperature": 0.1}},
+        # "T1": {"line_search_options": {"temperature": 1.0}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
         # "T100": {"line_search_options": {"temperature": 100.0}},
     }

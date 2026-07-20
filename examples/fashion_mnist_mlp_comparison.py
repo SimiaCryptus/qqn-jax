@@ -44,7 +44,7 @@ def main():
         n_test=5000,
         f_target=2e-2,
         time_budget=150.0,
-        milestones=(1e0, 5e-1, 2e-1, 1e-1),
+        milestones=(1e0, 5e-1, 2e-1, 1e-1, 5e-2, 2e-2, 1e-2),
         target_profile=(2e-1, 1e-1, 6e-2, 4e-2, 2e-2),
     )
     run_experiment(config)

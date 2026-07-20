@@ -33,7 +33,7 @@ class ExperimentConfig:
     f_target: float = 2e-2
     gtol: float = 1e-8
     time_budget: float = 150.0
-    milestones: tuple = (1e0, 5e-1, 2e-1, 1e-1)
+    milestones: tuple = (1e0, 5e-1, 2e-1, 1e-1, 5e-2, 1e-2)
     target_profile: tuple = (2e-1, 1e-1, 6e-2, 4e-2, 2e-2)
 
     sgd_lr: float = 0.05
