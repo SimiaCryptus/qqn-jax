@@ -49,7 +49,7 @@ def _oracle_axis():
         "Adam": {"oracle": AdamOracle()},
         # "Sec": {"oracle": SecantOracle()},
         # "And": {"oracle": AndersonOracle(window=5)},
-        "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
+        # "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
         "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
         # "L20": {"oracle": LBFGSOracle(history_size=20)},
         # "L50": {"oracle": LBFGSOracle(history_size=50)},
@@ -99,7 +99,7 @@ def _line_search_axis():
         # "": {},
         # --- Permissive family (the usual role) --------------------------
         # "Null": {"line_search": "null"},
-        # "BT": {"line_search": "backtracking"},
+        "BT": {"line_search": "backtracking"},
         "AW": {"line_search": "armijo_wolfe"},
         # "Fix": {"line_search": "fixed"},
         # "SW": {"line_search": "strong_wolfe"},
@@ -156,6 +156,23 @@ def _probes_axis():
     }
 
 
+def _max_t_axis():
+    """Parametric-bound axis: token -> ``run_qqn`` kwargs selecting ``max_t``.
+    Note: ``t`` here is the *parametric* bound on the quadratic path parameter
+    (the largest ``t`` the line search may explore along ``d(t)``), *not* the
+    Metropolis temperature (see ``_temperature_axis``). ``""`` (default) leaves
+    ``max_t`` at the solver/line-search default; every non-empty entry threads
+    an explicit ``max_t`` into the ``ctx.run_qqn(...)`` call.
+    """
+    return {
+        "": {},
+        # "t1": {"max_t": 1.0},
+        "t2": {"max_t": 2.0},
+        # "t4": {"max_t": 4.0},
+        # "t8": {"max_t": 8.0},
+    }
+
+
 def _partition_axis():
     """Partition axis: token -> ``run_qqn`` kwargs selecting per-layer
     partitioning of the flat parameter vector.
@@ -188,17 +205,18 @@ def _temperature_axis():
     """
     return {
         "": {},
-        # "T1": {"line_search_options": {"temperature": 1.0}},
-        "T001": {"line_search_options": {"temperature": 0.01}},
-        # "T01": {"line_search_options": {"temperature": 0.1}},
+        # "T001": {"line_search_options": {"temperature": 0.01}},
+        "T01": {"line_search_options": {"temperature": 0.1}},
+        #"T1": {"line_search_options": {"temperature": 1.0}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
-        "T100": {"line_search_options": {"temperature": 100.0}},
+        # "T100": {"line_search_options": {"temperature": 100.0}},
     }
 
 
 _AXES = [
     _oracle_axis,
     _line_search_axis,
+    _max_t_axis,
     _temperature_axis,
     _spline_axis,
     _region_axis,

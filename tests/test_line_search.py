@@ -30,15 +30,16 @@ from qqn_jax.line_search import (
     LINE_SEARCHES,
 )
 
+
 def make_scalar_problem(
-        value_and_grad_fn,
-        params,
-        grad,
-        direction,
-        region,
-        region_state,
-        path,
-        *args,
+    value_and_grad_fn,
+    params,
+    grad,
+    direction,
+    region,
+    region_state,
+    path,
+    *args,
 ):
     """Prepare the 1-D differentiable problem the line search solves.
     This is the *single* place the multidimensional path/region machinery
@@ -70,6 +71,8 @@ def make_scalar_problem(
     v0 = path.velocity(jnp.asarray(0.0, dtype=grad.dtype), grad_dir, direction)
     slope0 = tree_vdot(grad, v0)
     return eval_at, slope0
+
+
 def _make_projected_point(region, region_state, params):
     """Return a fn ``α -> projected(x + α·d)`` for a given direction.
     The caller curries the direction in; here we build a helper that, given
@@ -81,6 +84,7 @@ def _make_projected_point(region, region_state, params):
         return region.project(params, candidate, region_state)
 
     return project_candidate
+
 
 class IdentityRegion:
     """A trivial region whose projection is a no-op."""
