@@ -42,15 +42,6 @@ from qqn_jax.paths.base import PathStrategy
 from qqn_jax.utils import tree_vdot
 
 
-# ---------------------------------------------------------------------------
-# Geometry: the spline path owns its own displacement/velocity. It maps the
-# scalar parameter ``t`` onto a probe point in parameter space. This mapping
-# is defined here (independently) so the spline path is a self-contained
-# strategy rather than an alias of another module's curve. NOTE: this is the
-# *parameter-space* curve where probes physically land -- it is deliberately
-# distinct from the accumulating cubic-Hermite *model* over ``t`` (below),
-# which is the actual "spline".
-# ---------------------------------------------------------------------------
 def _spline_offset(t, grad_dir, direction):
     """Displacement ``d(t)`` blending the steepest-descent tangent with the
     oracle endpoint, evaluated at ``t``."""
@@ -67,9 +58,6 @@ def _spline_velocity(t, grad_dir, direction):
     return jax.tree_util.tree_map(lambda g, q: a * g + b * q, grad_dir, direction)
 
 
-# ---------------------------------------------------------------------------
-# Hermite model math (value / stationary points).
-# ---------------------------------------------------------------------------
 def hermite_basis(s):
     """Cubic Hermite basis functions evaluated at ``s ∈ [0, 1]``.
 
@@ -153,26 +141,23 @@ def segment_candidates(t0, f0, m0, t1, f1, m1, eps=1e-12):
     C = hm0
 
     disc = B * B - 4.0 * A * C
-    # Guard: negative discriminant -> no real roots.
+
     real = disc >= 0.0
     sqrt_disc = jnp.sqrt(jnp.where(real, disc, 0.0))
 
     quad_ok = jnp.abs(A) >= eps
     lin_ok = jnp.abs(B) >= eps
 
-    # Quadratic roots (jit-safe: denominator guarded).
     denom = jnp.where(quad_ok, 2.0 * A, 1.0)
     s_plus = (-B + sqrt_disc) / denom
     s_minus = (-B - sqrt_disc) / denom
 
-    # Linear fallback ``s = -C / B`` when |A| < eps.
     s_lin = jnp.where(lin_ok, -C / jnp.where(lin_ok, B, 1.0), jnp.nan)
 
     s0 = jnp.where(quad_ok, s_plus, s_lin)
     s1 = jnp.where(quad_ok, s_minus, jnp.nan)
     s = jnp.stack([s0, s1])
 
-    # A root is usable when it is real (quadratic branch) and within [0, 1].
     branch_real = jnp.stack(
         [
             jnp.logical_and(real, quad_ok)
@@ -184,7 +169,7 @@ def segment_candidates(t0, f0, m0, t1, f1, m1, eps=1e-12):
     valid = jnp.logical_and(branch_real, in_range)
 
     t_cand = t0 + s * h
-    # Evaluate predicted fitness at each candidate (garbage where invalid).
+
     f_cand = segment_eval(t_cand, t0, f0, m0, t1, f1, m1)
     f_cand = jnp.where(valid, f_cand, jnp.inf)
 
@@ -212,7 +197,7 @@ def propose_from_points(ts, fs, ms, valid, eps=1e-12):
         fitness, and a flag that is ``False`` when no segment yielded an
         in-range stationary point.
     """
-    # Push invalid points to the far end so they never bracket a real one.
+
     finite_max = jnp.max(jnp.where(valid, ts, -jnp.inf))
     big = jnp.where(jnp.any(valid), finite_max, 0.0) + 1.0
     sort_key = jnp.where(valid, ts, big)
@@ -260,11 +245,6 @@ def propose_step(ts, fs, ms, eps=1e-12):
     return propose_from_points(ts, fs, ms, valid, eps)
 
 
-# ---------------------------------------------------------------------------
-# Stateful control-point memory. This is what makes the spline path distinct
-# from every other path strategy: it accumulates measurements over the
-# course of a search rather than being a fixed analytic curve.
-# ---------------------------------------------------------------------------
 class SplineState(NamedTuple):
     """The spline path's control-point memory.
 
@@ -317,9 +297,6 @@ def spline_propose(state: SplineState):
     return propose_from_points(state.ts, state.fs, state.ms, state.valid)
 
 
-# ---------------------------------------------------------------------------
-# The distinct, stateful spline PathStrategy.
-# ---------------------------------------------------------------------------
 SPLINE_PATH = PathStrategy(
     offset=_spline_offset,
     velocity=_spline_velocity,
@@ -395,15 +372,12 @@ def spline_refine(
     end_f = inner.new_value
     end_m = slope_of(end_t, inner.new_grad)
 
-    # Seed control points: probes + origin + accepted endpoint.
     seed_ts = jnp.concatenate([p_alphas, jnp.stack([origin_t, end_t])])
     seed_fs = jnp.concatenate([p_values, jnp.stack([origin_f, end_f])])
     seed_ms = jnp.concatenate([p_slopes, jnp.stack([origin_m, end_m])])
     seed_valid = jnp.concatenate([p_valid, jnp.array([True, True])])
     n_seed = seed_ts.shape[0]
 
-    # Reserve one fresh slot per refinement round: each round appends one
-    # newly-measured control point, growing the piecewise spline.
     ts = jnp.concatenate([seed_ts, jnp.zeros((rounds,), dtype)])
     fs = jnp.concatenate([seed_fs, jnp.full((rounds,), jnp.inf, dtype)])
     ms = jnp.concatenate([seed_ms, jnp.zeros((rounds,), dtype)])
@@ -416,25 +390,21 @@ def spline_refine(
         ms,
         valid,
         count,
-        inner.step_size,  # best_t
-        inner.new_value,  # best_v
-        inner.new_params,  # best_p
-        inner.new_grad,  # best_g
-        jnp.asarray(False),  # best_found (strict improvement seen?)
+        inner.step_size,
+        inner.new_value,
+        inner.new_params,
+        inner.new_grad,
+        jnp.asarray(False),
     )
 
     def round_step(carry, _):
         ts, fs, ms, valid, count, best_t, best_v, best_p, best_g, best_found = carry
         t_prop, _f_pred, found = propose_from_points(ts, fs, ms, valid)
-        # Fallback: if no in-range stationary point exists, probe the
-        # midpoint of the widest gap between adjacent valid control points
-        # so the accumulation loop still makes progress instead of stalling
-        # (e.g. when the lowest-fitness point is the origin itself).
+
         f_masked = jnp.where(valid, fs, jnp.inf)
         lo_idx = jnp.argmin(f_masked)
         t_lo = ts[lo_idx]
-        # Midpoint between the current best control point and the accepted
-        # endpoint; if they coincide, fall back to the origin-endpoint span.
+
         span_other = jnp.where(t_lo == end_t, origin_t, end_t)
         t_mid = 0.5 * (t_lo + span_other)
         t_eval = jnp.where(found, t_prop, t_mid)

@@ -44,7 +44,7 @@ class TestLBFGSOracle:
         state = oracle.init(x0)
         grad = quad_grad(x0)
         d, _ = oracle.direction(x0, grad, state)
-        # empty history: -H∇f = -∇f
+
         np.testing.assert_allclose(d, -grad, rtol=1e-5)
 
     def test_direction_is_descent(self, x0):

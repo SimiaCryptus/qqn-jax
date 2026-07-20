@@ -40,9 +40,6 @@ def make_info(params, new_params, grad, new_grad, step_size=1.0):
     )
 
 
-# A parametrized list of stateless-safe oracle factories that accept a
-# flat vector of shape (N,) and follow the standard init/direction/update
-# contract.
 ORACLE_FACTORIES = {
     "adam": lambda: AdamOracle(),
     "momentum": lambda: MomentumOracle(),
@@ -159,7 +156,7 @@ class TestAdam:
         state = oracle.init(x0)
         grad = jnp.ones(N, dtype=jnp.float32)
         d, _ = oracle.direction(x0, grad, state)
-        # first step magnitude ~ lr (since m̂/√v̂ ≈ 1)
+
         assert float(jnp.max(jnp.abs(d))) <= lr + 1e-4
 
     def test_update_increments_step(self, x0):
@@ -182,7 +179,7 @@ class TestAdam:
             step_size=jnp.asarray(1.0),
         )
         new_state = oracle.update(state, info)
-        # m = (1-0.5)*1 = 0.5
+
         np.testing.assert_allclose(new_state.m, 0.5, rtol=1e-6)
         np.testing.assert_allclose(new_state.v, 0.5, rtol=1e-6)
 
@@ -302,8 +299,8 @@ class TestSecant:
         new_grad = jnp.ones(N, dtype=jnp.float32) * 2.0
         info = make_info(x0, new_x, grad, new_grad)
         new_state = oracle.update(state, info)
-        s = new_x - x0  # ones
-        y = new_grad - grad  # 2*ones
+        s = new_x - x0
+        y = new_grad - grad
         expected_alpha = float(jnp.vdot(s, s) / jnp.vdot(s, y))
         assert float(new_state.alpha) == pytest.approx(expected_alpha, rel=1e-5)
 
@@ -312,10 +309,10 @@ class TestSecant:
         state = oracle.init(x0)
         new_x = x0 + jnp.ones(N)
         grad = jnp.ones(N, dtype=jnp.float32)
-        new_grad = jnp.zeros(N, dtype=jnp.float32)  # y negative
+        new_grad = jnp.zeros(N, dtype=jnp.float32)
         info = make_info(x0, new_x, grad, new_grad)
         new_state = oracle.update(state, info)
-        # curvature not ok => alpha unchanged
+
         assert float(new_state.alpha) == pytest.approx(1.5)
 
     def test_alpha_clipped(self, x0):
@@ -335,13 +332,13 @@ class TestAnderson:
         state = oracle.init(x0)
         grad = quad_grad(x0)
         d, _ = oracle.direction(x0, grad, state)
-        # step_count == 0 => fallback to -grad
+
         np.testing.assert_allclose(d, -grad, rtol=1e-6)
 
     def test_window_one_is_secant_like(self, x0):
         oracle = AndersonOracle(window=1)
         state = oracle.init(x0)
-        # accumulate one point
+
         grad = quad_grad(x0)
         new_x = x0 - 0.1 * grad
         info = make_info(x0, new_x, grad, quad_grad(new_x))
@@ -416,11 +413,11 @@ class TestShampoo:
         assert oracle.update(state, info) is state
 
     def test_keep_branch_returns_grad(self, x0):
-        # update_freq=100 so step 1 is not a refresh -> keep branch
+
         oracle = ShampooOracle(update_freq=100)
         state = oracle.init(x0)
         grad = quad_grad(x0)
-        # step 0 -> refresh; advance so step becomes non-multiple
+
         _, state = oracle.direction(x0, grad, state)
         d, _ = oracle.direction(x0, grad, state)
         np.testing.assert_allclose(d, -grad, rtol=1e-6)
@@ -428,14 +425,14 @@ class TestShampoo:
 
 class TestFallback:
     def test_uses_first_valid(self, x0):
-        # Use two momentum oracles; first is valid -> its direction used.
+
         o1 = MomentumOracle()
         o2 = SecantOracle()
         fb = Fallback([o1, o2])
         state = fb.init(x0)
         grad = quad_grad(x0)
         d, _ = fb.direction(x0, grad, state)
-        # first oracle direction is -grad on step 0
+
         np.testing.assert_allclose(d, -grad, rtol=1e-6)
 
     def test_init_tuple(self, x0):
@@ -455,7 +452,7 @@ class TestFallback:
         assert len(new_state) == 2
 
     def test_fallback_to_neg_grad_on_nan(self, x0):
-        # An oracle producing NaN should be bypassed.
+
         def nan_direction(params, grad, state):
             return jnp.full_like(grad, jnp.nan), state
 

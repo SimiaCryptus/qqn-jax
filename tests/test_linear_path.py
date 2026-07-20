@@ -71,11 +71,11 @@ class TestLinearRefine:
 
         def eval_at(t):
             p = jnp.array([t])
-            v = (t - 0.5) ** 2  # min at t=0.5
+            v = (t - 0.5) ** 2
             g = jnp.array([2.0 * (t - 0.5)])
             return p, v, g, 0.0
 
-        inner = self._make_inner(value=0.25, step_size=1.0)  # v at t=1
+        inner = self._make_inner(value=0.25, step_size=1.0)
         result = linear_refine(inner, eval_at, dtype, num_samples=8)
         assert float(result.new_value) < float(inner.new_value)
         assert bool(result.done)
@@ -86,7 +86,7 @@ class TestLinearRefine:
 
         def eval_at(t):
             p = jnp.array([t])
-            v = 10.0 + t  # always worse than inner
+            v = 10.0 + t
             return p, v, jnp.array([1.0]), 0.0
 
         inner = self._make_inner(value=0.1, step_size=1.0)

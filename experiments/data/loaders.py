@@ -75,7 +75,7 @@ def load_image_dataset(
         pass
 
     try:
-        from torchvision import datasets  # type: ignore
+        from torchvision import datasets
 
         if dataset == "fashion_mnist":
             cls = datasets.FashionMNIST

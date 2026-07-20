@@ -33,11 +33,6 @@ from qqn_jax.line_search import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Test fixtures / helpers
-# ---------------------------------------------------------------------------
-
-
 class IdentityRegion:
     """A trivial region whose projection is a no-op."""
 
@@ -95,7 +90,7 @@ def descent_setup(dim=3, seed=0):
     params = jnp.asarray(rng.standard_normal(dim), dtype=jnp.float32)
     vg = make_quadratic(A, b)
     value, grad = vg(params)
-    # steepest descent direction
+
     direction = -grad
     eval_at, slope0 = make_eval_at(vg, params, direction)
     return {
@@ -122,11 +117,6 @@ ALL_SEARCHES = [
 ]
 
 SEARCH_IDS = [s.__name__ for s in ALL_SEARCHES]
-
-
-# ---------------------------------------------------------------------------
-# Utility function tests
-# ---------------------------------------------------------------------------
 
 
 class TestEmptyProbes:
@@ -163,7 +153,7 @@ class TestRecordProbe:
         assert bool(pv[1])
         assert float(pval[1]) == 5.0
         assert float(pa[1]) == 0.5
-        # other slots untouched
+
         assert not bool(pv[0])
         assert not bool(pv[2])
 
@@ -172,7 +162,7 @@ class TestRecordProbe:
         pp, pg, pv, pval, pa = _empty_probes(params, 2)
         p = jnp.asarray([1.0, 2.0])
         g = jnp.asarray([3.0, 4.0])
-        # slot 5 is out of range for max_probes=2
+
         npp, npg, npv, npval, npa = _record_probe(
             pp, pg, pv, pval, pa, 5, p, g, 5.0, 0.5, 2
         )
@@ -206,7 +196,7 @@ class TestMetropolisAccept:
         assert not bool(accepted)
 
     def test_downhill_high_temperature_often_accepts(self):
-        # very negative delta_e -> p ~ 1 -> almost always accept
+
         n_accept = 0
         for s in range(50):
             key = jax.random.PRNGKey(s)
@@ -217,7 +207,7 @@ class TestMetropolisAccept:
         assert n_accept == 50
 
     def test_uphill_low_temperature_rarely_accepts(self):
-        # large positive delta_e, tiny T -> p ~ 0 -> almost never accept
+
         n_accept = 0
         for s in range(50):
             key = jax.random.PRNGKey(s)
@@ -244,7 +234,7 @@ class TestMetropolisAccept:
 class TestMakeScalarProblem:
     def test_slope0_matches_directional_derivative(self):
         s = descent_setup()
-        # slope0 = <grad, velocity(0)> = <grad, direction> = <grad, -grad>
+
         expected = float(jnp.dot(s["grad"], s["direction"]))
         assert np.isclose(float(s["slope0"]), expected, rtol=1e-5)
 
@@ -277,11 +267,6 @@ class TestMakeProjectedPoint:
         proj = _make_projected_point(IdentityRegion(), None, jnp.zeros(3))
         cand = jnp.asarray([1.0, 2.0, 3.0])
         np.testing.assert_allclose(proj(cand), cand)
-
-
-# ---------------------------------------------------------------------------
-# Shared line-search behaviour tests (parametrized over all strategies)
-# ---------------------------------------------------------------------------
 
 
 class TestAllSearchesCommon:
@@ -376,10 +361,6 @@ class TestAllSearchesCommon:
         assert np.isfinite(float(res.step_size))
 
 
-# ---------------------------------------------------------------------------
-# Descent-quality tests (searches that should reduce the objective)
-# ---------------------------------------------------------------------------
-
 DESCENT_SEARCHES = [
     backtracking_search,
     armijo_wolfe_search,
@@ -429,7 +410,7 @@ class TestArmijoConditionSatisfied:
 
 class TestBisectionStationarity:
     def test_finds_near_stationary_point(self):
-        # For an exact quadratic along a line, the true min has slope ~ 0.
+
         s = descent_setup(dim=4, seed=3)
         res = bisection_search(
             s["eval_at"],
@@ -441,13 +422,8 @@ class TestBisectionStationarity:
             max_step=10.0,
         )
         _, _, _, slope = s["eval_at"](res.step_size)
-        # slope at the located minimum should be small
+
         assert abs(float(slope)) < 1e-1
-
-
-# ---------------------------------------------------------------------------
-# Fixed / null specific tests
-# ---------------------------------------------------------------------------
 
 
 class TestFixedStep:
@@ -524,24 +500,19 @@ class TestNullSearch:
         assert np.isclose(float(res.step_size), 1.0)
 
     def test_accepts_even_uphill(self):
-        # For a non-descent direction, null still reports done=True.
+
         s = descent_setup()
-        eval_at, slope0 = make_eval_at(s["vg"], s["params"], s["grad"])  # uphill
+        eval_at, slope0 = make_eval_at(s["vg"], s["params"], s["grad"])
         res = null_search(eval_at, s["params"], s["value"], s["grad"], slope0)
         assert bool(res.done)
 
 
-# ---------------------------------------------------------------------------
-# Temperature / Metropolis behaviour
-# ---------------------------------------------------------------------------
-
-
 class TestTemperatureBehaviour:
     def test_fixed_step_temperature_gates_done(self):
-        # Use an uphill direction so plain descent fails; high temp may accept.
+
         s = descent_setup()
         eval_at, slope0 = make_eval_at(s["vg"], s["params"], s["grad"])
-        # zero temperature => should not "descend" => done depends on value<value
+
         res_cold = fixed_step_search(
             eval_at,
             s["params"],
@@ -551,7 +522,7 @@ class TestTemperatureBehaviour:
             step_size=0.1,
             temperature=0.0,
         )
-        # at T=0 done is unconditionally True (per docstring)
+
         assert bool(res_cold.done)
 
     @pytest.mark.parametrize(
@@ -560,7 +531,7 @@ class TestTemperatureBehaviour:
     )
     def test_high_temperature_may_accept_uphill(self, search):
         s = descent_setup()
-        # uphill direction
+
         eval_at, slope0 = make_eval_at(s["vg"], s["params"], s["grad"])
         res = search(
             eval_at,
@@ -571,18 +542,13 @@ class TestTemperatureBehaviour:
             temperature=1e6,
             seed=1,
         )
-        # With huge temperature, stochastic acceptance is essentially certain.
+
         assert bool(res.done)
-
-
-# ---------------------------------------------------------------------------
-# Backtracking-specific tests
-# ---------------------------------------------------------------------------
 
 
 class TestBacktracking:
     def test_shrinks_when_initial_step_too_large(self):
-        # Construct a scenario where full step overshoots.
+
         s = descent_setup()
         res = backtracking_search(
             s["eval_at"],
@@ -598,7 +564,7 @@ class TestBacktracking:
         assert float(res.new_value) <= float(s["value"]) + 1e-4
 
     def test_extrapolation_grows_step(self):
-        # When max_step > init_step and the direction is good, it may grow.
+
         s = descent_setup(dim=2, seed=5)
         res = backtracking_search(
             s["eval_at"],
@@ -624,13 +590,8 @@ class TestBacktracking:
             record_probes=False,
             max_probes=32,
         )
-        # eff_probes becomes 1 when record_probes is False
+
         assert res.probe_params.shape[0] == 1
-
-
-# ---------------------------------------------------------------------------
-# Registry tests
-# ---------------------------------------------------------------------------
 
 
 class TestRegistry:
@@ -652,11 +613,6 @@ class TestRegistry:
         search = LINE_SEARCHES[name]
         res = search(s["eval_at"], s["params"], s["value"], s["grad"], s["slope0"])
         assert isinstance(res, LineSearchResult)
-
-
-# ---------------------------------------------------------------------------
-# vmap compatibility (batch of problems)
-# ---------------------------------------------------------------------------
 
 
 class TestVmapCompatibility:
@@ -701,25 +657,20 @@ class TestVmapCompatibility:
         assert np.all(np.isfinite(np.asarray(steps)))
 
 
-# ---------------------------------------------------------------------------
-# Edge cases
-# ---------------------------------------------------------------------------
-
-
 class TestEdgeCases:
     def test_already_at_minimum(self):
-        # Start exactly at the minimizer: grad ~ 0.
+
         dim = 3
         A = jnp.eye(dim, dtype=jnp.float32) * 2.0
         b = jnp.asarray([1.0, 2.0, 3.0], dtype=jnp.float32)
         vg = make_quadratic(A, b)
         x_star = jnp.linalg.solve(A, b)
         value, grad = vg(x_star)
-        # gradient is ~ 0, so slope0 ~ 0; use grad as direction (degenerate)
+
         direction = -grad
         eval_at, slope0 = make_eval_at(vg, x_star, direction)
         res = backtracking_search(eval_at, x_star, value, grad, slope0)
-        # Value should not increase meaningfully.
+
         assert float(res.new_value) <= float(value) + 1e-3
 
     @pytest.mark.parametrize("search", ALL_SEARCHES, ids=SEARCH_IDS)

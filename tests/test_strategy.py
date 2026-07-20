@@ -46,6 +46,6 @@ class TestResolveOracle:
             resolve_oracle(12345)
 
     def test_history_size_forwarded(self):
-        # Should not raise; just verify construction works with kwargs.
+
         oracle = resolve_oracle("ams_qn", history_size=15)
         assert isinstance(oracle, Oracle)

@@ -33,7 +33,7 @@ def make_info_with_probes(n=3, k=4):
     xn = jnp.ones(n, dtype=jnp.float32) * 5.0
     g = jnp.ones(n, dtype=jnp.float32)
     gn = jnp.ones(n, dtype=jnp.float32) * 0.5
-    # probes at various alphas (unordered)
+
     probe_alphas = jnp.asarray([0.5, 0.1, 0.9, 0.3], dtype=jnp.float32)
     probe_params = jnp.stack(
         [jnp.ones(n, dtype=jnp.float32) * a for a in [0.5, 0.1, 0.9, 0.3]]
@@ -73,7 +73,7 @@ class TestPublish:
         pts = publish(info)
         assert pts is not None
         assert isinstance(pts, PublishedPoints)
-        # 4 probes + 1 accepted
+
         assert pts.params_seq.shape[0] == 5
         assert pts.grad_seq.shape[0] == 5
         assert pts.alpha_seq.shape[0] == 5
@@ -98,7 +98,7 @@ class TestPublish:
         info = make_info_with_probes()
         pts = publish(info)
         assert pts is not None
-        # valid probe alphas should be non-decreasing among themselves
+
         valid = np.asarray(pts.valid_seq[:-1])
         alphas = np.asarray(pts.alpha_seq[:-1])
         valid_alphas = alphas[valid]
@@ -108,16 +108,16 @@ class TestPublish:
         info = make_info_with_probes()
         pts = publish(info, max_replay=2)
         assert pts is not None
-        # 2 kept probes + 1 accepted
+
         assert pts.params_seq.shape[0] == 3
 
     def test_max_replay_keeps_largest_alpha(self):
         info = make_info_with_probes()
         pts = publish(info, max_replay=1)
         assert pts is not None
-        # only 1 probe kept + accepted; largest valid alpha is 0.5
+
         assert pts.params_seq.shape[0] == 2
-        # the retained probe's alpha should be the max valid one (0.5)
+
         assert float(pts.alpha_seq[0]) == pytest.approx(0.5)
 
     def test_max_replay_larger_than_k(self):
@@ -166,7 +166,7 @@ class TestSecantView:
         new_params = np.asarray(pts.params_seq[-1])
         expected = new_params[None, :] - np.asarray(pts.params_seq)
         np.testing.assert_allclose(view.anch_dx, expected, rtol=1e-6)
-        # last anchored dx is zero (x_new - x_new)
+
         np.testing.assert_allclose(view.anch_dx[-1], 0.0, atol=1e-6)
 
     def test_view_property_passthrough(self):
@@ -188,12 +188,11 @@ class TestSecantView:
         assert y.shape == pts.grad_seq[-1].shape
 
     def test_newest_secant_uses_most_recent_valid(self):
-        # If the last probe before accepted is invalid, secant should
-        # skip it and use an earlier valid one.
+
         info = make_info_with_probes()
         pts = publish(info)
         assert pts is not None
         view = secant_view(pts)
         s, y = view.newest_secant()
-        # s should be finite
+
         assert np.all(np.isfinite(np.asarray(s)))

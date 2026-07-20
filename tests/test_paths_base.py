@@ -33,11 +33,11 @@ class TestPathStrategyDefaults:
 class TestMakeEvaluator:
     def _setup(self, path):
         params = {"w": jnp.array([0.0, 0.0])}
-        grad = {"w": jnp.array([2.0, -4.0])}  # grad_dir = -grad
+        grad = {"w": jnp.array([2.0, -4.0])}
         direction = {"w": jnp.array([1.0, 1.0])}
 
         def value_and_grad_fn(p):
-            # f(w) = 0.5 * ||w||^2 ; grad = w.
+
             v = 0.5 * jnp.sum(p["w"] ** 2)
             g = {"w": p["w"]}
             return v, g
@@ -56,22 +56,22 @@ class TestMakeEvaluator:
 
     def test_quadratic_probe_at_endpoint(self):
         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
-        # At t=1, offset d(1) = direction, so probe = params + direction.
+
         projected, val, g, slope = eval_at(1.0)
         expected = params["w"] + direction["w"]
         assert _close(projected["w"], expected)
-        # value = 0.5 * ||expected||^2
+
         assert _close(val, 0.5 * jnp.sum(expected**2))
 
     def test_quadratic_probe_at_origin(self):
         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
         projected, val, g, slope = eval_at(0.0)
-        # d(0) = 0 -> probe == params
+
         assert _close(projected["w"], params["w"])
         assert _close(val, 0.0)
 
     def test_slope_uses_path_velocity(self):
-        # slope = <grad(probe), d'(t)>. At t=0, d'(0) = grad_dir = -grad.
+
         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
         _, _, g, slope = eval_at(0.0)
         grad_dir = -grad["w"]

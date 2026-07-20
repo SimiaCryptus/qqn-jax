@@ -26,11 +26,6 @@ from qqn_jax.regions.types import _tree_add, _tree_sub
 from qqn_jax.regions.trustregion import TrustRegionState
 
 
-# --------------------------------------------------------------------------- #
-# Helpers
-# --------------------------------------------------------------------------- #
-
-
 def _run(region, params, candidate):
     """Initialise the region on ``params`` and project ``candidate``."""
     state = region.init(params)
@@ -56,11 +51,6 @@ def tree_params():
         "w": jnp.array([[1.0, 2.0], [3.0, 4.0]]),
         "b": jnp.array([-1.0, 0.5]),
     }
-
-
-# --------------------------------------------------------------------------- #
-# Tree utilities
-# --------------------------------------------------------------------------- #
 
 
 class TestTreeUtils:
@@ -90,11 +80,6 @@ class TestTreeUtils:
         _assert_tree_allclose(recovered, tree_params, rtol=1e-6)
 
 
-# --------------------------------------------------------------------------- #
-# resolve_region
-# --------------------------------------------------------------------------- #
-
-
 class TestResolveRegion:
     def test_none_returns_identity(self, vec_params):
         region = resolve_region(None)
@@ -104,11 +89,6 @@ class TestResolveRegion:
     def test_passthrough(self):
         box = BoxRegion(lo=0.0, hi=1.0)
         assert resolve_region(box) is box
-
-
-# --------------------------------------------------------------------------- #
-# IdentityRegion
-# --------------------------------------------------------------------------- #
 
 
 class TestIdentityRegion:
@@ -124,11 +104,6 @@ class TestIdentityRegion:
         region = IdentityRegion()
         info = RegionInfo()
         assert region.update("state", info) == "state"
-
-
-# --------------------------------------------------------------------------- #
-# BoxRegion
-# --------------------------------------------------------------------------- #
 
 
 class TestBoxRegion:
@@ -168,16 +143,11 @@ class TestBoxRegion:
         _assert_tree_allclose(_run(region, jnp.zeros(3), cand), cand)
 
 
-# --------------------------------------------------------------------------- #
-# OrthantRegion
-# --------------------------------------------------------------------------- #
-
-
 class TestOrthantRegion:
     def test_positive_coord_clamped_at_zero(self):
         region = OrthantRegion()
         params = jnp.array([1.0, 2.0])
-        cand = jnp.array([-0.5, 3.0])  # first tries to cross zero
+        cand = jnp.array([-0.5, 3.0])
         out = _run(region, params, cand)
         _assert_tree_allclose(out, jnp.array([0.0, 3.0]))
 
@@ -200,7 +170,7 @@ class TestOrthantRegion:
         params = jnp.array([1.0, -1.0, 0.0, 3.0])
         cand = jnp.array([-2.0, 2.0, 1.0, 1.0])
         out = _run(region, params, cand)
-        # signs must match params (or be zero)
+
         for p, o in zip(params, out):
             if p > 0:
                 assert o >= 0
@@ -216,23 +186,18 @@ class TestOrthantRegion:
         _assert_tree_allclose(_run(region, params, cand), cand)
 
 
-# --------------------------------------------------------------------------- #
-# QuantizationRegion
-# --------------------------------------------------------------------------- #
-
-
 class TestQuantizationRegion:
     def test_requires_bits_or_step(self):
         with pytest.raises(ValueError):
             QuantizationRegion()
 
     def test_lock_snaps_to_grid(self):
-        # step=0.5 over [-1, 1] -> grid points at ..., -0.5, 0, 0.5, ...
+
         region = QuantizationRegion(step=0.5, lo=-1.0, hi=1.0, lock=True)
         params = jnp.array([0.2, -0.7, 0.9])
-        cand = params  # ignored under lock
+        cand = params
         out = _run(region, params, cand)
-        # nearest grid points
+
         _assert_tree_allclose(out, jnp.array([0.0, -0.5, 1.0]))
 
     def test_lock_ignores_candidate(self):
@@ -244,8 +209,8 @@ class TestQuantizationRegion:
 
     def test_cell_confinement(self):
         region = QuantizationRegion(step=0.5, lo=-1.0, hi=1.0, lock=False)
-        params = jnp.array([0.0])  # cell around grid point 0: [-0.25, 0.25]
-        # candidate wants to jump to 0.9 but is walled at cell boundary
+        params = jnp.array([0.0])
+
         out = _run(region, params, jnp.array([0.9]))
         assert jnp.all(out <= 0.25 + 1e-6)
         assert jnp.all(out >= -0.25 - 1e-6)
@@ -253,7 +218,7 @@ class TestQuantizationRegion:
     def test_free_movement_within_cell(self):
         region = QuantizationRegion(step=0.5, lo=-1.0, hi=1.0, lock=False)
         params = jnp.array([0.0])
-        cand = jnp.array([0.1])  # inside cell
+        cand = jnp.array([0.1])
         _assert_tree_allclose(_run(region, params, cand), cand)
 
     def test_window_tightens_cell(self):
@@ -263,11 +228,11 @@ class TestQuantizationRegion:
         cand = jnp.array([0.24])
         out_wide = _run(wide, params, cand)
         out_narrow = _run(narrow, params, cand)
-        # narrow window clamps more aggressively
+
         assert float(out_narrow[0]) < float(out_wide[0])
 
     def test_bits_grid(self):
-        # 1 bit -> levels = 1 -> delta = (1 - 0) / 1 = 1.0
+
         region = QuantizationRegion(bits=1, lo=0.0, hi=1.0, lock=True)
         params = jnp.array([0.3, 0.7])
         out = _run(region, params, params)
@@ -286,30 +251,25 @@ class TestQuantizationRegion:
         _assert_tree_allclose(out, jnp.array([1.0, -1.0]))
 
 
-# --------------------------------------------------------------------------- #
-# NoDecreaseRegion
-# --------------------------------------------------------------------------- #
-
-
 class TestNoDecreaseRegion:
     def test_removes_increasing_component(self):
-        # secondary gradient points along +x; a step along +x increases g
+
         grad = jnp.array([1.0, 0.0])
         region = NoDecreaseRegion(lambda p: grad)
         params = jnp.array([0.0, 0.0])
-        cand = jnp.array([1.0, 1.0])  # step (1,1); <g,s> = 1 > 0
+        cand = jnp.array([1.0, 1.0])
         out = _run(region, params, cand)
         step = out - params
-        # projected step must not increase g: <grad, step> <= 0
+
         assert float(jnp.vdot(grad, step)) <= 1e-6
-        # orthogonal component (y) preserved
+
         np.testing.assert_allclose(float(step[1]), 1.0, rtol=1e-6)
 
     def test_descent_passes_through(self):
         grad = jnp.array([1.0, 0.0])
         region = NoDecreaseRegion(lambda p: grad)
         params = jnp.array([0.0, 0.0])
-        cand = jnp.array([-1.0, 2.0])  # <g,s> = -1 < 0, decreasing g
+        cand = jnp.array([-1.0, 2.0])
         out = _run(region, params, cand)
         _assert_tree_allclose(out, cand, rtol=1e-6)
 
@@ -323,7 +283,7 @@ class TestNoDecreaseRegion:
         grad = jnp.array([1.0, 0.0])
         region = NoDecreaseRegion(lambda p: grad)
         params = jnp.array([0.0, 0.0])
-        cand = jnp.array([2.0, 0.0])  # pure ascent
+        cand = jnp.array([2.0, 0.0])
         out = _run(region, params, cand)
         _assert_tree_allclose(out, params, atol=1e-6)
 
@@ -343,11 +303,6 @@ class TestNoDecreaseRegion:
         assert float(c) <= 1e-4
 
 
-# --------------------------------------------------------------------------- #
-# TrustRegion
-# --------------------------------------------------------------------------- #
-
-
 class TestTrustRegion:
     def test_init_state(self, vec_params):
         region = TrustRegion(radius=2.0)
@@ -358,18 +313,18 @@ class TestTrustRegion:
     def test_step_within_radius_unchanged(self):
         region = TrustRegion(radius=10.0)
         params = jnp.array([0.0, 0.0])
-        cand = jnp.array([1.0, 1.0])  # norm sqrt(2) < 10
+        cand = jnp.array([1.0, 1.0])
         out = _run(region, params, cand)
         _assert_tree_allclose(out, cand, rtol=1e-6)
 
     def test_step_clipped_to_radius(self):
         region = TrustRegion(radius=1.0)
         params = jnp.array([0.0, 0.0])
-        cand = jnp.array([3.0, 4.0])  # norm 5 -> clipped to 1
+        cand = jnp.array([3.0, 4.0])
         out = _run(region, params, cand)
         step = out - params
         np.testing.assert_allclose(float(jnp.linalg.norm(step)), 1.0, rtol=1e-5)
-        # direction preserved
+
         np.testing.assert_allclose(float(step[0] / step[1]), 3.0 / 4.0, rtol=1e-5)
 
     def test_non_adaptive_update_noop(self, vec_params):
@@ -388,12 +343,12 @@ class TestTrustRegion:
         region = TrustRegion(radius=1.0, adaptive=True, shrink=0.5, eta_lo=0.1)
         state = TrustRegionState(radius=jnp.asarray(1.0))
         params = jnp.array([0.0, 0.0])
-        new_params = jnp.array([0.05, 0.0])  # small step, no progress
+        new_params = jnp.array([0.05, 0.0])
         info = RegionInfo(
             params=params,
             new_params=new_params,
             pred_reduction=jnp.asarray(1.0),
-            actual_reduction=jnp.asarray(-1.0),  # rho < 0 < eta_lo
+            actual_reduction=jnp.asarray(-1.0),
         )
         new_state = region.update(state, info)
         assert float(new_state.radius) < 1.0
@@ -402,12 +357,12 @@ class TestTrustRegion:
         region = TrustRegion(radius=1.0, adaptive=True, expand=2.0, eta_hi=0.75)
         state = TrustRegionState(radius=jnp.asarray(1.0))
         params = jnp.array([0.0, 0.0])
-        new_params = jnp.array([1.0, 0.0])  # at boundary (norm 1)
+        new_params = jnp.array([1.0, 0.0])
         info = RegionInfo(
             params=params,
             new_params=new_params,
             pred_reduction=jnp.asarray(1.0),
-            actual_reduction=jnp.asarray(1.0),  # rho = 1 > eta_hi
+            actual_reduction=jnp.asarray(1.0),
         )
         new_state = region.update(state, info)
         assert float(new_state.radius) > 1.0
@@ -427,7 +382,7 @@ class TestTrustRegion:
         assert float(new_state.radius) <= 1.5 + 1e-6
 
     def test_radius_floor_on_progress(self):
-        # good progress should keep radius at least step norm
+
         region = TrustRegion(radius=1.0, adaptive=True, eta_hi=0.75)
         state = TrustRegionState(radius=jnp.asarray(1.0))
         params = jnp.array([0.0, 0.0])
@@ -436,15 +391,10 @@ class TestTrustRegion:
             params=params,
             new_params=new_params,
             pred_reduction=jnp.asarray(1.0),
-            actual_reduction=jnp.asarray(0.5),  # progress, mid ratio
+            actual_reduction=jnp.asarray(0.5),
         )
         new_state = region.update(state, info)
         assert float(new_state.radius) >= 0.5 - 1e-6
-
-
-# --------------------------------------------------------------------------- #
-# Sequential
-# --------------------------------------------------------------------------- #
 
 
 class TestSequential:
@@ -455,7 +405,7 @@ class TestSequential:
         _assert_tree_allclose(_run(region, params, cand), cand)
 
     def test_composition_order(self):
-        # Box to [0, 10] then Box to [0, 1]; final must respect both
+
         region = Sequential([BoxRegion(0.0, 10.0), BoxRegion(0.0, 1.0)])
         params = jnp.zeros(2)
         cand = jnp.array([5.0, -3.0])
@@ -487,11 +437,6 @@ class TestSequential:
         params = jnp.zeros(2)
         cand = jnp.array([5.0, -3.0])
         _assert_tree_allclose(_run(seq, params, cand), _run(box, params, cand))
-
-
-# --------------------------------------------------------------------------- #
-# Cross-cutting: jit / vmap / grad compatibility
-# --------------------------------------------------------------------------- #
 
 
 class TestTransformCompatibility:
@@ -550,11 +495,6 @@ class TestTransformCompatibility:
 
         g = jax.grad(loss)(jnp.array([1.0, 1.0]))
         assert jnp.all(jnp.isfinite(g))
-
-
-# --------------------------------------------------------------------------- #
-# Region protocol structural checks
-# --------------------------------------------------------------------------- #
 
 
 class TestRegionProtocol:

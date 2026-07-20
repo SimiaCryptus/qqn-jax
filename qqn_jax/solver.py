@@ -185,9 +185,6 @@ class QQN:
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
 
-        # The spline path reconstructs its control points from the recorded
-        # probes, so it needs probe recording enabled regardless of whether the
-        # oracle also consumes them.
         need_probes = self.feed_probes_to_oracle or path_strategy == "spline"
         if need_probes:
             opts = {**opts, "max_probes": self.max_probes}
@@ -358,7 +355,6 @@ class QQN:
 
         qn_slope = jnp.asarray(tree_vdot(grad, qn_dir), dtype=state.value.dtype)
 
-        # Build the shared scalar 1-D problem along the selected path.
         dtype = state.value.dtype
         eval_at = make_evaluator(
             self._plain_value_and_grad,
