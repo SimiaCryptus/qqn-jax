@@ -46,6 +46,7 @@ def armijo_wolfe_search(
     abs_dg = jnp.abs(dg)
 
     a0 = jnp.asarray(init_step, dtype=value.dtype)
+    a0 = jnp.minimum(a0, max_alpha)
     p0, v0, g0, s0 = eval_at(a0)
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, p0, g0, v0, a0, eff_probes
@@ -442,8 +443,11 @@ def armijo_wolfe_search(
 
     use_found = found
     use_zoom = jnp.logical_and(jnp.logical_not(found), zoom_found)
-    out_a = jnp.where(use_found, found_a, jnp.where(use_zoom, z_a, best_a))
-    out_v = jnp.where(use_found, found_v, jnp.where(use_zoom, z_v, best_v))
+    fb_improved = best_v < value
+    fb_a = jnp.where(fb_improved, best_a, jnp.asarray(0.0, dtype=value.dtype))
+    fb_v = jnp.where(fb_improved, best_v, value)
+    out_a = jnp.where(use_found, found_a, jnp.where(use_zoom, z_a, fb_a))
+    out_v = jnp.where(use_found, found_v, jnp.where(use_zoom, z_v, fb_v))
     out_p = jnp.where(use_found, found_p, jnp.where(use_zoom, z_p, best_p))
     out_g = jnp.where(use_found, found_g, jnp.where(use_zoom, z_g, best_g))
 
