@@ -426,19 +426,25 @@ def spline_refine(
     def round_step(carry, _):
         ts, fs, ms, valid, count, best_t, best_v, best_p, best_g, best_found = carry
         t_prop, _f_pred, found = propose_from_points(ts, fs, ms, valid)
-        t_eval = jnp.where(found, t_prop, best_t)
+        # Fallback: if no in-range stationary point exists, probe the
+        # midpoint between the lowest-fitness valid control point and the
+        # origin so the accumulation loop still makes progress.
+        f_masked = jnp.where(valid, fs, jnp.inf)
+        lo_idx = jnp.argmin(f_masked)
+        t_lo = ts[lo_idx]
+        t_mid = 0.5 * (t_lo + origin_t)
+        t_eval = jnp.where(found, t_prop, t_mid)
         p, v, g, slope = eval_at(t_eval)
 
         i = count
         ts = ts.at[i].set(t_eval)
         fs = fs.at[i].set(v)
         ms = ms.at[i].set(slope)
-        valid = valid.at[i].set(found)
-        count = count + jnp.where(
-            found, jnp.asarray(1, jnp.int32), jnp.asarray(0, jnp.int32)
-        )
+        valid = valid.at[i].set(True)
+        count = count + jnp.asarray(1, jnp.int32)
 
         improve = jnp.logical_and(found, v < best_v)
+        improve = jnp.logical_or(improve, v < best_v)
         best_t = jnp.where(improve, t_eval, best_t)
         best_v = jnp.where(improve, v, best_v)
         best_p = jax.tree_util.tree_map(

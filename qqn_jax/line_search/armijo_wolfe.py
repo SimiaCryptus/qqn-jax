@@ -47,6 +47,8 @@ def armijo_wolfe_search(
 
     a0 = jnp.asarray(init_step, dtype=value.dtype)
     a0 = jnp.minimum(a0, max_alpha)
+    # If the initial Armijo test already fails at a0, we have an immediate
+    # bracket [0, a0] to hand to zoom without needing the growth loop.
     p0, v0, g0, s0 = eval_at(a0)
     pp, pg, pv, pval, pa = _record_probe(
         pp, pg, pv, pval, pa, 0, p0, g0, v0, a0, eff_probes
@@ -443,7 +445,7 @@ def armijo_wolfe_search(
 
     use_found = found
     use_zoom = jnp.logical_and(jnp.logical_not(found), zoom_found)
-    fb_improved = best_v < value
+    fb_improved = best_v <= value
     fb_a = jnp.where(fb_improved, best_a, jnp.asarray(0.0, dtype=value.dtype))
     fb_v = jnp.where(fb_improved, best_v, value)
     out_a = jnp.where(use_found, found_a, jnp.where(use_zoom, z_a, fb_a))
