@@ -116,9 +116,7 @@ class TestRunConvergence:
         solver = QQN(quadratic_bowl, maxiter=50, tol=1e-6)
         x0 = jnp.array([5.0, -3.0, 2.0])
         final_params, final_state = solver.run(x0)
-        np.testing.assert_allclose(
-            np.asarray(final_params), np.zeros(3), atol=1e-4
-        )
+        np.testing.assert_allclose(np.asarray(final_params), np.zeros(3), atol=1e-4)
         assert float(final_state.error) <= 1e-6 or bool(final_state.done)
 
     def test_shifted_quadratic(self):
@@ -221,9 +219,7 @@ class TestPartitioning:
         np.testing.assert_allclose(np.asarray(segs[1]), np.array([2.0, 3.0, 4.0]))
 
     def test_partitioned_convergence(self):
-        solver = QQN(
-            quadratic_bowl, maxiter=100, tol=1e-6, partition_sizes=(2, 2)
-        )
+        solver = QQN(quadratic_bowl, maxiter=100, tol=1e-6, partition_sizes=(2, 2))
         x0 = jnp.array([3.0, -2.0, 1.0, 4.0])
         final_params, _ = solver.run(x0)
         np.testing.assert_allclose(np.asarray(final_params), np.zeros(4), atol=1e-3)

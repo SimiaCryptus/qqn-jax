@@ -134,7 +134,9 @@ class TestTreeL2Norm:
 
 class TestMakeValueAndGrad:
     def test_no_aux(self):
-        f = lambda x: jnp.sum(x**2)
+        def f(x):
+            return jnp.sum(x**2)
+
         vg = make_value_and_grad(f)
         value, grad = vg(jnp.array([1.0, 2.0]))
         assert float(value) == pytest.approx(5.0)

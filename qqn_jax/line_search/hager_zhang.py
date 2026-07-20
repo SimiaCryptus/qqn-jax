@@ -50,7 +50,7 @@ def hager_zhang_search(
         slope_rtol=c1,
         decrease_factor=0.8,
         increase_factor=jnp.minimum(1.0, float(max_step)),
-        store_grad=True,
+        store_grad=False,
     )
     ls_state = ls.init(t0)
     scaled_updates, _new_state = ls.update(

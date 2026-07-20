@@ -3,7 +3,7 @@ from typing import NamedTuple
 import jax
 from jax import numpy as jnp
 
-from qqn_jax.regions.types import Region, _tree_sub, _tree_add
+from qqn_jax.regions.types import Region, _tree_add
 
 
 class PSDSecantState(NamedTuple):
@@ -73,7 +73,7 @@ def PSDSecantRegion(
 
     def _flatten(tree):
         leaves = jax.tree_util.tree_leaves(tree)
-        return jnp.concatenate([jnp.ravel(l) for l in leaves])
+        return jnp.concatenate([jnp.ravel(leaf) for leaf in leaves])
 
     def init(params):
         flat = _flatten(params)
@@ -114,10 +114,10 @@ def PSDSecantRegion(
 
         # unflatten back onto the parameter pytree structure
         leaves, treedef = jax.tree_util.tree_flatten(params)
-        sizes = [l.size for l in leaves]
+        sizes = [leaf.size for leaf in leaves]
         splits = jnp.cumsum(jnp.asarray(sizes))[:-1]
         chunks = jnp.split(s_proj_flat, splits) if len(leaves) > 1 else [s_proj_flat]
-        s_leaves = [c.reshape(l.shape) for c, l in zip(chunks, leaves)]
+        s_leaves = [c.reshape(leaf.shape) for c, leaf in zip(chunks, leaves)]
         s_proj = jax.tree_util.tree_unflatten(treedef, s_leaves)
         return _tree_add(params, s_proj)
 

@@ -13,11 +13,12 @@ class ShampooState(NamedTuple):
 def _matrix_inverse_pth_root(mat, p, epsilon):
     """Compute ``mat^{-1/p}`` for a symmetric PSD matrix via eigh."""
     n = mat.shape[0]
+    dtype = mat.dtype
     mat = mat + epsilon * jnp.eye(n, dtype=mat.dtype)
     w, v = jnp.linalg.eigh(mat)
     w = jnp.maximum(w, epsilon)
     inv_root = w ** (-1.0 / p)
-    return (v * inv_root) @ v.T
+    return ((v * inv_root) @ v.T).astype(dtype)
 
 
 def ShampooOracle(
@@ -46,18 +47,20 @@ def ShampooOracle(
         )
 
     def direction(params, grad, state):
+        dtype = state.L.dtype
+        grad = grad.astype(dtype)
         g = grad.reshape(-1, 1)
 
         do_refresh = (state.step % update_freq) == 0
 
-        R_new = state.R + jnp.vdot(grad, grad).reshape(1, 1)
+        R_new = state.R + jnp.vdot(grad, grad).reshape(1, 1).astype(dtype)
 
         def refresh(_):
             L_new = state.L + g @ g.T
             Lr = _matrix_inverse_pth_root(L_new, 4.0, epsilon)
             Rr = _matrix_inverse_pth_root(R_new, 4.0, epsilon)
             precond = (Lr @ g) @ Rr
-            return precond.reshape(-1), L_new
+            return precond.reshape(-1).astype(dtype), L_new.astype(dtype)
 
         def keep(_):
 

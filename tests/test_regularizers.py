@@ -263,29 +263,23 @@ class TestQuantizationDeltaPenalty:
 
     def test_weights_only(self):
         params = [{"w": jnp.array([[0.25]]), "b": jnp.array([0.25])}]
-        out = quantization_delta_penalty(
-            params, scale=1.0, step=0.5, weights_only=True
-        )
+        out = quantization_delta_penalty(params, scale=1.0, step=0.5, weights_only=True)
         assert float(out) == pytest.approx(0.25, abs=1e-9)
 
     def test_grad_is_finite(self):
         params = jnp.array([0.1, 0.3, -0.2])
-        g = jax.grad(
-            lambda p: quantization_delta_penalty(p, scale=1.0, step=0.5)
-        )(params)
+        g = jax.grad(lambda p: quantization_delta_penalty(p, scale=1.0, step=0.5))(
+            params
+        )
         assert np.all(np.isfinite(np.asarray(g)))
 
     def test_jit(self):
-        f = jax.jit(
-            lambda p: quantization_delta_penalty(p, scale=1.0, bits=4)
-        )
+        f = jax.jit(lambda p: quantization_delta_penalty(p, scale=1.0, bits=4))
         out = f(jnp.array([0.3, 0.7]))
         assert jnp.isfinite(out)
 
     def test_non_symmetric_range(self):
         # range [0, 1], step 0.25
         params = jnp.array([0.0, 0.25, 0.5, 0.75, 1.0])
-        out = quantization_delta_penalty(
-            params, scale=1.0, step=0.25, lo=0.0, hi=1.0
-        )
+        out = quantization_delta_penalty(params, scale=1.0, step=0.25, lo=0.0, hi=1.0)
         assert float(out) == pytest.approx(0.0, abs=1e-9)

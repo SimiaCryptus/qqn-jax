@@ -49,14 +49,16 @@ class LBFGSState(NamedTuple):
 def init_lbfgs_state(params, grad, history_size: int) -> LBFGSState:
     """Initialize an empty L-BFGS state for the given parameter shape."""
     n = params.shape[0]
+    dtype = params.dtype
+    new_gamma = jnp.asarray(1.0, dtype=dtype)
     return LBFGSState(
-        s_history=jnp.zeros((history_size, n), dtype=params.dtype),
-        y_history=jnp.zeros((history_size, n), dtype=params.dtype),
-        rho_history=jnp.zeros((history_size,), dtype=params.dtype),
+        s_history=jnp.zeros((history_size, n), dtype=dtype),
+        y_history=jnp.zeros((history_size, n), dtype=dtype),
+        rho_history=jnp.zeros((history_size,), dtype=dtype),
         step_count=jnp.asarray(0, dtype=jnp.int32),
-        gamma=jnp.asarray(1.0, dtype=params.dtype),
-        prev_params=params,
-        prev_grad=grad,
+        gamma=new_gamma,
+        prev_params=params.astype(dtype),
+        prev_grad=grad.astype(dtype),
     )
 
 
@@ -72,17 +74,24 @@ def update_lbfgs_history(
     satisfied; otherwise the history is left unchanged (a standard L-BFGS
     safeguard for non-convex problems).
     """
+    dtype = state.prev_params.dtype
+    params = params.astype(dtype)
+    grad = grad.astype(dtype)
     s = params - state.prev_params
     y = grad - state.prev_grad
     ys = jnp.vdot(y, s)
     yy = jnp.vdot(y, y)
 
     ss = jnp.vdot(s, s)
-    eps = jnp.asarray(1e-10, dtype=params.dtype)
+    eps = jnp.asarray(1e-10, dtype=dtype)
     valid = ys > eps * jnp.sqrt(yy * ss + eps)
 
     safe_ys = jnp.where(valid, ys, jnp.ones_like(ys))
-    rho = jnp.where(valid, 1.0 / safe_ys, 0.0)
+    rho = jnp.where(
+        valid,
+        (jnp.asarray(1.0, dtype=dtype) / safe_ys).astype(dtype),
+        jnp.asarray(0.0, dtype=dtype),
+    )
 
     def _shift_insert(buf, row):
 
@@ -101,16 +110,18 @@ def update_lbfgs_history(
     )
 
     safe_yy = jnp.where(yy > 0.0, yy, jnp.ones_like(yy))
-    new_gamma = jnp.where(valid, ys / safe_yy, state.gamma)
+    new_gamma = jnp.where(valid, (ys / safe_yy).astype(dtype), state.gamma).astype(
+        dtype
+    )
 
     return LBFGSState(
-        s_history=new_s,
-        y_history=new_y,
-        rho_history=new_rho,
+        s_history=new_s.astype(dtype),
+        y_history=new_y.astype(dtype),
+        rho_history=new_rho.astype(dtype),
         step_count=new_count,
         gamma=new_gamma,
-        prev_params=params,
-        prev_grad=grad,
+        prev_params=params.astype(dtype),
+        prev_grad=grad.astype(dtype),
     )
 
 

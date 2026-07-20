@@ -130,22 +130,22 @@ class QQN:
     """
 
     def __init__(
-            self,
-            fun: Callable,
-            maxiter: int = 100,
-            tol: float = 1e-5,
-            history_size: int = 10,
-            line_search: str = "backtracking",
-            line_search_options: Optional[Dict[str, Any]] = None,
-            path_strategy: str = "quadratic",
-            has_aux: bool = False,
-            region=None,
-            oracle="lbfgs",
-            feed_probes_to_oracle: bool = False,
-            max_probes: int = 32,
-            max_t: float = 1000.0,
-            partition_sizes: Optional[tuple[int, ...]] = None,
-            spline_refine_rounds: int = 4,
+        self,
+        fun: Callable,
+        maxiter: int = 100,
+        tol: float = 1e-5,
+        history_size: int = 10,
+        line_search: str = "backtracking",
+        line_search_options: Optional[Dict[str, Any]] = None,
+        path_strategy: str = "quadratic",
+        has_aux: bool = False,
+        region=None,
+        oracle="lbfgs",
+        feed_probes_to_oracle: bool = False,
+        max_probes: int = 32,
+        max_t: float = 1000.0,
+        partition_sizes: Optional[tuple[int, ...]] = None,
+        spline_refine_rounds: int = 4,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -225,7 +225,7 @@ class QQN:
         assert self.partition_sizes is not None
         assert self._partition_offsets is not None
         off = self._partition_offsets
-        return [x[off[i]: off[i + 1]] for i in range(len(self.partition_sizes))]
+        return [x[off[i] : off[i + 1]] for i in range(len(self.partition_sizes))]
 
     def _oracle_init(self, params):
         """Initialize the oracle state, respecting partitioning.
@@ -398,6 +398,22 @@ class QQN:
         new_grad = res.new_grad
         step_size = res.step_size
         best_t = step_size
+        # Guard against line-search failure / divergence: if the proposed
+        # step is non-finite or does not reduce the objective, reject it and
+        # keep the current iterate so the run terminates cleanly rather than
+        # blowing up.
+        step_finite = jnp.logical_and(
+            jnp.isfinite(new_value),
+            jnp.all(jnp.isfinite(new_grad)),
+        )
+        accept = jnp.logical_and(step_finite, new_value <= state.value)
+        new_params = jnp.where(accept, new_params, params)
+        new_value = jnp.where(accept, new_value, state.value)
+        new_grad = jnp.where(accept, new_grad, grad)
+        step_size = jnp.where(
+            accept, step_size, jnp.asarray(0.0, dtype=step_size.dtype)
+        )
+        best_t = step_size
 
         if self.has_aux:
             _, aux = self.fun(new_params, *args)
@@ -455,7 +471,14 @@ class QQN:
         error = tree_l2_norm(new_grad)
 
         finite = jnp.logical_and(jnp.isfinite(new_value), jnp.isfinite(error))
-        done = jnp.logical_or(error <= self.tol, jnp.logical_not(finite))
+        converged = error <= self.tol
+        # Stop when converged, when we hit a non-finite state, or when the
+        # line search failed to make progress (rejected step).
+        stalled = jnp.logical_not(accept)
+        done = jnp.logical_or(
+            converged,
+            jnp.logical_or(jnp.logical_not(finite), stalled),
+        )
 
         ls_evals = res.num_evals
         if ls_evals is None:

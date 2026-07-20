@@ -99,9 +99,9 @@ def _line_search_axis():
         # "": {},
         # --- Permissive family (the usual role) --------------------------
         # "Null": {"line_search": "null"},
-        "BT": {"line_search": "backtracking"},
+        # "BT": {"line_search": "backtracking"},
         "AW": {"line_search": "armijo_wolfe"},
-        "Fix": {"line_search": "fixed"},
+        # "Fix": {"line_search": "fixed"},
         # "SW": {"line_search": "strong_wolfe"},
         # "ArmLoose": {
         #     "line_search": "backtracking",
@@ -152,7 +152,7 @@ def _probes_axis():
     """Probe-feeding axis: token -> ``run_qqn`` kwargs toggling probe replay."""
     return {
         "": {},
-        # "P": {"feed_probes_to_oracle": True},
+        "P": {"feed_probes_to_oracle": True},
     }
 
 
