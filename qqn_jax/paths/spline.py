@@ -90,9 +90,10 @@ def _orient_tangents(m0, m1, delta):
     """
 
     def reflect(m):
-        # Orientation is now handled once at record time (tangents are stored
-        # already pointing along increasing t); no per-segment reflection.
-        return m
+        # Reflect the tangent if it opposes the segment secant slope. When
+        # `delta == 0` no reflection is applied.
+        opposes = jnp.logical_and(m * delta < 0.0, delta != 0.0)
+        return jnp.where(opposes, -m, m)
 
     return reflect(m0), reflect(m1)
 

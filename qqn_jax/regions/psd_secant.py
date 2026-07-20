@@ -22,6 +22,7 @@ class PSDSecantState(NamedTuple):
     prev_params: jnp.ndarray
     prev_grad: jnp.ndarray
     step_count: jnp.ndarray
+    initialized: jnp.ndarray
 
 
 def PSDSecantRegion(
@@ -85,6 +86,7 @@ def PSDSecantRegion(
             prev_params=flat,
             prev_grad=jnp.zeros((n,), dtype=flat.dtype),
             step_count=jnp.asarray(0, dtype=jnp.int32),
+            initialized=jnp.asarray(True),
         )
 
     def _apply_metric(state, v):
@@ -127,8 +129,7 @@ def PSDSecantRegion(
         s = new_params - state.prev_params
         y = new_grad - state.prev_grad
 
-        has_grad = jnp.any(state.prev_grad != 0.0) | (state.step_count > 0)
-        valid = jnp.logical_and(has_grad, jnp.vdot(s, y) > eps)
+        valid = jnp.logical_and(state.initialized, jnp.vdot(s, y) > eps)
 
         rolled_s = jnp.roll(state.s_history, shift=1, axis=0).at[0].set(s)
         rolled_y = jnp.roll(state.y_history, shift=1, axis=0).at[0].set(y)
@@ -143,6 +144,7 @@ def PSDSecantRegion(
             prev_params=new_params,
             prev_grad=new_grad,
             step_count=new_count,
+            initialized=jnp.asarray(True),
         )
 
     return Region(init=init, project=project, update=update)

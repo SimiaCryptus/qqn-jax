@@ -40,7 +40,7 @@ class TestRoundToGrid:
 
     def test_bits_grid_spacing(self):
         # bits=1 => levels = 2**1 - 1 = 1, delta = (hi-lo)/1 = 2.0
-        x = jnp.array([-1.0, 0.4, 0.6, 1.0])
+        x = jnp.array([-1.0, -0.4, 0.6, 1.0])
         out = round_to_grid(x, bits=1, lo=-1.0, hi=1.0)
         # grid points only at -1 and 1
         expected = np.array([-1.0, -1.0, 1.0, 1.0])

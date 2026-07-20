@@ -112,10 +112,10 @@ def _line_search_axis():
         #     "line_search_options": {"c1": 1e-1, "shrink": 0.5, "max_iter": 20},
         # },
         # "HZ": {"line_search": "hager_zhang"},
-        # "Bisect": {
-        #     "line_search": "bisection",
-        #     # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
-        # },
+        "Bisect": {
+            "line_search": "bisection",
+            # "line_search_options": {"max_iter": 25, "slope_tol": 1e-8},
+        },
     }
 
 

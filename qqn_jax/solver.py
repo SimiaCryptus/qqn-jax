@@ -407,6 +407,28 @@ class QQN:
             jnp.all(jnp.isfinite(new_grad)),
         )
         accept = jnp.logical_and(step_finite, new_value <= state.value)
+        # Fallback: if the path step was rejected, try a small safeguarded
+        # steepest-descent step so the solver makes progress instead of
+        # stalling immediately (important for ill-conditioned problems such
+        # as Rosenbrock where the first path step may not reduce f).
+        gnorm_sq = tree_vdot(grad, grad)
+        safe_scale = jnp.asarray(1.0, dtype=dtype) / (
+            jnp.asarray(1.0, dtype=dtype) + gnorm_sq
+        )
+        fb_params = params + safe_scale * grad_dir
+        fb_value, fb_grad = self._plain_value_and_grad(fb_params, *args)
+        fb_finite = jnp.logical_and(
+            jnp.isfinite(fb_value), jnp.all(jnp.isfinite(fb_grad))
+        )
+        fb_accept = jnp.logical_and(
+            jnp.logical_not(accept),
+            jnp.logical_and(fb_finite, fb_value < state.value),
+        )
+        new_params = jnp.where(fb_accept, fb_params, new_params)
+        new_value = jnp.where(fb_accept, fb_value, new_value)
+        new_grad = jnp.where(fb_accept, fb_grad, new_grad)
+        accept = jnp.logical_or(accept, fb_accept)
+        step_size = jnp.where(fb_accept, safe_scale, step_size)
         new_params = jnp.where(accept, new_params, params)
         new_value = jnp.where(accept, new_value, state.value)
         new_grad = jnp.where(accept, new_grad, grad)
@@ -486,7 +508,9 @@ class QQN:
         aux_evals = (
             jnp.asarray(1, jnp.int32) if self.has_aux else jnp.asarray(0, jnp.int32)
         )
-        step_evals = ls_evals + aux_evals + extra_recovery_evals
+        step_evals = (
+            ls_evals + aux_evals + extra_recovery_evals + jnp.asarray(1, jnp.int32)
+        )
         new_num_evals = state.num_evals + step_evals
 
         new_state = QQNState(
