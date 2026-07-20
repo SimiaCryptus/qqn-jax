@@ -1,19 +1,24 @@
-"""Shared pytest configuration for oracle tests.
+"""Shared pytest fixtures and configuration for the QQN-JAX test suite."""
 
-Forces JAX into float64-capable, deterministic CPU mode so numerical
-assertions are stable across platforms.
-"""
+    import jax
+    import pytest
 
-import jax
-import pytest
-
-
-jax.config.update("jax_platform_name", "cpu")
+    # Enable double precision globally for numerical accuracy in tests.
+    jax.config.update("jax_enable_x64", True)
 
 
-@pytest.fixture(autouse=True, scope="session")
-def _jax_config():
-    """Ensure deterministic, CPU-friendly JAX behaviour during tests."""
+    @pytest.fixture
+    def rng_key():
+        """A deterministic PRNG key for reproducible tests."""
+        return jax.random.PRNGKey(0)
 
-    jax.config.update("jax_platform_name", "cpu")
-    yield
+
+    @pytest.fixture
+    def mlp_params():
+        """A small list-of-dicts MLP parameter pytree used by regularizer tests."""
+        import jax.numpy as jnp
+
+        return [
+            {"w": jnp.array([[0.1, -0.2], [0.3, 0.4]]), "b": jnp.array([0.0, 0.5])},
+            {"w": jnp.array([[0.5], [-0.5]]), "b": jnp.array([1.0])},
+        ]
