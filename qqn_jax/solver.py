@@ -130,22 +130,22 @@ class QQN:
     """
 
     def __init__(
-        self,
-        fun: Callable,
-        maxiter: int = 100,
-        tol: float = 1e-5,
-        history_size: int = 10,
-        line_search: str = "backtracking",
-        line_search_options: Optional[Dict[str, Any]] = None,
-        path_strategy: str = "quadratic",
-        has_aux: bool = False,
-        region=None,
-        oracle="lbfgs",
-        feed_probes_to_oracle: bool = False,
-        max_probes: int = 32,
-        max_t: float = 1000.0,
-        partition_sizes: Optional[tuple[int, ...]] = None,
-        spline_refine_rounds: int = 4,
+            self,
+            fun: Callable,
+            maxiter: int = 100,
+            tol: float = 1e-5,
+            history_size: int = 10,
+            line_search: str = "backtracking",
+            line_search_options: Optional[Dict[str, Any]] = None,
+            path_strategy: str = "quadratic",
+            has_aux: bool = False,
+            region=None,
+            oracle="lbfgs",
+            feed_probes_to_oracle: bool = False,
+            max_probes: int = 32,
+            max_t: float = 1000.0,
+            partition_sizes: Optional[tuple[int, ...]] = None,
+            spline_refine_rounds: int = 4,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -225,7 +225,7 @@ class QQN:
         assert self.partition_sizes is not None
         assert self._partition_offsets is not None
         off = self._partition_offsets
-        return [x[off[i] : off[i + 1]] for i in range(len(self.partition_sizes))]
+        return [x[off[i]: off[i + 1]] for i in range(len(self.partition_sizes))]
 
     def _oracle_init(self, params):
         """Initialize the oracle state, respecting partitioning.
@@ -447,6 +447,8 @@ class QQN:
             actual_reduction=actual_reduction,
             t=best_t,
             step_size=step_size,
+            grad=grad,
+            new_grad=new_grad,
         )
         new_region_state = self.region.update(state.region_state, info)
 

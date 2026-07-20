@@ -18,6 +18,7 @@ from qqn_jax.regions.orthant import OrthantRegion
 from qqn_jax.regions.quantization import QuantizationRegion
 from qqn_jax.regions.no_decrease import NoDecreaseRegion
 from qqn_jax.regions.trustregion import TrustRegion
+from qqn_jax.regions.psd_secant import PSDSecantRegion, PSDSecantState
 from qqn_jax.regions.sequence import Sequential
 
 __all__ = [
@@ -32,5 +33,7 @@ __all__ = [
     "QuantizationRegion",
     "NoDecreaseRegion",
     "TrustRegion",
+    "PSDSecantRegion",
+    "PSDSecantState",
     "Sequential",
 ]

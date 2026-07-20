@@ -37,6 +37,8 @@ class RegionInfo(NamedTuple):
         actual_reduction: actual reduction ``f(x) - f(x_new)``.
         t: chosen interpolation parameter.
         step_size: accepted step size ``α``.
+        grad: gradient ``∇f(x)`` before the step (for secant-based regions).
+        new_grad: gradient ``∇f(x_new)`` after the step.
     """
 
     params: Any = None
@@ -45,6 +47,8 @@ class RegionInfo(NamedTuple):
     actual_reduction: Any = None
     t: Any = None
     step_size: Any = None
+    grad: Any = None
+    new_grad: Any = None
 
 
 def _tree_add(a, b):
