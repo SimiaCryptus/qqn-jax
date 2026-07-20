@@ -10,9 +10,6 @@ from qqn_jax.solver import QQN, QQNState
 jax.config.update("jax_enable_x64", True)
 
 
-                                                                             
-                          
-                                                                             
 def quadratic_bowl(x):
     """Simple convex quadratic with minimum at origin."""
     return jnp.sum(x**2)
@@ -28,9 +25,6 @@ def rosenbrock(x):
     return jnp.sum(100.0 * (x[1:] - x[:-1] ** 2) ** 2 + (1.0 - x[:-1]) ** 2)
 
 
-                                                                             
-            
-                                                                             
 class TestInitState:
     def test_returns_qqnstate(self):
         solver = QQN(quadratic_bowl, maxiter=10)
@@ -52,7 +46,7 @@ class TestInitState:
         solver = QQN(quadratic_bowl, maxiter=10)
         x0 = jnp.array([3.0, 4.0])
         state = solver.init_state(x0)
-                                       
+
         assert float(state.error) == pytest.approx(10.0)
 
     def test_num_evals_starts_at_one(self):
@@ -75,9 +69,6 @@ class TestInitState:
         assert float(state.aux["norm"]) == pytest.approx(3.0)
 
 
-                                                                             
-        
-                                                                             
 class TestUpdate:
     def test_single_step_reduces_value(self):
         solver = QQN(quadratic_bowl, maxiter=10)
@@ -108,9 +99,6 @@ class TestUpdate:
         assert len(out) == 2
 
 
-                                                                             
-                                      
-                                                                             
 class TestRunConvergence:
     def test_quadratic_bowl(self):
         solver = QQN(quadratic_bowl, maxiter=50, tol=1e-6)
@@ -150,9 +138,6 @@ class TestRunConvergence:
         assert int(final_state.iter) == 0
 
 
-                                                                             
-                       
-                                                                             
 class TestConfiguration:
     def test_unknown_line_search_raises(self):
         with pytest.raises(ValueError):
@@ -197,9 +182,6 @@ class TestConfiguration:
         assert solver.max_t == 500.0
 
 
-                                                                             
-              
-                                                                             
 class TestPartitioning:
     def test_partition_offsets_computed(self):
         solver = QQN(quadratic_bowl, partition_sizes=(2, 3))
@@ -225,9 +207,6 @@ class TestPartitioning:
         np.testing.assert_allclose(np.asarray(final_params), np.zeros(4), atol=1e-3)
 
 
-                                                                             
-                          
-                                                                             
 class TestJitVmap:
     def test_run_jittable(self):
         solver = QQN(quadratic_bowl, maxiter=50, tol=1e-6)
@@ -255,9 +234,6 @@ class TestJitVmap:
         )
 
 
-                                                                             
-                     
-                                                                             
 class TestHasAux:
     def test_aux_available_after_run(self):
         def f(x):
@@ -275,13 +251,10 @@ class TestHasAux:
         x0 = jnp.array([2.0, 3.0])
         state = solver.init_state(x0)
         _, new_state = solver.update(x0, state)
-                                                     
+
         assert int(new_state.num_evals) > int(state.num_evals)
 
 
-                                                                             
-                         
-                                                                             
 class TestRobustness:
     def test_single_variable(self):
         solver = QQN(quadratic_bowl, maxiter=50, tol=1e-6)

@@ -140,9 +140,6 @@ def _milestone_profiles(results, config):
         hit = kv[1].milestone_hits.get(tightest)
         return hit[1] if hit is not None else float("inf")
 
-                                                                        
-                                                                       
-                                                                 
     print(
         "\nRace to each milestone (wall-clock seconds / total fwd+bwd evals "
         "to first reach each loss):"

@@ -97,7 +97,7 @@ def PSDSecantRegion(
         active = jnp.arange(m) < state.step_count
         sy = jnp.sum(s * y, axis=1)
         curvature_ok = jnp.logical_and(active, sy > eps)
-                                                                        
+
         yv = y @ v
         coeff = jnp.where(curvature_ok, yv / jnp.where(curvature_ok, sy, 1.0), 0.0)
         low_rank = coeff @ y
@@ -114,7 +114,6 @@ def PSDSecantRegion(
 
         s_proj_flat = scale * step
 
-                                                            
         leaves, treedef = jax.tree_util.tree_flatten(params)
         sizes = [leaf.size for leaf in leaves]
         splits = jnp.cumsum(jnp.asarray(sizes))[:-1]

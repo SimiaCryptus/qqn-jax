@@ -17,9 +17,6 @@ from qqn_jax.regularizers import (
 jax.config.update("jax_enable_x64", True)
 
 
-                                                                             
-               
-                                                                             
 class TestRoundToGrid:
     def test_requires_bits_or_step(self):
         x = jnp.array([0.0, 0.5])
@@ -34,15 +31,15 @@ class TestRoundToGrid:
     def test_step_rounds_to_nearest(self):
         x = jnp.array([0.24, 0.26, -0.24, -0.26])
         out = round_to_grid(x, step=0.5, lo=-1.0, hi=1.0)
-                                          
+
         expected = np.array([0.0, 0.5, 0.0, -0.5])
         np.testing.assert_allclose(np.asarray(out), expected, atol=1e-12)
 
     def test_bits_grid_spacing(self):
-                                                                  
+
         x = jnp.array([-1.0, -0.4, 0.6, 1.0])
         out = round_to_grid(x, bits=1, lo=-1.0, hi=1.0)
-                                      
+
         expected = np.array([-1.0, -1.0, 1.0, 1.0])
         np.testing.assert_allclose(np.asarray(out), expected, atol=1e-12)
 
@@ -71,9 +68,6 @@ class TestRoundToGrid:
         assert out.shape == (2,)
 
 
-                                                                             
-                
-                                                                             
 class TestSelectWeights:
     def test_mlp_list_of_dicts(self):
         params = [
@@ -112,9 +106,6 @@ class TestSelectWeights:
         assert ws == []
 
 
-                                                                             
-            
-                                                                             
 class TestL1Penalty:
     def test_basic(self):
         params = jnp.array([1.0, -2.0, 3.0])
@@ -152,9 +143,6 @@ class TestL1Penalty:
         assert float(out) == pytest.approx(4.0)
 
 
-                                                                             
-            
-                                                                             
 class TestL2Penalty:
     def test_basic(self):
         params = jnp.array([1.0, 2.0, 3.0])
@@ -186,19 +174,16 @@ class TestL2Penalty:
         assert float(out) == pytest.approx(5.0)
 
 
-                                                                             
-                     
-                                                                             
 class TestElasticNetPenalty:
     def test_basic(self):
         params = jnp.array([1.0, -2.0])
-                        
+
         out = elastic_net_penalty(params, l1=1.0, l2=1.0)
         assert float(out) == pytest.approx(8.0)
 
     def test_separate_scales(self):
         params = jnp.array([2.0])
-                                           
+
         out = elastic_net_penalty(params, l1=0.5, l2=0.25)
         assert float(out) == pytest.approx(2.0)
 
@@ -211,26 +196,23 @@ class TestElasticNetPenalty:
     def test_grad(self):
         params = jnp.array([1.0])
         g = jax.grad(lambda p: elastic_net_penalty(p, l1=1.0, l2=1.0))(params)
-                                                     
+
         assert float(g[0]) == pytest.approx(3.0)
 
 
-                                                                             
-                            
-                                                                             
 class TestQuantizationDeltaPenalty:
     def test_requires_bits_or_step(self):
         with pytest.raises(ValueError):
             quantization_delta_penalty(jnp.array([0.0]))
 
     def test_zero_on_grid(self):
-                                                
+
         params = jnp.array([-1.0, -0.5, 0.0, 0.5, 1.0])
         out = quantization_delta_penalty(params, scale=1.0, step=0.5)
         assert float(out) == pytest.approx(0.0, abs=1e-9)
 
     def test_midpoint_max(self):
-                                                         
+
         params = jnp.array([0.25])
         out = quantization_delta_penalty(params, scale=1.0, step=0.5)
         assert float(out) == pytest.approx(0.25, abs=1e-9)
@@ -256,7 +238,7 @@ class TestQuantizationDeltaPenalty:
         assert float(out) == pytest.approx(0.5, abs=1e-9)
 
     def test_clipping(self):
-                                                                        
+
         params = jnp.array([5.0])
         out = quantization_delta_penalty(params, scale=1.0, step=0.5)
         assert float(out) == pytest.approx(0.0, abs=1e-9)
@@ -279,7 +261,7 @@ class TestQuantizationDeltaPenalty:
         assert jnp.isfinite(out)
 
     def test_non_symmetric_range(self):
-                                 
+
         params = jnp.array([0.0, 0.25, 0.5, 0.75, 1.0])
         out = quantization_delta_penalty(params, scale=1.0, step=0.25, lo=0.0, hi=1.0)
         assert float(out) == pytest.approx(0.0, abs=1e-9)

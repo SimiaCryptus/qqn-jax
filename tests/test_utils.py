@@ -32,7 +32,7 @@ class TestTreeVdot:
     def test_pytree(self):
         a = {"x": jnp.array([1.0, 2.0]), "y": jnp.array([3.0])}
         b = {"x": jnp.array([4.0, 5.0]), "y": jnp.array([6.0])}
-                              
+
         assert float(tree_vdot(a, b)) == pytest.approx(32.0)
 
     def test_matrix(self):
@@ -128,7 +128,7 @@ class TestTreeL2Norm:
     def test_grad(self):
         t = jnp.array([3.0, 4.0])
         g = jax.grad(tree_l2_norm)(t)
-                                 
+
         np.testing.assert_allclose(np.asarray(g), np.array([0.6, 0.8]), atol=1e-9)
 
 

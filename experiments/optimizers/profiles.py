@@ -149,32 +149,32 @@ def _line_search_axis():
         #         "max_step": 1.0,
         #     },
         # },
-        # "SW": {
-        #     "line_search": "strong_wolfe",
-        #     "line_search_options": {
-        #         "init_step": 1.0,
-        #         "c1": 1e-3,
-        #         "c2": 0.7,
-        #         "max_iter": 10,
-        #         "temperature": 0.0,
-        #         "cooling": 0.95,
-        #         "seed": 0,
-        #         "max_step": 1.0,
-        #     },
-        # },
-        "ArmLoose": {
-            "line_search": "backtracking",
+        "SW": {
+            "line_search": "strong_wolfe",
             "line_search_options": {
                 "init_step": 1.0,
-                "c1": 1e-4,
-                "shrink": 0.5,
-                "max_iter": 3,
+                "c1": 1e-3,
+                "c2": 0.7,
+                "max_iter": 10,
                 "temperature": 0.0,
                 "cooling": 0.95,
                 "seed": 0,
                 "max_step": 1.0,
             },
         },
+        # "ArmLoose": {
+        #     "line_search": "backtracking",
+        #     "line_search_options": {
+        #         "init_step": 1.0,
+        #         "c1": 1e-4,
+        #         "shrink": 0.5,
+        #         "max_iter": 3,
+        #         "temperature": 0.0,
+        #         "cooling": 0.95,
+        #         "seed": 0,
+        #         "max_step": 1.0,
+        #     },
+        # },
         # "ArmTight": {
         #     "line_search": "backtracking",
         #     "line_search_options": {
@@ -252,6 +252,22 @@ def _probes_axis():
     }
 
 
+def _remember_step_size_axis():
+    """Remember-step-size axis: token -> ``run_qqn`` kwargs toggling whether the
+    line search reuses the previously accepted step size as its initial guess.
+    ``""`` (default) leaves ``remember_step_size`` at the solver/line-search
+    default. ``"Rem"`` forces ``remember_step_size=True`` (warm-start each
+    line search from the last accepted step), while ``"NoRem"`` forces
+    ``remember_step_size=False`` (always restart from the search's own
+    ``init_step``).
+    """
+    return {
+        # "": {},
+        "Rem": {"remember_step_size": True},
+        "NoRem": {"remember_step_size": False},
+    }
+
+
 def _max_t_axis():
     """Parametric-bound axis: token -> ``run_qqn`` kwargs selecting ``max_t``.
     Note: ``t`` here is the *parametric* bound on the quadratic path parameter
@@ -263,7 +279,7 @@ def _max_t_axis():
     return {
         "": {},
         # "t1": {"max_t": 1.0},
-        # "t2": {"max_t": 2.0},
+        "t2": {"max_t": 2.0},
         # "t4": {"max_t": 4.0},
         # "t8": {"max_t": 8.0},
     }
@@ -318,6 +334,7 @@ _AXES = [
     _region_axis,
     _probes_axis,
     _partition_axis,
+    _remember_step_size_axis,
 ]
 
 

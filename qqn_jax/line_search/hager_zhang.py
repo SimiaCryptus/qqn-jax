@@ -19,7 +19,7 @@ def hager_zhang_search(
     grad,
     slope0,
     *,
-     init_step: float = 1.0,
+    init_step: float = 1.0,
     c1: float = 0.1,
     max_iter: int = 30,
     temperature: float = 0.0,
@@ -37,7 +37,7 @@ def hager_zhang_search(
     recomputed along the real path at ``t``.
     """
     dtype = value.dtype
-    del init_step                                                           
+    del init_step
     t0 = jnp.zeros((1,), dtype=dtype)
     unit = jnp.ones((1,), dtype=dtype)
 
@@ -73,7 +73,7 @@ def hager_zhang_search(
     eff_probes = max_probes if record_probes else 1
     pp, pg, pv, pval, pa = _empty_probes(params, eff_probes)
     pp, pg, pv, pval, pa = _record_probe(
-         pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, eff_probes
+        pp, pg, pv, pval, pa, 0, new_params, new_grad, new_value, step_size, eff_probes
     )
     return LineSearchResult(
         step_size=step_size,

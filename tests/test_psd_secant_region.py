@@ -19,16 +19,15 @@ def _make_info(params, new_params, grad, new_grad):
 
 
 def test_empty_history_is_isotropic_clip():
-                                                                    
-                                    
+
     region = PSDSecantRegion(window=4, gamma=4.0, radius=2.0)
     params = jnp.zeros(3)
     state = region.init(params)
-                                                                          
+
     candidate = jnp.array([3.0, 0.0, 0.0])
     out = region.project(params, candidate, state)
     step = out - params
-                                                        
+
     mnorm = jnp.sqrt(4.0) * jnp.linalg.norm(step)
     assert jnp.allclose(mnorm, 2.0, atol=1e-5)
 
@@ -43,11 +42,11 @@ def test_large_radius_is_identity():
 
 
 def test_secant_makes_stiff_direction_harder():
-                                                        
+
     region = PSDSecantRegion(window=4, gamma=1.0, radius=1.0)
     params = jnp.zeros(2)
     state = region.init(params)
-                                                                    
+
     info = _make_info(
         params=jnp.zeros(2),
         new_params=jnp.array([1.0, 0.0]),
@@ -56,7 +55,6 @@ def test_secant_makes_stiff_direction_harder():
     )
     state = region.update(state, info)
 
-                                                                        
     stiff = region.project(params, jnp.array([1.0, 0.0]), state) - params
     soft = region.project(params, jnp.array([0.0, 1.0]), state) - params
     assert jnp.linalg.norm(stiff) < jnp.linalg.norm(soft)

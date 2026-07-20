@@ -126,6 +126,11 @@ class QQN:
              is driven independently on each segment (a block-diagonal
              quasi-Newton approximation) and the per-segment endpoints are
              concatenated back into the full direction.
+         remember_step_size: when ``True`` the line search's ``init_step`` for
+              each iteration is set to the previous iteration's accepted step
+              size (the path parameter ``t``). This can warm-start the search
+              and reduce the number of probes when successive steps have
+              similar magnitude. Defaults to ``False``.
         has_aux: whether ``fun`` returns auxiliary data.
     """
 
@@ -146,6 +151,7 @@ class QQN:
         max_t: float = 1000.0,
         partition_sizes: Optional[tuple[int, ...]] = None,
         spline_refine_rounds: int = 4,
+        remember_step_size: bool = False,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -175,6 +181,7 @@ class QQN:
         self.max_probes = max_probes
         self.max_t = max_t
         self.spline_refine_rounds = int(spline_refine_rounds)
+        self.remember_step_size = bool(remember_step_size)
         if line_search not in LINE_SEARCHES:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
@@ -190,6 +197,8 @@ class QQN:
             opts = {**opts, "max_probes": self.max_probes}
         else:
             opts = {**opts, "record_probes": False}
+        self._base_ls = base_ls
+        self._ls_opts = opts
         inner = partial(base_ls, **opts) if opts else base_ls
         self._inner_search = inner
 
@@ -371,7 +380,12 @@ class QQN:
             grad,
             self.path.velocity(jnp.asarray(0.0, dtype=dtype), grad_dir, qn_dir),
         )
-        res = self._inner_search(
+        if self.remember_step_size:
+            opts = {**self._ls_opts, "init_step": state.step_size}
+            inner_search = partial(self._base_ls, **opts)
+        else:
+            inner_search = self._inner_search
+        res = inner_search(
             eval_at,
             params,
             state.value,
@@ -398,19 +412,13 @@ class QQN:
         new_grad = res.new_grad
         step_size = res.step_size
         best_t = step_size
-                                                                         
-                                                                            
-                                                                            
-                     
+
         step_finite = jnp.logical_and(
             jnp.isfinite(new_value),
             jnp.all(jnp.isfinite(new_grad)),
         )
         accept = jnp.logical_and(step_finite, new_value <= state.value)
-                                                                          
-                                                                       
-                                                                           
-                                                                    
+
         gnorm_sq = tree_vdot(grad, grad)
         safe_scale = jnp.asarray(1.0, dtype=dtype) / (
             jnp.asarray(1.0, dtype=dtype) + gnorm_sq
@@ -494,8 +502,7 @@ class QQN:
 
         finite = jnp.logical_and(jnp.isfinite(new_value), jnp.isfinite(error))
         converged = error <= self.tol
-                                                                          
-                                                              
+
         stalled = jnp.logical_not(accept)
         done = jnp.logical_or(
             converged,

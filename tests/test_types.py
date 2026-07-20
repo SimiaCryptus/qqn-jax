@@ -28,7 +28,7 @@ class TestTypeExports:
 
 class TestTypeAnnotationsUsable:
     def test_objective_fn_callable_annotation(self):
-                                                                         
+
         def f(x) -> qtypes.Scalar:
             return jnp.sum(x**2)
 
