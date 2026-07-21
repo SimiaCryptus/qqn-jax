@@ -1,8 +1,2526 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-07-21T16:51:00.322Z",
-  "count": 73,
+  "generated_at": "2026-07-21T17:59:51.373Z",
+  "count": 120,
   "entries": [
+    {
+      "path": "fashion_mnist_experiment_20260721-135943.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135943",
+      "mtime": 1784656783333.1384,
+      "size": 1875435,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "swish"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.04288874566555023,
+          "best_loss": 0.04288874566555023,
+          "iters": 5604,
+          "train_acc": 1,
+          "test_acc": 0.8210000395774841,
+          "wall": 90.00117676495574,
+          "ms_per_iter": 16.060167160056345,
+          "traj_auc": -1.1399231192610537,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5605
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.043374888598918915,
+          "best_loss": 0.043374888598918915,
+          "iters": 5809,
+          "train_acc": 1,
+          "test_acc": 0.8065000176429749,
+          "wall": 90.00071957398904,
+          "ms_per_iter": 15.493324078841288,
+          "traj_auc": -1.1330120236173327,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5810
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.04676090553402901,
+          "best_loss": 0.04676090553402901,
+          "iters": 3701,
+          "train_acc": 1,
+          "test_acc": 0.8115000128746033,
+          "wall": 90.01000704697799,
+          "ms_per_iter": 24.32045583544393,
+          "traj_auc": -1.0393138110324998,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3702
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.049564179033041,
+          "best_loss": 0.049564179033041,
+          "iters": 3634,
+          "train_acc": 1,
+          "test_acc": 0.8110000491142273,
+          "wall": 90.00251560204197,
+          "ms_per_iter": 24.766790204194265,
+          "traj_auc": -1.0152348764474324,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3635
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-135943.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135943",
+      "mtime": 1784656783254.139,
+      "size": 327253,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "swish"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.049564179033041,
+        "best_loss": 0.049564179033041,
+        "iters": 3634,
+        "train_acc": 1,
+        "test_acc": 0.8110000491142273,
+        "wall": 90.00251560204197,
+        "ms_per_iter": 24.766790204194265,
+        "traj_auc": -1.0152348764474324,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3635
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-135813.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135813",
+      "mtime": 1784656693062.6013,
+      "size": 333290,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "swish"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.04676090553402901,
+        "best_loss": 0.04676090553402901,
+        "iters": 3701,
+        "train_acc": 1,
+        "test_acc": 0.8115000128746033,
+        "wall": 90.01000704697799,
+        "ms_per_iter": 24.32045583544393,
+        "traj_auc": -1.0393138110324998,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3702
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-135642.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135642",
+      "mtime": 1784656602884.071,
+      "size": 522132,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "swish"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.043374888598918915,
+        "best_loss": 0.043374888598918915,
+        "iters": 5809,
+        "train_acc": 1,
+        "test_acc": 0.8065000176429749,
+        "wall": 90.00071957398904,
+        "ms_per_iter": 15.493324078841288,
+        "traj_auc": -1.1330120236173327,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5810
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-135512.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135512",
+      "mtime": 1784656512657.5496,
+      "size": 503500,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "swish"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.04288874566555023,
+        "best_loss": 0.04288874566555023,
+        "iters": 5604,
+        "train_acc": 1,
+        "test_acc": 0.8210000395774841,
+        "wall": 90.00117676495574,
+        "ms_per_iter": 16.060167160056345,
+        "traj_auc": -1.1399231192610537,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5605
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-135330.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135330",
+      "mtime": 1784656410622.1038,
+      "size": 1726227,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "logabs"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.06357324123382568,
+          "best_loss": 0.06357324123382568,
+          "iters": 5140,
+          "train_acc": 0.9998999834060669,
+          "test_acc": 0.815000057220459,
+          "wall": 90.00878289999673,
+          "ms_per_iter": 17.51143636186707,
+          "traj_auc": -1.037652134766942,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5141
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.06774342060089111,
+          "best_loss": 0.06774342060089111,
+          "iters": 5097,
+          "train_acc": 0.9997667074203491,
+          "test_acc": 0.8185000419616699,
+          "wall": 90.00881459499942,
+          "ms_per_iter": 17.659174925446226,
+          "traj_auc": -1.0077399058162133,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5098
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.06913994997739792,
+          "best_loss": 0.06913994997739792,
+          "iters": 3550,
+          "train_acc": 0.999666690826416,
+          "test_acc": 0.8165000677108765,
+          "wall": 90.00506182998652,
+          "ms_per_iter": 25.35353854365817,
+          "traj_auc": -0.9719689263924415,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3551
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.07061222940683365,
+          "best_loss": 0.07061222940683365,
+          "iters": 3513,
+          "train_acc": 0.999666690826416,
+          "test_acc": 0.8070000410079956,
+          "wall": 90.00888462201692,
+          "ms_per_iter": 25.621658019361494,
+          "traj_auc": -0.9759697684961566,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3514
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-135330.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135330",
+      "mtime": 1784656410548.104,
+      "size": 315530,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "logabs"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.07061222940683365,
+        "best_loss": 0.07061222940683365,
+        "iters": 3513,
+        "train_acc": 0.999666690826416,
+        "test_acc": 0.8070000410079956,
+        "wall": 90.00888462201692,
+        "ms_per_iter": 25.621658019361494,
+        "traj_auc": -0.9759697684961566,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3514
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-112246.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-112246",
+      "mtime": 1784656340988,
+      "size": 2269193,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sawtooth"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-Adam-AW-NoRem",
+          "final_loss": 2.2513272762298584,
+          "best_loss": 2.2513272762298584,
+          "iters": 1782,
+          "train_acc": 0.1450333297252655,
+          "test_acc": 0.1550000011920929,
+          "wall": 90.02508717298042,
+          "ms_per_iter": 50.51912860436612,
+          "traj_auc": 0.3524696413821333,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 1783
+        },
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 2.2358415126800537,
+          "best_loss": 2.2358415126800537,
+          "iters": 351,
+          "train_acc": 0.09156666696071625,
+          "test_acc": 0.09650000184774399,
+          "wall": 25.55027914303355,
+          "ms_per_iter": 72.79281807132065,
+          "traj_auc": 0.34947033618194445,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 352
+        },
+        {
+          "name": "Adam",
+          "final_loss": 2.391977548599243,
+          "best_loss": 2.262190341949463,
+          "iters": 20308,
+          "train_acc": 0.09700000286102295,
+          "test_acc": 0.10250000655651093,
+          "wall": 90.00166377000278,
+          "ms_per_iter": 4.431832960902244,
+          "traj_auc": 0.3746577321785301,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 20309
+        },
+        {
+          "name": "L-BFGS",
+          "final_loss": 0,
+          "best_loss": 2.1565940380096436,
+          "iters": 1160,
+          "train_acc": 0.10000000149011612,
+          "test_acc": 0.10000000149011612,
+          "wall": 90.0581624720362,
+          "ms_per_iter": 77.6363469586519,
+          "traj_auc": 0,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 1161
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_L-BFGS_20260721-112246.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-112246",
+      "mtime": 1784656329317,
+      "size": 57762,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sawtooth"
+      },
+      "optimizer": {
+        "name": "L-BFGS",
+        "type": "lbfgs"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "L-BFGS",
+        "final_loss": 0,
+        "best_loss": 2.1565940380096436,
+        "iters": 1160,
+        "train_acc": 0.10000000149011612,
+        "test_acc": 0.10000000149011612,
+        "wall": 90.0581624720362,
+        "ms_per_iter": 77.6363469586519,
+        "traj_auc": 0,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 1161
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-135200.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135200",
+      "mtime": 1784656320336.6074,
+      "size": 318873,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "logabs"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.06913994997739792,
+        "best_loss": 0.06913994997739792,
+        "iters": 3550,
+        "train_acc": 0.999666690826416,
+        "test_acc": 0.8165000677108765,
+        "wall": 90.00506182998652,
+        "ms_per_iter": 25.35353854365817,
+        "traj_auc": -0.9719689263924415,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3551
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-135030.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-135030",
+      "mtime": 1784656230139.126,
+      "size": 457005,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "logabs"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.06774342060089111,
+        "best_loss": 0.06774342060089111,
+        "iters": 5097,
+        "train_acc": 0.9997667074203491,
+        "test_acc": 0.8185000419616699,
+        "wall": 90.00881459499942,
+        "ms_per_iter": 17.659174925446226,
+        "traj_auc": -1.0077399058162133,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5098
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-134859.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134859",
+      "mtime": 1784656139892.6628,
+      "size": 460042,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "logabs"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.06357324123382568,
+        "best_loss": 0.06357324123382568,
+        "iters": 5140,
+        "train_acc": 0.9998999834060669,
+        "test_acc": 0.815000057220459,
+        "wall": 90.00878289999673,
+        "ms_per_iter": 17.51143636186707,
+        "traj_auc": -1.037652134766942,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5141
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-134717.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134717",
+      "mtime": 1784656037109.3013,
+      "size": 2552255,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "triangle"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.07389339804649353,
+          "best_loss": 0.07389339804649353,
+          "iters": 8125,
+          "train_acc": 0.9991333484649658,
+          "test_acc": 0.8110000491142273,
+          "wall": 90.00543622899568,
+          "ms_per_iter": 11.077592151261006,
+          "traj_auc": -1.0604668746937287,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 8126
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.074056476354599,
+          "best_loss": 0.074056476354599,
+          "iters": 8248,
+          "train_acc": 0.9992666840553284,
+          "test_acc": 0.7930000424385071,
+          "wall": 90.00201728398679,
+          "ms_per_iter": 10.911980757030406,
+          "traj_auc": -1.0679097615695254,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 8249
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.07320475578308105,
+          "best_loss": 0.07320475578308105,
+          "iters": 4587,
+          "train_acc": 0.9992333650588989,
+          "test_acc": 0.8010000586509705,
+          "wall": 90.01320643397048,
+          "ms_per_iter": 19.623546203176474,
+          "traj_auc": -1.0350073722111361,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4588
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.075528085231781,
+          "best_loss": 0.075528085231781,
+          "iters": 4658,
+          "train_acc": 0.9989333152770996,
+          "test_acc": 0.8135000467300415,
+          "wall": 90.00126564496895,
+          "ms_per_iter": 19.321868966287884,
+          "traj_auc": -1.026051931355376,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4659
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-134716.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134716",
+      "mtime": 1784656037003.3018,
+      "size": 418140,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "triangle"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.075528085231781,
+        "best_loss": 0.075528085231781,
+        "iters": 4658,
+        "train_acc": 0.9989333152770996,
+        "test_acc": 0.8135000467300415,
+        "wall": 90.00126564496895,
+        "ms_per_iter": 19.321868966287884,
+        "traj_auc": -1.026051931355376,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4659
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-134546.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134546",
+      "mtime": 1784655946795.8901,
+      "size": 411771,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "triangle"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.07320475578308105,
+        "best_loss": 0.07320475578308105,
+        "iters": 4587,
+        "train_acc": 0.9992333650588989,
+        "test_acc": 0.8010000586509705,
+        "wall": 90.01320643397048,
+        "ms_per_iter": 19.623546203176474,
+        "traj_auc": -1.0350073722111361,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4588
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-134416.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134416",
+      "mtime": 1784655856590.51,
+      "size": 737432,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "triangle"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.074056476354599,
+        "best_loss": 0.074056476354599,
+        "iters": 8248,
+        "train_acc": 0.9992666840553284,
+        "test_acc": 0.7930000424385071,
+        "wall": 90.00201728398679,
+        "ms_per_iter": 10.911980757030406,
+        "traj_auc": -1.0679097615695254,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 8249
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-134246.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134246",
+      "mtime": 1784655766340.168,
+      "size": 726946,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "triangle"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.07389339804649353,
+        "best_loss": 0.07389339804649353,
+        "iters": 8125,
+        "train_acc": 0.9991333484649658,
+        "test_acc": 0.8110000491142273,
+        "wall": 90.00543622899568,
+        "ms_per_iter": 11.077592151261006,
+        "traj_auc": -1.0604668746937287,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 8126
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-134102.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134102",
+      "mtime": 1784655662726.963,
+      "size": 1950735,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gaussian"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.14703257381916046,
+          "best_loss": 0.14703257381916046,
+          "iters": 5747,
+          "train_acc": 0.9824666976928711,
+          "test_acc": 0.7875000238418579,
+          "wall": 90.00711842096644,
+          "ms_per_iter": 15.66158316007768,
+          "traj_auc": -0.7157073171250058,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5748
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.12542380392551422,
+          "best_loss": 0.12542380392551422,
+          "iters": 6131,
+          "train_acc": 0.9901666641235352,
+          "test_acc": 0.796000063419342,
+          "wall": 90.01759366603801,
+          "ms_per_iter": 14.682367259180886,
+          "traj_auc": -0.8121109873475831,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6132
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.14962276816368103,
+          "best_loss": 0.14962276816368103,
+          "iters": 3721,
+          "train_acc": 0.9813666939735413,
+          "test_acc": 0.8045000433921814,
+          "wall": 90.01433135499246,
+          "ms_per_iter": 24.190897972317245,
+          "traj_auc": -0.7082760843248107,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3722
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.12317778915166855,
+          "best_loss": 0.12317778915166855,
+          "iters": 3980,
+          "train_acc": 0.9907000064849854,
+          "test_acc": 0.7880000472068787,
+          "wall": 90.01191909197951,
+          "ms_per_iter": 22.616060073361684,
+          "traj_auc": -0.8053682259322896,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3981
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-134102.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-134102",
+      "mtime": 1784655662647.9634,
+      "size": 357054,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gaussian"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.12317778915166855,
+        "best_loss": 0.12317778915166855,
+        "iters": 3980,
+        "train_acc": 0.9907000064849854,
+        "test_acc": 0.7880000472068787,
+        "wall": 90.01191909197951,
+        "ms_per_iter": 22.616060073361684,
+        "traj_auc": -0.8053682259322896,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3981
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-133932.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133932",
+      "mtime": 1784655572454.349,
+      "size": 333782,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gaussian"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.14962276816368103,
+        "best_loss": 0.14962276816368103,
+        "iters": 3721,
+        "train_acc": 0.9813666939735413,
+        "test_acc": 0.8045000433921814,
+        "wall": 90.01433135499246,
+        "ms_per_iter": 24.190897972317245,
+        "traj_auc": -0.7082760843248107,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3722
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-133802.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133802",
+      "mtime": 1784655482259.7346,
+      "size": 548516,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gaussian"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.12542380392551422,
+        "best_loss": 0.12542380392551422,
+        "iters": 6131,
+        "train_acc": 0.9901666641235352,
+        "test_acc": 0.796000063419342,
+        "wall": 90.01759366603801,
+        "ms_per_iter": 14.682367259180886,
+        "traj_auc": -0.8121109873475831,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6132
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-133631.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133631",
+      "mtime": 1784655392001.1206,
+      "size": 513845,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gaussian"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.14703257381916046,
+        "best_loss": 0.14703257381916046,
+        "iters": 5747,
+        "train_acc": 0.9824666976928711,
+        "test_acc": 0.7875000238418579,
+        "wall": 90.00711842096644,
+        "ms_per_iter": 15.66158316007768,
+        "traj_auc": -0.7157073171250058,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5748
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-133449.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133449",
+      "mtime": 1784655289533.5586,
+      "size": 2184909,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sine"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.04478025063872337,
+          "best_loss": 0.04478025063872337,
+          "iters": 6806,
+          "train_acc": 1,
+          "test_acc": 0.8075000643730164,
+          "wall": 90.01154026499717,
+          "ms_per_iter": 13.225321813840313,
+          "traj_auc": -1.2549099176824043,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6807
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.04682821407914162,
+          "best_loss": 0.04682821407914162,
+          "iters": 6912,
+          "train_acc": 1,
+          "test_acc": 0.8215000629425049,
+          "wall": 90.00723437499255,
+          "ms_per_iter": 13.021879973233876,
+          "traj_auc": -1.2354055690755648,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6913
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.04600778594613075,
+          "best_loss": 0.04600778594613075,
+          "iters": 4101,
+          "train_acc": 1,
+          "test_acc": 0.8105000257492065,
+          "wall": 90.01156499999342,
+          "ms_per_iter": 21.94868690563117,
+          "traj_auc": -1.2118454395722666,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4102
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.04681950435042381,
+          "best_loss": 0.04681950435042381,
+          "iters": 4017,
+          "train_acc": 1,
+          "test_acc": 0.8065000176429749,
+          "wall": 90.0044444539817,
+          "ms_per_iter": 22.40588609758071,
+          "traj_auc": -1.1995101674931792,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4018
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-133449.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133449",
+      "mtime": 1784655289446.559,
+      "size": 362013,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sine"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.04681950435042381,
+        "best_loss": 0.04681950435042381,
+        "iters": 4017,
+        "train_acc": 1,
+        "test_acc": 0.8065000176429749,
+        "wall": 90.0044444539817,
+        "ms_per_iter": 22.40588609758071,
+        "traj_auc": -1.1995101674931792,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4018
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-133319.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133319",
+      "mtime": 1784655199251.9446,
+      "size": 369798,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sine"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.04600778594613075,
+        "best_loss": 0.04600778594613075,
+        "iters": 4101,
+        "train_acc": 1,
+        "test_acc": 0.8105000257492065,
+        "wall": 90.01156499999342,
+        "ms_per_iter": 21.94868690563117,
+        "traj_auc": -1.2118454395722666,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4102
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-133149.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133149",
+      "mtime": 1784655109057.3303,
+      "size": 621140,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sine"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.04682821407914162,
+        "best_loss": 0.04682821407914162,
+        "iters": 6912,
+        "train_acc": 1,
+        "test_acc": 0.8215000629425049,
+        "wall": 90.00723437499255,
+        "ms_per_iter": 13.021879973233876,
+        "traj_auc": -1.2354055690755648,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6913
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-133018.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-133018",
+      "mtime": 1784655018807.716,
+      "size": 611854,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sine"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.04478025063872337,
+        "best_loss": 0.04478025063872337,
+        "iters": 6806,
+        "train_acc": 1,
+        "test_acc": 0.8075000643730164,
+        "wall": 90.01154026499717,
+        "ms_per_iter": 13.225321813840313,
+        "traj_auc": -1.2549099176824043,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6807
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-132836.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132836",
+      "mtime": 1784654916902.1516,
+      "size": 2240974,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "relu"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.11530017107725143,
+          "best_loss": 0.11530017107725143,
+          "iters": 6885,
+          "train_acc": 0.9840666651725769,
+          "test_acc": 0.8070000410079956,
+          "wall": 90.00168522499735,
+          "ms_per_iter": 13.072140192446964,
+          "traj_auc": -0.8027074429760455,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6886
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.2060883343219757,
+          "best_loss": 0.2060883343219757,
+          "iters": 7364,
+          "train_acc": 0.9419666528701782,
+          "test_acc": 0.8105000257492065,
+          "wall": 90.00220520602306,
+          "ms_per_iter": 12.221918143131866,
+          "traj_auc": -0.6542743573503095,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 7365
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.11621707677841187,
+          "best_loss": 0.11621707677841187,
+          "iters": 4210,
+          "train_acc": 0.9781000018119812,
+          "test_acc": 0.8100000619888306,
+          "wall": 90.02889862499433,
+          "ms_per_iter": 21.384536490497464,
+          "traj_auc": -0.7703036889305139,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4211
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.14500045776367188,
+          "best_loss": 0.14500045776367188,
+          "iters": 4050,
+          "train_acc": 0.9660666584968567,
+          "test_acc": 0.8165000677108765,
+          "wall": 90.00187727197772,
+          "ms_per_iter": 22.22268574616734,
+          "traj_auc": -0.7031937045011205,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4051
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-132836.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132836",
+      "mtime": 1784654916810.1519,
+      "size": 363266,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "relu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.14500045776367188,
+        "best_loss": 0.14500045776367188,
+        "iters": 4050,
+        "train_acc": 0.9660666584968567,
+        "test_acc": 0.8165000677108765,
+        "wall": 90.00187727197772,
+        "ms_per_iter": 22.22268574616734,
+        "traj_auc": -0.7031937045011205,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4051
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-132706.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132706",
+      "mtime": 1784654826612.5374,
+      "size": 377604,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "relu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.11621707677841187,
+        "best_loss": 0.11621707677841187,
+        "iters": 4210,
+        "train_acc": 0.9781000018119812,
+        "test_acc": 0.8100000619888306,
+        "wall": 90.02889862499433,
+        "ms_per_iter": 21.384536490497464,
+        "traj_auc": -0.7703036889305139,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4211
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-132536.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132536",
+      "mtime": 1784654736401.9229,
+      "size": 657638,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "relu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.2060883343219757,
+        "best_loss": 0.2060883343219757,
+        "iters": 7364,
+        "train_acc": 0.9419666528701782,
+        "test_acc": 0.8105000257492065,
+        "wall": 90.00220520602306,
+        "ms_per_iter": 12.221918143131866,
+        "traj_auc": -0.6542743573503095,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 7365
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-132406.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132406",
+      "mtime": 1784654646163.3083,
+      "size": 615633,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "relu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.11530017107725143,
+        "best_loss": 0.11530017107725143,
+        "iters": 6885,
+        "train_acc": 0.9840666651725769,
+        "test_acc": 0.8070000410079956,
+        "wall": 90.00168522499735,
+        "ms_per_iter": 13.072140192446964,
+        "traj_auc": -0.8027074429760455,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6886
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-132224.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132224",
+      "mtime": 1784654544142.744,
+      "size": 1854554,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gelu"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.0443432554602623,
+          "best_loss": 0.0443432554602623,
+          "iters": 5731,
+          "train_acc": 1,
+          "test_acc": 0.7990000247955322,
+          "wall": 90.00449494703207,
+          "ms_per_iter": 15.70484992968628,
+          "traj_auc": -1.126437814863448,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5732
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.04391847178339958,
+          "best_loss": 0.04391847178339958,
+          "iters": 5633,
+          "train_acc": 1,
+          "test_acc": 0.8015000224113464,
+          "wall": 90.03487947699614,
+          "ms_per_iter": 15.9834687514639,
+          "traj_auc": -1.1203937078045374,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 5634
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.05159226059913635,
+          "best_loss": 0.05159226059913635,
+          "iters": 3517,
+          "train_acc": 1,
+          "test_acc": 0.7925000190734863,
+          "wall": 90.0150889250217,
+          "ms_per_iter": 25.594281752920587,
+          "traj_auc": -1.0045888835789816,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3518
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.04701164364814758,
+          "best_loss": 0.04701164364814758,
+          "iters": 3663,
+          "train_acc": 1,
+          "test_acc": 0.7945000529289246,
+          "wall": 90.03385801898548,
+          "ms_per_iter": 24.579267818450855,
+          "traj_auc": -1.04414299284173,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3664
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-132224.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132224",
+      "mtime": 1784654544066.7441,
+      "size": 329978,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gelu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.04701164364814758,
+        "best_loss": 0.04701164364814758,
+        "iters": 3663,
+        "train_acc": 1,
+        "test_acc": 0.7945000529289246,
+        "wall": 90.03385801898548,
+        "ms_per_iter": 24.579267818450855,
+        "traj_auc": -1.04414299284173,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3664
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-132053.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-132053",
+      "mtime": 1784654453824.1294,
+      "size": 316350,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gelu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.05159226059913635,
+        "best_loss": 0.05159226059913635,
+        "iters": 3517,
+        "train_acc": 1,
+        "test_acc": 0.7925000190734863,
+        "wall": 90.0150889250217,
+        "ms_per_iter": 25.594281752920587,
+        "traj_auc": -1.0045888835789816,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3518
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-131923.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131923",
+      "mtime": 1784654363608.5144,
+      "size": 506087,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gelu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.04391847178339958,
+        "best_loss": 0.04391847178339958,
+        "iters": 5633,
+        "train_acc": 1,
+        "test_acc": 0.8015000224113464,
+        "wall": 90.03487947699614,
+        "ms_per_iter": 15.9834687514639,
+        "traj_auc": -1.1203937078045374,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5634
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-131753.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131753",
+      "mtime": 1784654273331.8997,
+      "size": 514947,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "gelu"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.0443432554602623,
+        "best_loss": 0.0443432554602623,
+        "iters": 5731,
+        "train_acc": 1,
+        "test_acc": 0.7990000247955322,
+        "wall": 90.00449494703207,
+        "ms_per_iter": 15.70484992968628,
+        "traj_auc": -1.126437814863448,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 5732
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-131609.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131609",
+      "mtime": 1784654170038.3398,
+      "size": 2002912,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sigmoid"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.18655481934547424,
+          "best_loss": 0.18655481934547424,
+          "iters": 6234,
+          "train_acc": 0.9957333207130432,
+          "test_acc": 0.831000030040741,
+          "wall": 90.00557247601682,
+          "ms_per_iter": 14.437852498559002,
+          "traj_auc": -0.6750577759293368,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6235
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.18416932225227356,
+          "best_loss": 0.18416932225227356,
+          "iters": 6174,
+          "train_acc": 0.9943000078201294,
+          "test_acc": 0.8190000653266907,
+          "wall": 90.00630360801006,
+          "ms_per_iter": 14.578280467769689,
+          "traj_auc": -0.673282853426246,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6175
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.19264109432697296,
+          "best_loss": 0.19264109432697296,
+          "iters": 3821,
+          "train_acc": 0.9944000244140625,
+          "test_acc": 0.830500066280365,
+          "wall": 90.00261464499636,
+          "ms_per_iter": 23.554727727033853,
+          "traj_auc": -0.6451480654879678,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3822
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.18818530440330505,
+          "best_loss": 0.18818530440330505,
+          "iters": 3846,
+          "train_acc": 0.9936333298683167,
+          "test_acc": 0.8115000128746033,
+          "wall": 90.00399800599553,
+          "ms_per_iter": 23.40197556058126,
+          "traj_auc": -0.6401476373215469,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3847
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-131609.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131609",
+      "mtime": 1784654169957.3403,
+      "size": 345655,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.18818530440330505,
+        "best_loss": 0.18818530440330505,
+        "iters": 3846,
+        "train_acc": 0.9936333298683167,
+        "test_acc": 0.8115000128746033,
+        "wall": 90.00399800599553,
+        "ms_per_iter": 23.40197556058126,
+        "traj_auc": -0.6401476373215469,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3847
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-131439.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131439",
+      "mtime": 1784654079770.7244,
+      "size": 342681,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.19264109432697296,
+        "best_loss": 0.19264109432697296,
+        "iters": 3821,
+        "train_acc": 0.9944000244140625,
+        "test_acc": 0.830500066280365,
+        "wall": 90.00261464499636,
+        "ms_per_iter": 23.554727727033853,
+        "traj_auc": -0.6451480654879678,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3822
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-131309.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131309",
+      "mtime": 1784653989596.1084,
+      "size": 553795,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.18416932225227356,
+        "best_loss": 0.18416932225227356,
+        "iters": 6174,
+        "train_acc": 0.9943000078201294,
+        "test_acc": 0.8190000653266907,
+        "wall": 90.00630360801006,
+        "ms_per_iter": 14.578280467769689,
+        "traj_auc": -0.673282853426246,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6175
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-131139.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-131139",
+      "mtime": 1784653899366.4922,
+      "size": 558221,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.18655481934547424,
+        "best_loss": 0.18655481934547424,
+        "iters": 6234,
+        "train_acc": 0.9957333207130432,
+        "test_acc": 0.831000030040741,
+        "wall": 90.00557247601682,
+        "ms_per_iter": 14.437852498559002,
+        "traj_auc": -0.6750577759293368,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6235
+      }
+    },
+    {
+      "path": "fashion_mnist_experiment_20260721-130957.json",
+      "kind": "experiment",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-130957",
+      "mtime": 1784653797139.9265,
+      "size": 2043477,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "tanh"
+      },
+      "n_runs": 4,
+      "runs": [
+        {
+          "name": "QQN-L50-AW-NoRem",
+          "final_loss": 0.060523226857185364,
+          "best_loss": 0.060523226857185364,
+          "iters": 6369,
+          "train_acc": 0.9986000061035156,
+          "test_acc": 0.8020000457763672,
+          "wall": 90.00212858396117,
+          "ms_per_iter": 14.131280983507798,
+          "traj_auc": -1.0859797803354958,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6370
+        },
+        {
+          "name": "QQN-L50-AW-PSD-NoRem",
+          "final_loss": 0.06526164710521698,
+          "best_loss": 0.06526164710521698,
+          "iters": 6124,
+          "train_acc": 0.9986667037010193,
+          "test_acc": 0.8070000410079956,
+          "wall": 90.03949273499893,
+          "ms_per_iter": 14.702725789516482,
+          "traj_auc": -1.063170408522451,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 6125
+        },
+        {
+          "name": "QQN-L50-AW-S4-NoRem",
+          "final_loss": 0.07386448234319687,
+          "best_loss": 0.07386448234319687,
+          "iters": 4037,
+          "train_acc": 0.9969333410263062,
+          "test_acc": 0.8190000653266907,
+          "wall": 90.00601490301779,
+          "ms_per_iter": 22.295272455540694,
+          "traj_auc": -0.9989860565350906,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 4038
+        },
+        {
+          "name": "QQN-L50-AW-S4-PSD-NoRem",
+          "final_loss": 0.07263831794261932,
+          "best_loss": 0.07263831794261932,
+          "iters": 3940,
+          "train_acc": 0.9970999956130981,
+          "test_acc": 0.8190000653266907,
+          "wall": 90.006004623021,
+          "ms_per_iter": 22.844163609903806,
+          "traj_auc": -1.005893849704029,
+          "iters_to_target": null,
+          "time_to_target": null,
+          "evals_to_target": null,
+          "reached": false,
+          "history_len": 3941
+        }
+      ]
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-PSD-NoRem_20260721-130957.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-130957",
+      "mtime": 1784653797054.9268,
+      "size": 354155,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "tanh"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-PSD-NoRem",
+        "final_loss": 0.07263831794261932,
+        "best_loss": 0.07263831794261932,
+        "iters": 3940,
+        "train_acc": 0.9970999956130981,
+        "test_acc": 0.8190000653266907,
+        "wall": 90.006004623021,
+        "ms_per_iter": 22.844163609903806,
+        "traj_auc": -1.005893849704029,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 3941
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-S4-NoRem_20260721-130826.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-130826",
+      "mtime": 1784653706872.3093,
+      "size": 362816,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "tanh"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-S4-NoRem",
+        "final_loss": 0.07386448234319687,
+        "best_loss": 0.07386448234319687,
+        "iters": 4037,
+        "train_acc": 0.9969333410263062,
+        "test_acc": 0.8190000653266907,
+        "wall": 90.00601490301779,
+        "ms_per_iter": 22.295272455540694,
+        "traj_auc": -0.9989860565350906,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 4038
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-PSD-NoRem_20260721-130656.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-130656",
+      "mtime": 1784653616695.6917,
+      "size": 549214,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "tanh"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-PSD-NoRem",
+        "final_loss": 0.06526164710521698,
+        "best_loss": 0.06526164710521698,
+        "iters": 6124,
+        "train_acc": 0.9986667037010193,
+        "test_acc": 0.8070000410079956,
+        "wall": 90.03949273499893,
+        "ms_per_iter": 14.702725789516482,
+        "traj_auc": -1.063170408522451,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6125
+      }
+    },
+    {
+      "path": "fashion_mnist_QQN-L50-AW-NoRem_20260721-130526.json",
+      "kind": "optimizer_run",
+      "schema_version": "1.0.0",
+      "timestamp": "20260721-130526",
+      "mtime": 1784653526434.083,
+      "size": 570803,
+      "dataset": {
+        "name": "fashion_mnist",
+        "n_train": 30000,
+        "n_test": 2000,
+        "n_classes": 10,
+        "balanced": true,
+        "subset_seed": 0,
+        "synth_dim": 784
+      },
+      "topology": {
+        "arch": "x->16->16->16->10",
+        "l2": 0.0001,
+        "activation": "tanh"
+      },
+      "optimizer": {
+        "name": "QQN-L50-AW-NoRem",
+        "type": "qqn"
+      },
+      "seed": 42,
+      "maxiter": 1000000,
+      "run": {
+        "name": "QQN-L50-AW-NoRem",
+        "final_loss": 0.060523226857185364,
+        "best_loss": 0.060523226857185364,
+        "iters": 6369,
+        "train_acc": 0.9986000061035156,
+        "test_acc": 0.8020000457763672,
+        "wall": 90.00212858396117,
+        "ms_per_iter": 14.131280983507798,
+        "traj_auc": -1.0859797803354958,
+        "iters_to_target": null,
+        "time_to_target": null,
+        "evals_to_target": null,
+        "reached": false,
+        "history_len": 6370
+      }
+    },
     {
       "path": "fashion_mnist_experiment_20260721-114741.json",
       "kind": "experiment",

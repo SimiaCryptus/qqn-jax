@@ -263,6 +263,12 @@ loss target in **2.64× fewer iterations** than standalone L-BFGS *and* cheaper 
 
 ---
 
+## Results
+
+[An online benchmark viewer](https://simiacryptus.github.io/qqn-jax/results/?kind=experiment&act=relu&sel=QQN-L50-AW-NoRem%7CL-BFGS%7CAdam) has been prepared it for interactive exploration. It compares QQN against L-BFGS, Adam, and other baselines on a variety of smooth, full-batch objectives (MLPs vs MNIST/Fashion-MNIST via a variety of activation functions)
+
+---
+
 ## License
 
 [Apache 2.0](LICENSE)

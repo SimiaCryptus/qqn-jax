@@ -145,21 +145,22 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
         "comparison_act_identity",
         "comparison_act_rolling_sin",
         "comparison_act_rolling_atan2",
-        "sparse_act_relu",
-        "sparse_act_sigmoid",
-        "sparse_act_sine",
-        "sparse_act_gaussian",
-        "sparse_act_triangle",
-        "sparse_act_logabs",
-        "sparse_act_tanh",
-        "sparse_act_gelu",
-        "sparse_act_swish",
-        "sparse_act_softplus",
-        "sparse_act_sawtooth",
-        "sparse_act_abs",
-        "sparse_act_identity",
-        "sparse_act_rolling_sin",
-        "sparse_act_rolling_atan2"
+
+        // "sparse_act_relu",
+        // "sparse_act_sigmoid",
+        // "sparse_act_sine",
+        // "sparse_act_gaussian",
+        // "sparse_act_triangle",
+        // "sparse_act_logabs",
+        // "sparse_act_tanh",
+        // "sparse_act_gelu",
+        // "sparse_act_swish",
+        // "sparse_act_softplus",
+        // "sparse_act_sawtooth",
+        // "sparse_act_abs",
+        // "sparse_act_identity",
+        // "sparse_act_rolling_sin",
+        // "sparse_act_rolling_atan2"
     ];
 
 // ---------------------------------------------------------------------------
