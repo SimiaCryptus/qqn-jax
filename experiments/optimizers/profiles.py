@@ -34,7 +34,7 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import LBFGSOracle, SecantOracle, AndersonOracle, ShampooOracle
+from qqn_jax import LBFGSOracle, SecantOracle, AndersonOracle, ShampooOracle, AdamOracle
 from qqn_jax.oracles import AnchoredMultiSecantOracle
 from qqn_jax.regions import PSDSecantRegion
 
@@ -47,10 +47,10 @@ def _oracle_axis():
         # "": {},
         # "Mom": {"oracle": MomentumOracle(beta=0.9)},
         # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
-        # "Adam": {"oracle": AdamOracle()},
+        "Adam": {"oracle": AdamOracle()},
         # "Sec": {"oracle": SecantOracle()}, # Basically just a history of 1
-        "And": {"oracle": AndersonOracle(window=50)},
-        "AMS": {"oracle": AnchoredMultiSecantOracle(window=50)},
+        # "And": {"oracle": AndersonOracle(window=50)},
+        # "AMS": {"oracle": AnchoredMultiSecantOracle(window=50)},
         # "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
         # "L20": {"oracle": LBFGSOracle(history_size=20)},
         "L50": {"oracle": LBFGSOracle(history_size=50)},
@@ -164,7 +164,7 @@ def _region_axis():
         # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
         # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
         # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
-        "PSD": {"region": PSDSecantRegion()},
+        # "PSD": {"region": PSDSecantRegion()},
     }
 
 
@@ -185,7 +185,7 @@ def _spline_axis():
         #
         # "S2": {"path_strategy": "spline", "spline_max_control_points": "2"},
         # "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
-        "S8": {"path_strategy": "spline", "spline_max_control_points": "4"},
+        # "S8": {"path_strategy": "spline", "spline_max_control_points": "8"},
         # "S32": {"path_strategy": "spline"},
         # "L": {"path_strategy": "linear"},
     }
@@ -226,7 +226,7 @@ def _max_t_axis():
     return {
         "": {},
         # "t1": {"max_t": 1.0},
-        "t2": {"max_t": 2.0},
+        # "t2": {"max_t": 2.0},
         # "t4": {"max_t": 4.0},
         # "t8": {"max_t": 8.0},
     }
