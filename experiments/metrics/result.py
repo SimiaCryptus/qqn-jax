@@ -33,6 +33,9 @@ class RunResult:
     evals_per_iter: Optional[float] = None
     target_iters: dict = field(default_factory=dict)
     reached: bool = False
+    eval_counts: Optional[list] = None
+    fwd_counts: Optional[list] = None
+    bwd_counts: Optional[list] = None
 
     def as_tuple(self):
         """Backward-compat shim: the legacy positional 8-tuple.

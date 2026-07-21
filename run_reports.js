@@ -53,7 +53,7 @@ function ensureDir(dir) {
 //   desc   : human-readable description
 // ---------------------------------------------------------------------------
 
-const REPORTS_DIR = './examples';
+const REPORTS_DIR = './experiments';
 const RESULTS_DIR = 'results';
 // ---------------------------------------------------------------------------
 // Activation sweep configuration
@@ -93,11 +93,11 @@ const SWEEP_PARAMS = {
 // The reports to sweep and their default dataset.
 const SWEEP_REPORTS = {
      comparison: {
-         report: 'fashion_mnist_mlp_comparison',
+         report: 'benchmark_comparison',
          env: {DATASET: 'fashion_mnist'},
      },
      sparse: {
-         report: 'mnist_sparse_benchmark',
+         report: 'sparse_benchmark',
          env: {DATASET: 'mnist'},
      },
 };

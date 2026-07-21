@@ -20,7 +20,7 @@ from experiments.optimizers import profiles as _profiles
 from experiments.reporting.tables import report_tables
 from experiments.reporting.plots import save_plots
 from experiments.reporting.axis_analysis import report_axis_analysis
-from experiments.reporting.json_export import write_results_json
+from experiments.reporting.json_export import write_results_json, write_run_json
 
 __all__ = ["run_experiment", "build_model", "enrich"]
 
@@ -172,6 +172,8 @@ def run_experiment(config, *, enabled=None, do_plots=True):
             else:
                 result.evals_per_iter = -1.0
         results[name] = result
+        optimizer_extra = qqn_kwarg_map.get(name) if qqn_kwarg_map else None
+        write_run_json(name, result, config, optimizer_extra=optimizer_extra)
 
     report_tables(results, config)
     axis_stats = report_axis_analysis(results)

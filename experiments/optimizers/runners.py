@@ -91,6 +91,9 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
         time_to_target=time_to_target,
         milestone_hits=milestone_hits,
         evals_to_target=evals_to_target,
+        eval_counts=eval_counts,
+        fwd_counts=fwd_counts,
+        bwd_counts=bwd_counts,
     )
 
 
@@ -162,6 +165,9 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         time_to_target=time_to_target,
         milestone_hits=milestone_hits,
         evals_to_target=evals_to_target,
+        eval_counts=eval_counts,
+        fwd_counts=fwd_counts,
+        bwd_counts=bwd_counts,
     )
 
 

@@ -1,4 +1,4 @@
-"""Optimizer profile registry (moved + generalized from optimizer_profiles.py).
+"""Optimizer profile registry
 
 ``build_runners(ctx)`` constructs the ``{name: runner_lambda}`` map and the
 companion ``{name: qqn_kwargs}`` map (used purely for the eval-cost display
@@ -34,9 +34,7 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import LBFGSOracle, SecantOracle, AndersonOracle, ShampooOracle, AdamOracle
-from qqn_jax.oracles import AnchoredMultiSecantOracle
-from qqn_jax.regions import PSDSecantRegion
+from qqn_jax import LBFGSOracle, AdamOracle
 
 ENABLED = ["QQN", "Adam", "L-BFGS"]
 
@@ -67,7 +65,7 @@ def _oracle_axis():
         #         [LBFGSOracle(history_size=50), AndersonOracle(window=5)]
         #     )
         # },
-        "Smp": {"oracle": ShampooOracle()},
+        # "Smp": {"oracle": ShampooOracle()},
     }
 
 
@@ -110,14 +108,14 @@ def _line_search_axis():
         #     "line_search": "null",
         #     "line_search_options": { },
         # },
-        "BT": {
-            "line_search": "backtracking",
-            "line_search_options": {
-                "c1": 1e-6,
-                "shrink": 0.5,
-                "max_iter": 10,
-            },
-        },
+        # "BT": {
+        #     "line_search": "backtracking",
+        #     "line_search_options": {
+        #         "c1": 1e-6,
+        #         "shrink": 0.5,
+        #         "max_iter": 10,
+        #     },
+        # },
         "AW": {
             "line_search": "armijo_wolfe",
             "line_search_options": {
