@@ -19,7 +19,7 @@ def armijo_wolfe_search(
     slope0,
     *,
     init_step: float = 1.0,
-    c1: float = 1e-4,
+    c1: float = 1e-6,
     c2: float = 0.9,
     max_iter: int = 20,
     temperature: float = 0.0,

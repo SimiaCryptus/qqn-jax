@@ -22,7 +22,6 @@ def _matrix_inverse_pth_root(mat, p, epsilon):
 
 
 def ShampooOracle(
-    block_size: int = 128,
     update_freq: int = 20,
     epsilon: float = 1e-6,
 ) -> Oracle:

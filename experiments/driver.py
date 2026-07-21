@@ -34,6 +34,7 @@ class _Ctx:
     stop: dict
     sgd_lr: float
     adam_lr: float
+    lbfgs_memory_size: int
     run_qqn: Any
     run_optax: Any
     run_optax_lbfgs: Any
@@ -145,6 +146,7 @@ def run_experiment(config, *, enabled=None, do_plots=True):
     ctx.stop = stop
     ctx.sgd_lr = config.sgd_lr
     ctx.adam_lr = config.adam_lr
+    ctx.lbfgs_memory_size = getattr(config, "lbfgs_memory_size", 10)
     ctx.run_qqn = _runners.run_qqn
     ctx.run_optax = _runners.run_optax
     ctx.run_optax_lbfgs = _runners.run_optax_lbfgs

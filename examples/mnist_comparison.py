@@ -522,7 +522,7 @@ def main():
             loss_fn,
             params0,
             maxiter,
-            oracle=ShampooOracle(block_size=64, update_freq=25),
+            oracle=ShampooOracle(update_freq=25),
             stop=stop,
         ),
         "QQN-L5": lambda: _run_qqn_configured(

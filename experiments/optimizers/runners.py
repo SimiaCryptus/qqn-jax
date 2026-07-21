@@ -178,7 +178,7 @@ def _extract_ls_evals(opt_state):
     return None
 
 
-def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
+def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
     """Run Optax's L-BFGS (with zoom line search); returns a ``RunResult``."""
     stop = stop or {}
     f_target = stop.get("f_target")
@@ -187,7 +187,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None):
     milestones = stop.get("milestones", ())
 
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
-    optimizer = optax.lbfgs()
+    optimizer = optax.lbfgs(memory_size=memory_size)
     opt_state = optimizer.init(params0)
 
     @jax.jit

@@ -34,7 +34,9 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import AdamOracle, LBFGSOracle
+from qqn_jax import LBFGSOracle, SecantOracle, AndersonOracle, ShampooOracle
+from qqn_jax.oracles import AnchoredMultiSecantOracle
+from qqn_jax.regions import PSDSecantRegion
 
 ENABLED = ["QQN", "Adam", "L-BFGS"]
 
@@ -45,13 +47,13 @@ def _oracle_axis():
         # "": {},
         # "Mom": {"oracle": MomentumOracle(beta=0.9)},
         # "PathMom": {"oracle": PathHistoryMomentumOracle(history_size=10, beta=0.9)},
-        "Adam": {"oracle": AdamOracle()},
-        # "Sec": {"oracle": SecantOracle()},
-        # "And": {"oracle": AndersonOracle(window=5)},
-        # "AMS": {"oracle": AnchoredMultiSecantOracle(window=10)},
-        "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
+        # "Adam": {"oracle": AdamOracle()},
+        # "Sec": {"oracle": SecantOracle()}, # Basically just a history of 1
+        "And": {"oracle": AndersonOracle(window=50)},
+        "AMS": {"oracle": AnchoredMultiSecantOracle(window=50)},
+        # "L10": {"oracle": LBFGSOracle(history_size=10)},  # Default
         # "L20": {"oracle": LBFGSOracle(history_size=20)},
-        # "L50": {"oracle": LBFGSOracle(history_size=50)},
+        "L50": {"oracle": LBFGSOracle(history_size=50)},
         # "L80": {"oracle": LBFGSOracle(history_size=80)},
         # "L120": {"oracle": LBFGSOracle(history_size=120)},
         # "L160": {"oracle": LBFGSOracle(history_size=160)},
@@ -65,6 +67,7 @@ def _oracle_axis():
         #         [LBFGSOracle(history_size=50), AndersonOracle(window=5)]
         #     )
         # },
+        "Smp": {"oracle": ShampooOracle()},
     }
 
 
@@ -119,7 +122,7 @@ def _line_search_axis():
             "line_search": "armijo_wolfe",
             "line_search_options": {
                 "c1": 1e-6,
-                "c2": 0.99,
+                "c2": 0.9,
                 "max_iter": 10,
             },
         },
@@ -127,15 +130,16 @@ def _line_search_axis():
         #     "line_search": "fixed",
         #     "line_search_options": {  },
         # },
-        "SW": {
-            "line_search": "strong_wolfe",
-            "line_search_options": {
-                "init_step": 1.0,
-                "c1": 1e-3,
-                "c2": 0.7,
-                "max_iter": 10,
-            },
-        },
+        # Note: strong_wolfe may be more efficient but lacks some instrumentation and features compared to armijo_wolfe
+        # "SW": {
+        #     "line_search": "strong_wolfe",
+        #     "line_search_options": {
+        #         "init_step": 1.0,
+        #         "c1": 1e-6,
+        #         "c2": 0.7,
+        #         "max_iter": 10,
+        #     },
+        # },
         # "HZ": {
         #     "line_search": "hager_zhang",
         #     "line_search_options": {
@@ -160,6 +164,7 @@ def _region_axis():
         # "TR": {"region": TrustRegion(radius=1.0, adaptive=True)},
         # "TR2": {"region": TrustRegion(radius=2.0, adaptive=False)},
         # "Box": {"region": BoxRegion(lo=-2.0, hi=2.0)},
+        "PSD": {"region": PSDSecantRegion()},
     }
 
 
@@ -179,7 +184,8 @@ def _spline_axis():
         "": {},  # quadratic
         #
         # "S2": {"path_strategy": "spline", "spline_max_control_points": "2"},
-        "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
+        # "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
+        "S8": {"path_strategy": "spline", "spline_max_control_points": "4"},
         # "S32": {"path_strategy": "spline"},
         # "L": {"path_strategy": "linear"},
     }
@@ -347,23 +353,29 @@ def _baseline_profiles():
         )
 
     def Adam(ctx):
+        adam_lr = getattr(ctx, "adam_lr", 1e-3)
         return (
             lambda: ctx.run_optax(
                 ctx.loss_fn,
                 ctx.params0,
-                optax.adam(learning_rate=ctx.adam_lr),
+                optax.adam(learning_rate=adam_lr),
                 ctx.maxiter,
                 stop=ctx.stop,
             ),
-            {},
+            {"learning_rate": adam_lr},
         )
 
     def LBFGS(ctx):
+        memory_size = getattr(ctx, "lbfgs_memory_size", 50)
         return (
             lambda: ctx.run_optax_lbfgs(
-                ctx.loss_fn, ctx.params0, ctx.maxiter, stop=ctx.stop
+                ctx.loss_fn,
+                ctx.params0,
+                ctx.maxiter,
+                stop=ctx.stop,
+                memory_size=memory_size,
             ),
-            {},
+            {"memory_size": memory_size},
         )
 
     return {
