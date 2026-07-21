@@ -388,6 +388,21 @@ properties are realized in practice. The line search traverses the path over
 Walking `t` directly is what lets QQN **automatically discover the right
 blend** of gradient and oracle without manual tuning. The quality of the
 overall optimization is directly bounded by the quality of the line search.
+> **The line search is a permissive backup, not a gatekeeper.** A crucial
+> design stance: the line search exists *only* as a robust fallback against
+> blind steps — a safety net that guarantees progress when the quadratic
+> path's default step would overshoot or fail. It is therefore deliberately
+> **very permissive**. The Armijo constant `c1` is typically set to `1e-6`,
+> accepting *any* even slight decrease in the objective. The intent is not
+> to police the step against a demanding sufficient-decrease slope, but to
+> confirm the step is not actively harmful. A stringent line search would
+> waste evaluations keeping the iterate needlessly constrained to the path,
+> repeatedly backtracking in search of a decrease the geometry already
+> provides; a permissive one steps out of the way the moment the oracle is
+> doing its job, spending its budget only when the default step genuinely
+> misbehaves. In short: let the oracle do the work, and let the line search
+> catch it only when it stumbles.
+
 
 ### 5.1 Temperature: Orthogonal Early Acceptance
 
@@ -406,7 +421,12 @@ JIT/vmap compatible and reproducible.
 **Backtracking / Armijo.** The robust default. Starting at `init_step`, it
 shrinks `α ← shrink·α` until the Armijo sufficient-decrease condition
 `f(x + α·d) ≤ f(x) + c1·α·⟨∇f, d⟩` holds or `max_iter` is reached.
-Implemented with `lax.while_loop` for JIT/vmap compatibility.
+Implemented with `lax.while_loop` for JIT/vmap compatibility. Critically,
+`c1` defaults to a **very small** value (typically `1e-6`): the condition
+then accepts virtually *any* decrease, because the search is a backup that
+only needs to reject genuinely bad steps, not enforce a demanding decrease
+target. This keeps QQN from squandering evaluations backtracking along a
+path the geometry has already aimed correctly.
 
 **Armijo-Wolfe (Strong Wolfe).** Delegates to Optax's zoom line search,
 enforcing both Armijo decrease and the strong curvature condition. This keeps
@@ -633,6 +653,13 @@ fallback provides global convergence only because the line search can always
 find a valid step along the path (which it can, given `d'(0) = -∇f`). The
 descent property is enforced *by* the line search. When a region is active,
 these guarantees hold on the *feasible* (projected) path `d_R(t)`.
+It bears emphasizing that these guarantees survive even a *very permissive*
+line search. A tiny Armijo constant (`c1 ≈ 1e-6`) is sufficient for
+monotone descent and global convergence: the theory requires only that each
+accepted step *decreases* `f`, not that it capture a large fraction of the
+predicted decrease. The permissiveness is thus not a compromise against the
+guarantees but a practical consequence of them — the line search is a
+backstop, and a backstop need only catch outright failures.
 
 Notably, the *hybrid algorithm itself* requires only **`C⁰` continuity along
 the path** to make monotone progress — the sufficient-decrease test compares
