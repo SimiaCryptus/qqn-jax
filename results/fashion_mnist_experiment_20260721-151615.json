@@ -1,0 +1,604 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "experiment",
+  "timestamp": "20260721-151615",
+  "dataset": {
+    "name": "fashion_mnist",
+    "n_train": 30000,
+    "n_test": 2000,
+    "n_classes": 10,
+    "balanced": true,
+    "subset_seed": 0,
+    "synth_dim": 784
+  },
+  "topology": {
+    "hidden_sizes": [
+      16,
+      16,
+      16
+    ],
+    "n_hidden_layers": 3,
+    "n_classes": 10,
+    "activation": "rolling_atan2",
+    "arch": "x->16->16->16->10",
+    "l2": 0.0001
+  },
+  "config": {
+    "dataset": "fashion_mnist",
+    "n_classes": 10,
+    "n_train": 30000,
+    "n_test": 2000,
+    "hidden_sizes": [
+      16,
+      16,
+      16
+    ],
+    "activation": "rolling_atan2",
+    "l2": 0.0001,
+    "seed": 42,
+    "subset_seed": 0,
+    "synth_dim": 784,
+    "maxiter": 1000000,
+    "balanced": true,
+    "f_target": 0.0001,
+    "gtol": 1e-08,
+    "time_budget": 90.0,
+    "milestones": [
+      1.0,
+      0.5,
+      0.2,
+      0.1,
+      0.05,
+      0.02,
+      0.01
+    ],
+    "target_profile": [
+      0.2,
+      0.1,
+      0.06,
+      0.04,
+      0.02
+    ],
+    "sgd_lr": 0.05,
+    "adam_lr": 0.01,
+    "activation_name": "rolling_atan2"
+  },
+  "results": {
+    "QQN-Adam-AW-T01-NoRem": {
+      "name": "QQN-Adam-AW-T01-NoRem",
+      "final_loss": 2.942575454711914,
+      "best_loss": 2.942575454711914,
+      "iters": 3,
+      "train_acc": 0.12939999997615814,
+      "test_acc": 0.1290000081062317,
+      "wall": 10.549802803026978,
+      "ms_per_iter": 3516.600934342326,
+      "traj_auc": 0.4847952996471442,
+      "iters_to_target": null,
+      "time_to_target": null,
+      "evals_to_target": null,
+      "evals_per_iter": -1.0,
+      "reached": false,
+      "history": [
+        3.4630656242370605,
+        3.0308477878570557,
+        2.942575454711914,
+        2.942575454711914
+      ],
+      "times": [
+        0.0,
+        5.297007068002131,
+        10.521023167006206,
+        10.549276145990007
+      ],
+      "eval_counts": [
+        1,
+        3,
+        5,
+        12
+      ],
+      "fwd_counts": [
+        1,
+        3,
+        5,
+        12
+      ],
+      "bwd_counts": [
+        1,
+        3,
+        5,
+        12
+      ],
+      "milestone_hits": {
+        "1.000000e+00": null,
+        "5.000000e-01": null,
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "5.000000e-02": null,
+        "2.000000e-02": null,
+        "1.000000e-02": null
+      },
+      "target_iters": {
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "6.000000e-02": null,
+        "4.000000e-02": null,
+        "2.000000e-02": null
+      }
+    },
+    "QQN-Adam-AW-T01-PSD-NoRem": {
+      "name": "QQN-Adam-AW-T01-PSD-NoRem",
+      "final_loss": 2.942575454711914,
+      "best_loss": 2.942575454711914,
+      "iters": 3,
+      "train_acc": 0.12939999997615814,
+      "test_acc": 0.1290000081062317,
+      "wall": 10.855357282038312,
+      "ms_per_iter": 3618.4524273461043,
+      "traj_auc": 0.4847952996471442,
+      "iters_to_target": null,
+      "time_to_target": null,
+      "evals_to_target": null,
+      "evals_per_iter": -1.0,
+      "reached": false,
+      "history": [
+        3.4630656242370605,
+        3.0308477878570557,
+        2.942575454711914,
+        2.942575454711914
+      ],
+      "times": [
+        0.0,
+        5.377251539030112,
+        10.826922768028453,
+        10.85506189003354
+      ],
+      "eval_counts": [
+        1,
+        3,
+        5,
+        12
+      ],
+      "fwd_counts": [
+        1,
+        3,
+        5,
+        12
+      ],
+      "bwd_counts": [
+        1,
+        3,
+        5,
+        12
+      ],
+      "milestone_hits": {
+        "1.000000e+00": null,
+        "5.000000e-01": null,
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "5.000000e-02": null,
+        "2.000000e-02": null,
+        "1.000000e-02": null
+      },
+      "target_iters": {
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "6.000000e-02": null,
+        "4.000000e-02": null,
+        "2.000000e-02": null
+      }
+    },
+    "QQN-Adam-AW-T1-NoRem": {
+      "name": "QQN-Adam-AW-T1-NoRem",
+      "final_loss": 2.942575454711914,
+      "best_loss": 2.942575454711914,
+      "iters": 3,
+      "train_acc": 0.12939999997615814,
+      "test_acc": 0.1290000081062317,
+      "wall": 10.491448213986587,
+      "ms_per_iter": 3497.1494046621956,
+      "traj_auc": 0.4847952996471442,
+      "iters_to_target": null,
+      "time_to_target": null,
+      "evals_to_target": null,
+      "evals_per_iter": -1.0,
+      "reached": false,
+      "history": [
+        3.4630656242370605,
+        3.0308477878570557,
+        2.942575454711914,
+        2.942575454711914
+      ],
+      "times": [
+        0.0,
+        5.28104103601072,
+        10.477459629997611,
+        10.49091628700262
+      ],
+      "eval_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "fwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "bwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "milestone_hits": {
+        "1.000000e+00": null,
+        "5.000000e-01": null,
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "5.000000e-02": null,
+        "2.000000e-02": null,
+        "1.000000e-02": null
+      },
+      "target_iters": {
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "6.000000e-02": null,
+        "4.000000e-02": null,
+        "2.000000e-02": null
+      }
+    },
+    "QQN-Adam-AW-T1-PSD-NoRem": {
+      "name": "QQN-Adam-AW-T1-PSD-NoRem",
+      "final_loss": 2.942575454711914,
+      "best_loss": 2.942575454711914,
+      "iters": 3,
+      "train_acc": 0.12939999997615814,
+      "test_acc": 0.1290000081062317,
+      "wall": 11.063255057961214,
+      "ms_per_iter": 3687.7516859870716,
+      "traj_auc": 0.4847952996471442,
+      "iters_to_target": null,
+      "time_to_target": null,
+      "evals_to_target": null,
+      "evals_per_iter": -1.0,
+      "reached": false,
+      "history": [
+        3.4630656242370605,
+        3.0308477878570557,
+        2.942575454711914,
+        2.942575454711914
+      ],
+      "times": [
+        0.0,
+        5.628102382004727,
+        11.049234165984672,
+        11.062503151013516
+      ],
+      "eval_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "fwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "bwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "milestone_hits": {
+        "1.000000e+00": null,
+        "5.000000e-01": null,
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "5.000000e-02": null,
+        "2.000000e-02": null,
+        "1.000000e-02": null
+      },
+      "target_iters": {
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "6.000000e-02": null,
+        "4.000000e-02": null,
+        "2.000000e-02": null
+      }
+    },
+    "QQN-Adam-AW-T10-NoRem": {
+      "name": "QQN-Adam-AW-T10-NoRem",
+      "final_loss": 2.942575454711914,
+      "best_loss": 2.942575454711914,
+      "iters": 3,
+      "train_acc": 0.12939999997615814,
+      "test_acc": 0.1290000081062317,
+      "wall": 10.794523727963679,
+      "ms_per_iter": 3598.1745759878927,
+      "traj_auc": 0.4847952996471442,
+      "iters_to_target": null,
+      "time_to_target": null,
+      "evals_to_target": null,
+      "evals_per_iter": -1.0,
+      "reached": false,
+      "history": [
+        3.4630656242370605,
+        3.0308477878570557,
+        2.942575454711914,
+        2.942575454711914
+      ],
+      "times": [
+        0.0,
+        5.356849485950079,
+        10.780900051991921,
+        10.794011046993546
+      ],
+      "eval_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "fwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "bwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "milestone_hits": {
+        "1.000000e+00": null,
+        "5.000000e-01": null,
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "5.000000e-02": null,
+        "2.000000e-02": null,
+        "1.000000e-02": null
+      },
+      "target_iters": {
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "6.000000e-02": null,
+        "4.000000e-02": null,
+        "2.000000e-02": null
+      }
+    },
+    "QQN-Adam-AW-T10-PSD-NoRem": {
+      "name": "QQN-Adam-AW-T10-PSD-NoRem",
+      "final_loss": 2.942575454711914,
+      "best_loss": 2.942575454711914,
+      "iters": 3,
+      "train_acc": 0.12939999997615814,
+      "test_acc": 0.1290000081062317,
+      "wall": 10.773138770018704,
+      "ms_per_iter": 3591.0462566729016,
+      "traj_auc": 0.4847952996471442,
+      "iters_to_target": null,
+      "time_to_target": null,
+      "evals_to_target": null,
+      "evals_per_iter": -1.0,
+      "reached": false,
+      "history": [
+        3.4630656242370605,
+        3.0308477878570557,
+        2.942575454711914,
+        2.942575454711914
+      ],
+      "times": [
+        0.0,
+        5.490168595977593,
+        10.759355239977594,
+        10.77264327503508
+      ],
+      "eval_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "fwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "bwd_counts": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "milestone_hits": {
+        "1.000000e+00": null,
+        "5.000000e-01": null,
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "5.000000e-02": null,
+        "2.000000e-02": null,
+        "1.000000e-02": null
+      },
+      "target_iters": {
+        "2.000000e-01": null,
+        "1.000000e-01": null,
+        "6.000000e-02": null,
+        "4.000000e-02": null,
+        "2.000000e-02": null
+      }
+    }
+  },
+  "axis_analysis": {
+    "3": {
+      "axis_name": "temperature",
+      "values": {
+        "T01": {
+          "count": 2,
+          "score": 0.0738472548102019,
+          "metrics": {
+            "final_loss": {
+              "mean_norm": 0.0,
+              "mean_raw": 2.942575454711914
+            },
+            "traj_auc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.4847952996471442
+            },
+            "wall": {
+              "mean_norm": 0.3692362740510095,
+              "mean_raw": 10.702580042532645
+            },
+            "train_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.12939999997615814
+            },
+            "test_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.1290000081062317
+            }
+          },
+          "profiles": [
+            "QQN-Adam-AW-T01-NoRem",
+            "QQN-Adam-AW-T01-PSD-NoRem"
+          ]
+        },
+        "T1": {
+          "count": 2,
+          "score": 0.1,
+          "metrics": {
+            "final_loss": {
+              "mean_norm": 0.0,
+              "mean_raw": 2.942575454711914
+            },
+            "traj_auc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.4847952996471442
+            },
+            "wall": {
+              "mean_norm": 0.5,
+              "mean_raw": 10.7773516359739
+            },
+            "train_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.12939999997615814
+            },
+            "test_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.1290000081062317
+            }
+          },
+          "profiles": [
+            "QQN-Adam-AW-T1-NoRem",
+            "QQN-Adam-AW-T1-PSD-NoRem"
+          ]
+        },
+        "T10": {
+          "count": 2,
+          "score": 0.10226636427512867,
+          "metrics": {
+            "final_loss": {
+              "mean_norm": 0.0,
+              "mean_raw": 2.942575454711914
+            },
+            "traj_auc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.4847952996471442
+            },
+            "wall": {
+              "mean_norm": 0.5113318213756434,
+              "mean_raw": 10.783831248991191
+            },
+            "train_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.12939999997615814
+            },
+            "test_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.1290000081062317
+            }
+          },
+          "profiles": [
+            "QQN-Adam-AW-T10-NoRem",
+            "QQN-Adam-AW-T10-PSD-NoRem"
+          ]
+        }
+      }
+    },
+    "5": {
+      "axis_name": "region",
+      "values": {
+        "<default>": {
+          "count": 3,
+          "score": 0.04213895033798284,
+          "metrics": {
+            "final_loss": {
+              "mean_norm": 0.0,
+              "mean_raw": 2.942575454711914
+            },
+            "traj_auc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.48479529964714424
+            },
+            "wall": {
+              "mean_norm": 0.21069475168991417,
+              "mean_raw": 10.611924914992414
+            },
+            "train_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.12939999997615814
+            },
+            "test_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.1290000081062317
+            }
+          },
+          "profiles": [
+            "QQN-Adam-AW-T01-NoRem",
+            "QQN-Adam-AW-T1-NoRem",
+            "QQN-Adam-AW-T10-NoRem"
+          ]
+        },
+        "PSD": {
+          "count": 3,
+          "score": 0.14193679571890422,
+          "metrics": {
+            "final_loss": {
+              "mean_norm": 0.0,
+              "mean_raw": 2.942575454711914
+            },
+            "traj_auc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.48479529964714424
+            },
+            "wall": {
+              "mean_norm": 0.709683978594521,
+              "mean_raw": 10.897250370006077
+            },
+            "train_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.12939999997615814
+            },
+            "test_acc": {
+              "mean_norm": 0.0,
+              "mean_raw": 0.1290000081062317
+            }
+          },
+          "profiles": [
+            "QQN-Adam-AW-T01-PSD-NoRem",
+            "QQN-Adam-AW-T1-PSD-NoRem",
+            "QQN-Adam-AW-T10-PSD-NoRem"
+          ]
+        }
+      }
+    }
+  }
+}
