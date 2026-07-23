@@ -16,7 +16,7 @@ from qqn_jax.profiling import profile_region
 from experiments.data.loaders import load_image_dataset
 from experiments.models.mlp import FlatMLP
 from experiments.optimizers import runners as _runners
-from experiments.optimizers import profiles as _profiles
+from experiments.optimizers import profiles as _default_profiles
 from experiments.reporting.tables import report_tables
 from experiments.reporting.plots import save_plots
 from experiments.reporting.axis_analysis import report_axis_analysis
@@ -83,8 +83,19 @@ def enrich(result, model, data, config):
     result.target_iters = target_iters
 
 
-def run_experiment(config, *, enabled=None, do_plots=True):
-    """Run every enabled optimizer variant and print/plot the report."""
+def run_experiment(config, *, enabled=None, do_plots=True, build_runners=None):
+    """Run every enabled optimizer variant and print/plot the report.
+
+    Args:
+        config: the ExperimentConfig.
+        enabled: optional override of the enabled profile-name list.
+        do_plots: whether to emit plots.
+        build_runners: optional ``build_runners(ctx, enabled=...)`` callable
+            (e.g. from ``reports.reference.profiles``). Defaults to the
+            internal ``experiments.optimizers.profiles.build_runners``.
+    """
+    if build_runners is None:
+        build_runners = _default_profiles.build_runners
     n_hidden_layers = len(config.hidden_sizes)
     arch_str = "->".join(
         str(s) for s in (["x"] + list(config.hidden_sizes) + [config.n_classes])
@@ -154,7 +165,7 @@ def run_experiment(config, *, enabled=None, do_plots=True):
     ctx.partition_sizes = getattr(model, "partition_sizes", None)
     if callable(ctx.partition_sizes):
         ctx.partition_sizes = ctx.partition_sizes()
-    runners, qqn_kwarg_map = _profiles.build_runners(ctx, enabled=enabled)
+    runners, qqn_kwarg_map = build_runners(ctx, enabled=enabled)
 
     results = {}
     for name, runner in runners.items():

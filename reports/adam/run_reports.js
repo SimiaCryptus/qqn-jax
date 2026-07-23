@@ -53,7 +53,7 @@ function ensureDir(dir) {
 //   desc   : human-readable description
 // ---------------------------------------------------------------------------
 
-const REPORTS_DIR = './experiments';
+const REPORTS_DIR = './';
 const RESULTS_DIR = 'results';
 // ---------------------------------------------------------------------------
 // Activation sweep configuration
@@ -213,6 +213,15 @@ function runVariant(name, variant) {
             executable = 'python3';
             spawnArgs = [scriptPath, ...variant.args];
         }
+        // Surface the exact command line (including any env overrides) on the
+        // console so runs are reproducible without needing to open the log.
+        const envPairsForConsole = Object.entries(variant.env)
+            .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+            .join(' ');
+        console.log(
+            `    cmd: ${envPairsForConsole ? envPairsForConsole + ' ' : ''}` +
+            `${executable} ${spawnArgs.join(' ')}`
+        );
         const child = spawn(executable, spawnArgs, {
             env: {...process.env, ...variant.env},
         });

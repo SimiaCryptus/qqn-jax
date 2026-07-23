@@ -38,7 +38,7 @@ from qqn_jax import LBFGSOracle, AdamOracle, MomentumOracle, PathHistoryMomentum
 from qqn_jax.regions import PSDSecantRegion
 
 ENABLED = [
-    # "QQN",
+    "QQN",
     "Adam",
     "L-BFGS"
 ]

@@ -20,7 +20,7 @@ def armijo_wolfe_search(
     *,
     init_step: float = 1.0,
     c1: float = 1e-6,
-    c2: float = 0.9,
+    c2: float = 0.7,
     max_iter: int = 20,
     temperature: float = 0.0,
     cooling: float = 0.95,
@@ -56,7 +56,15 @@ def armijo_wolfe_search(
     )
 
     init_armijo = v0 <= value + c1 * a0 * dg
-    init_wolfe = jnp.logical_and(init_armijo, jnp.abs(s0) <= c2 * abs_dg)
+    # Permissive acceptance: accept on strong Wolfe OR on Armijo + weak
+    # (one-sided) curvature (s0 >= c2 * dg). The weak curvature test is far
+    # cheaper to satisfy at the first trial point, so a permissive c2 lets
+    # the search terminate at a0 without any bracketing/zoom.
+    strong_wolfe0 = jnp.abs(s0) <= c2 * abs_dg
+    weak_wolfe0 = s0 >= c2 * dg
+    init_wolfe = jnp.logical_and(
+        init_armijo, jnp.logical_or(strong_wolfe0, weak_wolfe0)
+    )
     init_stoch, key0 = _metropolis_accept(v0 - value, temp0, key0, value.dtype)
     temp0 = temp0 * cooling
     init_found = jnp.logical_or(init_wolfe, init_stoch)
@@ -162,7 +170,11 @@ def armijo_wolfe_search(
             jnp.logical_and(i > 0, phi_cur >= phi_prev),
         )
 
-        cond_wolfe = jnp.abs(s_cur) <= c2 * abs_dg
+        strong_wolfe_cur = jnp.abs(s_cur) <= c2 * abs_dg
+        weak_wolfe_cur = s_cur >= c2 * dg
+        cond_wolfe = jnp.logical_and(
+            armijo_cur, jnp.logical_or(strong_wolfe_cur, weak_wolfe_cur)
+        )
         stoch_cur, key = _metropolis_accept(phi_cur - value, temp, key, value.dtype)
         temp = temp * cooling
         cond_found = jnp.logical_or(cond_wolfe, stoch_cur)
@@ -396,8 +408,11 @@ def armijo_wolfe_search(
         higher = v >= phi_lo
 
         shrink_hi = jnp.logical_or(jnp.logical_not(armijo), higher)
-        curv_ok = jnp.abs(s) <= c2 * abs_dg
-        wolfe_found = jnp.logical_and(armijo, curv_ok)
+        strong_curv_ok = jnp.abs(s) <= c2 * abs_dg
+        weak_curv_ok = s >= c2 * dg
+        wolfe_found = jnp.logical_and(
+            armijo, jnp.logical_or(strong_curv_ok, weak_curv_ok)
+        )
         stoch_found, key = _metropolis_accept(v - value, temp, key, value.dtype)
         temp = temp * cooling
         this_found = jnp.logical_or(wolfe_found, stoch_found)

@@ -13,6 +13,9 @@ interface and keeps all state in JIT-compatible NamedTuples.
 
 from functools import partial
 from typing import Any, Callable, Dict, NamedTuple, Optional
+import inspect
+import random
+
 
 import jax
 import jax.numpy as jnp
@@ -139,6 +142,15 @@ class QQN:
               size (the path parameter ``t``). This can warm-start the search
               and reduce the number of probes when successive steps have
               similar magnitude. Defaults to ``False``.
+        seed: base RNG seed forwarded to line searches that expose a
+             ``seed`` argument (e.g. ``strong_wolfe_search``, whose
+             stochastic/Metropolis acceptance depends on it). The seed is
+             rotated deterministically every iteration (``seed + iter``) so
+             each iteration's stochastic decisions use a distinct, but fully
+             reproducible, key. When ``None`` (the default) a random base
+             seed is drawn once at construction time via :mod:`random`.
+             Line searches that do not accept a ``seed`` keyword are
+             unaffected.
         has_aux: whether ``fun`` returns auxiliary data.
     """
 
@@ -153,7 +165,7 @@ class QQN:
         path_strategy: str = "quadratic",
         has_aux: bool = False,
         region=None,
-        oracle="lbfgs",
+        oracle=None,
         feed_probes_to_oracle: bool = False,
         max_probes: int = 32,
         max_t: float = 1000.0,
@@ -161,6 +173,7 @@ class QQN:
         spline_refine_rounds: int = 4,
         spline_max_control_points: int = 32,
         remember_step_size: bool = False,
+        seed: Optional[int] = None,
     ):
         self.fun = fun
         self.maxiter = maxiter
@@ -192,12 +205,14 @@ class QQN:
         self.spline_refine_rounds = int(spline_refine_rounds)
         self.spline_max_control_points = max(2, int(spline_max_control_points))
         self.remember_step_size = bool(remember_step_size)
+        self.seed = int(seed) if seed is not None else random.randint(0, 2**31 - 1)
         if line_search not in LINE_SEARCHES:
             raise ValueError(
                 f"Unknown line_search: {line_search!r}. "
                 f"Available: {sorted(LINE_SEARCHES)}."
             )
         base_ls = LINE_SEARCHES[line_search]
+        self._ls_supports_seed = "seed" in inspect.signature(base_ls).parameters
         opts = self.line_search_options
         if "max_step" not in opts:
             opts = {**opts, "max_step": self.max_t}
@@ -395,6 +410,15 @@ class QQN:
             inner_search = partial(self._base_ls, **opts)
         else:
             inner_search = self._inner_search
+        if self._ls_supports_seed:
+            # Rotate the RNG seed deterministically with the iteration
+            # counter so stochastic acceptance decisions (e.g. Metropolis
+            # criterion in ``strong_wolfe_search``) differ each iteration
+            # while remaining fully reproducible from ``self.seed``.
+            iter_seed = jnp.asarray(self.seed, dtype=jnp.uint32) + jnp.asarray(
+                state.iter, dtype=jnp.uint32
+            )
+            inner_search = partial(inner_search, seed=iter_seed)
         res = inner_search(
             eval_at,
             params,
@@ -428,7 +452,16 @@ class QQN:
             jnp.isfinite(new_value),
             jnp.all(jnp.isfinite(new_grad)),
         )
-        accept = jnp.logical_and(step_finite, new_value <= state.value)
+        # Honor the line search's own acceptance criterion (`res.done`), which
+        # already encodes stochastic (temperature-based) acceptance of
+        # non-improving steps. Without this, a step accepted by the
+        # Metropolis rule (value may be worse) would be discarded here as
+        # "not improving", marking the iteration as stalled and terminating
+        # the run early instead of producing the expected fuzzy/spiky
+        # convergence curve at high temperature.
+        accept = jnp.logical_and(
+           step_finite, jnp.logical_or(new_value <= state.value, res.done)
+        )
 
         gnorm_sq = tree_vdot(grad, grad)
         safe_scale = jnp.asarray(1.0, dtype=dtype) / (
