@@ -235,24 +235,10 @@
         <h1>Optimizer Results Viewer</h1>
         <div class="controls">
             <input type="search" id="search" placeholder="Filter runs…"/>
-            <select id="filterKind">
-                <option value="">All kinds</option>
-                <option value="optimizer_run">optimizer_run</option>
-                <option value="experiment">experiment</option>
-            </select>
             <select id="filterActivation">
                 <option value="">All activations</option>
             </select>
-            <button id="reload">Reload</button>
             <button id="clearSel">Clear</button>
-        </div>
-        <div class="controls" style="margin-top:6px">
-            <label style="font-size:11px;color:var(--muted)">from
-                <input type="datetime-local" id="filterFrom" style="font-size:11px"/>
-            </label>
-            <label style="font-size:11px;color:var(--muted)">to
-                <input type="datetime-local" id="filterTo" style="font-size:11px"/>
-            </label>
         </div>
     </header>
     <div class="run-list" id="runList"></div>
@@ -333,10 +319,7 @@
         const params = new URLSearchParams();
         const q = $('search').value.trim();
         if (q) params.set('q', q);
-        if ($('filterKind').value) params.set('kind', $('filterKind').value);
         if ($('filterActivation').value) params.set('act', $('filterActivation').value);
-        if ($('filterFrom').value) params.set('from', $('filterFrom').value);
-        if ($('filterTo').value) params.set('to', $('filterTo').value);
         if ($('xaxis').value !== 'iter') params.set('x', $('xaxis').value);
         if (!$('logY').checked) params.set('logy', '0');
         if ($('theme').value !== 'dark') params.set('theme', $('theme').value);
@@ -353,10 +336,7 @@
     function applyUrl() {
         const p = new URLSearchParams(location.search);
         $('search').value = p.get('q') ?? '';
-        $('filterKind').value = p.get('kind') ?? '';
         $('filterActivation').value = p.get('act') ?? '';
-        $('filterFrom').value = p.get('from') ?? '';
-        $('filterTo').value = p.get('to') ?? '';
         $('xaxis').value = p.get('x') ?? 'iter';
         $('logY').checked = p.get('logy') !== '0';
         setTheme(p.get('theme') ?? 'dark');
@@ -381,19 +361,9 @@
     /** Return the filtered series list using all active filters. */
     function filteredSeries() {
         const q = $('search').value.trim().toLowerCase();
-        const kindFilter = $('filterKind').value;
         const actFilter = $('filterActivation').value;
-        const fromT = $('filterFrom').value ? Date.parse($('filterFrom').value) : null;
-        const toT = $('filterTo').value ? Date.parse($('filterTo').value) : null;
         return state.series.filter((s) => {
-            if (kindFilter && s.kind !== kindFilter) return false;
             if (actFilter && s.activation !== actFilter) return false;
-            if (fromT !== null || toT !== null) {
-                const t = s.created ? Date.parse(s.created) : NaN;
-                if (Number.isNaN(t)) return false;
-                if (fromT !== null && t < fromT) return false;
-                if (toT !== null && t > toT) return false;
-            }
             if (!q) return true;
             return (
                 s.runName.toLowerCase().includes(q) ||
@@ -735,7 +705,6 @@
     }
 
     // Wire up controls.
-    $('reload').addEventListener('click', loadManifest);
     $('clearSel').addEventListener('click', () => {
         state.selected.clear();
         renderList();
@@ -762,10 +731,7 @@
         syncUrl();
     }
 
-    $('filterKind').addEventListener('change', onFilterChange);
     $('filterActivation').addEventListener('change', onFilterChange);
-    $('filterFrom').addEventListener('change', onFilterChange);
-    $('filterTo').addEventListener('change', onFilterChange);
     $('xaxis').addEventListener('change', () => {
         renderChart();
         syncUrl();

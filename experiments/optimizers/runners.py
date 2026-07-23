@@ -50,9 +50,41 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
         fwd=int(state.num_evals),
         bwd=int(state.num_evals),
     )
-    t0 = time.perf_counter()
     update = jax.jit(solver.update)
+    # Warmup: trigger JIT compilation of `update` *outside* the timed region
+    # so the (potentially multi-second) trace/compile cost is not attributed
+    # to the first iteration's wall time. We run one real step, block until
+    # it is materialized, then start the clock.
+    params, state = update(params, state)
+    jax.block_until_ready((params, state))
+    history.append(float(state.value))
+    cum_evals = int(state.num_evals)
+    eval_counts.append(cum_evals)
+    fwd_counts.append(cum_evals)
+    bwd_counts.append(cum_evals)
+    t0 = time.perf_counter()
+    times.append(0.0)
+    gnorm = float(state.error)
+    update_milestones(
+        milestones,
+        milestone_hits,
+        history[-1],
+        1,
+        0.0,
+        cum_evals,
+        fwd=cum_evals,
+        bwd=cum_evals,
+    )
+    if iters_to_target is None and converged(history[-1], gnorm, f_target, gtol):
+        iters_to_target = 1
+        time_to_target = 0.0
+    _warm_done = bool(state.done)
     for it in range(maxiter):
+        if it == 0:
+            # First real loop slot already consumed by the warmup step above.
+            if _warm_done or iters_to_target is not None:
+                break
+            continue
         params, state = update(params, state)
         history.append(float(state.value))
         now = time.perf_counter() - t0
@@ -126,8 +158,30 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     time_to_target = None
     milestone_hits = {m: None for m in milestones}
     update_milestones(milestones, milestone_hits, history[-1], 0, 0.0, 0, fwd=0, bwd=0)
+    # Warmup: compile `step` outside the timed region (JIT compile cost must
+    # not be charged to iteration 1's wall time). One real step is taken.
+    params, opt_state, value, gnorm = step(params, opt_state)
+    jax.block_until_ready((params, opt_state, value, gnorm))
+    history.append(float(value))
+    eval_counts.append(1)
+    fwd_counts.append(1)
+    bwd_counts.append(1)
     t0 = time.perf_counter()
+    times.append(0.0)
+    update_milestones(
+        milestones, milestone_hits, history[-1], 1, 0.0, 1, fwd=1, bwd=1
+    )
+    if iters_to_target is None and converged(
+        history[-1], float(gnorm), f_target, gtol
+    ):
+        iters_to_target = 1
+        time_to_target = 0.0
     for it in range(maxiter):
+        if it == 0:
+            # First loop slot consumed by the warmup step above.
+            if iters_to_target is not None:
+                break
+            continue
         params, opt_state, value, gnorm = step(params, opt_state)
         history.append(float(value))
         now = time.perf_counter() - t0
@@ -215,40 +269,85 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
     cum_fwd = 0
     cum_bwd = 0
     cum_evals = 0
-    _ls_unavailable = False
     iters_to_target = None
     time_to_target = None
+    # Adaptive line-search-step estimation. When the optax state exposes a
+    # `num_linesearch_steps` field we read it directly and fold it into a
+    # running average. When it is *unavailable* (private layout changed, or
+    # field absent) we fall back to that running average instead of a fixed
+    # constant, so the eval count adapts to the problem's observed behaviour.
+    _ls_obs_sum = 0.0
+    _ls_obs_count = 0
+    _ls_default = 2.0  # prior mean line-search steps before any observation
+    def _est_ls_steps(opt_state):
+        nonlocal _ls_obs_sum, _ls_obs_count
+        observed = _extract_ls_evals(opt_state)
+        if observed is not None:
+            _ls_obs_sum += max(observed, 0)
+            _ls_obs_count += 1
+            return max(observed, 0)
+        # Adaptive fallback: running average of observed steps, else prior.
+        if _ls_obs_count > 0:
+            return _ls_obs_sum / _ls_obs_count
+        return _ls_default
+
     milestone_hits = {m: None for m in milestones}
     update_milestones(milestones, milestone_hits, history[-1], 0, 0.0, 0, fwd=0, bwd=0)
+    # Warmup: compile `step` outside the timed region.
+    params, opt_state, value, gnorm = step(params, opt_state)
+    jax.block_until_ready((params, opt_state, value, gnorm))
+    history.append(float(value))
+    _ls0 = _est_ls_steps(opt_state)
+    cum_evals += 1 + _ls0
+    cum_fwd += 1 + _ls0
+    cum_bwd += 1
+    eval_counts.append(int(round(cum_evals)))
+    fwd_counts.append(int(round(cum_fwd)))
+    bwd_counts.append(int(round(cum_bwd)))
     t0 = time.perf_counter()
+    times.append(0.0)
+    update_milestones(
+        milestones,
+        milestone_hits,
+        history[-1],
+        1,
+        0.0,
+        int(round(cum_evals)),
+        fwd=int(round(cum_fwd)),
+        bwd=int(round(cum_bwd)),
+    )
+    if iters_to_target is None and converged(
+        history[-1], float(gnorm), f_target, gtol
+    ):
+        iters_to_target = 1
+        time_to_target = 0.0
     for it in range(maxiter):
+        if it == 0:
+            # First loop slot consumed by the warmup step above.
+            if iters_to_target is not None:
+                break
+            continue
         params, opt_state, value, gnorm = step(params, opt_state)
         history.append(float(value))
         now = time.perf_counter() - t0
         times.append(now)
-        ls_steps = None if _ls_unavailable else _extract_ls_evals(opt_state)
-        if ls_steps is None:
-            _ls_unavailable = True
-            cum_evals += 3
-            cum_fwd += 3
-            cum_bwd += 1
-        else:
-            cum_evals += 1 + max(ls_steps, 0)
 
-            cum_fwd += 1 + max(ls_steps, 0)
-            cum_bwd += 1
-        eval_counts.append(cum_evals)
-        fwd_counts.append(cum_fwd)
-        bwd_counts.append(cum_bwd)
+        ls_steps = _est_ls_steps(opt_state)
+        cum_evals += 1 + ls_steps
+        cum_fwd += 1 + ls_steps
+        cum_bwd += 1
+        eval_counts.append(int(round(cum_evals)))
+        fwd_counts.append(int(round(cum_fwd)))
+        bwd_counts.append(int(round(cum_bwd)))
         update_milestones(
             milestones,
             milestone_hits,
             history[-1],
             it + 1,
             now,
-            cum_evals,
-            fwd=cum_fwd,
-            bwd=cum_bwd,
+            int(round(cum_evals)),
+            fwd=int(round(cum_fwd)),
+            bwd=int(round(cum_bwd)),
         )
         if iters_to_target is None and converged(
             history[-1], float(gnorm), f_target, gtol

@@ -86,14 +86,14 @@ def _line_search_axis():
         #     "line_search": "null",
         #     "line_search_options": { },
         # },
-        # "BT": {
-        #     "line_search": "backtracking",
-        #     "line_search_options": {
-        #         "c1": 1e-6,
-        #         "shrink": 0.5,
-        #         "max_iter": 10,
-        #     },
-        # },
+        "BT": {
+            "line_search": "backtracking",
+            "line_search_options": {
+                "c1": 1e-6,
+                "shrink": 0.5,
+                "max_iter": 10,
+            },
+        },
         "AW1": {
             "line_search": "armijo_wolfe",
             "line_search_options": {
@@ -115,36 +115,36 @@ def _line_search_axis():
             "line_search_options": {  },
         },
         # Note: strong_wolfe may be more efficient but lacks some instrumentation and features compared to armijo_wolfe
-        # "SW": {
-        #     "line_search": "strong_wolfe",
-        #     "line_search_options": {
-        #         "init_step": 1.0,
-        #         "c1": 1e-6,
-        #         "c2": 0.7,
-        #         "max_iter": 10,
-        #     },
-        # },
-        # "SPL": {
-        #     "line_search": "spline",
-        #     "line_search_options": {
-        #         "c1": 1e-9,
-        #         "max_iter": 6,
-        #     },
-        # },
-        # "HZ": {
-        #     "line_search": "hager_zhang",
-        #     "line_search_options": {
-        #         "c1": 0.1,
-        #         "max_iter": 10,
-        #     },
-        # },
-        # "Bisect": {
-        #     "line_search": "bisection",
-        #     "line_search_options": {
-        #         "c1": 1e-4,
-        #         "max_iter": 25,
-        #     },
-        # },
+        "SW": {
+            "line_search": "strong_wolfe",
+            "line_search_options": {
+                "init_step": 1.0,
+                "c1": 1e-6,
+                "c2": 0.7,
+                "max_iter": 10,
+            },
+        },
+        "SPL": {
+            "line_search": "spline",
+            "line_search_options": {
+                "c1": 1e-9,
+                "max_iter": 6,
+            },
+        },
+        "HZ": {
+            "line_search": "hager_zhang",
+            "line_search_options": {
+                "c1": 0.1,
+                "max_iter": 10,
+            },
+        },
+        "Bisect": {
+            "line_search": "bisection",
+            "line_search_options": {
+                "c1": 1e-4,
+                "max_iter": 25,
+            },
+        },
     }
 
 
@@ -175,7 +175,7 @@ def _spline_axis():
         "": {},  # quadratic
         #
         # "S2": {"path_strategy": "spline", "spline_max_control_points": "2"},
-        "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
+        # "S4": {"path_strategy": "spline", "spline_max_control_points": "4"},
         # "S8": {"path_strategy": "spline", "spline_max_control_points": "8"},
         # "S32": {"path_strategy": "spline"},
         # "L": {"path_strategy": "linear"},
@@ -257,7 +257,7 @@ def _temperature_axis():
         "": {},
         # "T001": {"line_search_options": {"temperature": 0.01}},
         # "T01": {"line_search_options": {"temperature": 0.1, "cooling": 0.95,}},
-        "T1": {"line_search_options": {"temperature": 1.0}},
+        # "T1": {"line_search_options": {"temperature": 1.0}},
         # "T10": {"line_search_options": {"temperature": 10.0}},
         # "T100": {"line_search_options": {"temperature": 100.0}},
     }

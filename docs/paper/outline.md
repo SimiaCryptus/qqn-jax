@@ -1,15 +1,16 @@
 Results discussion notes
 
-Adam has fastest start - JIT compilation time? L-BFGS and QQN both show an extra 2.6s on the first iteration (need to implement time-from-first-iteration)
-LBFGS implementation only provides iterations - we don't have the eval count (need to implement an adaptive estimation workaround)
-Anomolous "Fix" strategy performance (open question for study)
+* L-BFGS and QQN both show an extra 2.6s on the first iteration due to jax compilation - need to explain and discuss
+* LBFGS implementation only provides iterations - we don't have the eval count (need to implement an adaptive estimation workaround)
+* Anomalous "Fix" strategy performance (open question for study)
 
 
-need to show:
-Reference optimizers vs best-of-breed
-Adam comparisons - Temperature and oracle
-Line search comparison
-Sine & Rolling-Sine case study - L-BFGS shows superios performance, compare and show PSD-region effect 
+Focused Report Tour:
+
+* Reference optimizers vs best-of-breed
+* Adam comparisons - Temperature and oracle
+* Line search comparison
+* Sine & Rolling-Sine case study - L-BFGS shows superios performance, compare and show PSD-region effect 
 
 
 
