@@ -21,11 +21,6 @@ from qqn_jax.oracles import Oracle, OracleInfo
 from qqn_jax.regions.box import BoxRegion
 from qqn_jax.regions.sequence import Sequential
 from qqn_jax.regions.trustregion import TrustRegion
-from qqn_jax.experimental.rolling_window_activation import (
-    make_rolling_window,
-    rolling_sin_diff,
-    rolling_atan2_ramp,
-)
 from qqn_jax.solver import QQN, QQNState
 from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.oracles.anderson import AndersonOracle
@@ -55,9 +50,6 @@ __all__ = [
     "Fallback",
     "Region",
     "RegionInfo",
-    "make_rolling_window",
-    "rolling_sin_diff",
-    "rolling_atan2_ramp",
     "IdentityRegion",
     "BoxRegion",
     "OrthantRegion",

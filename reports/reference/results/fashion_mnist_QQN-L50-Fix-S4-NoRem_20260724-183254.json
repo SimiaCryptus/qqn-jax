@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "optimizer_run",
+  "timestamp": "20260724-183254",
+  "dataset": {
+    "name": "fashion_mnist",
+    "n_train": 30000,
+    "n_test": 2000,
+    "n_classes": 10,
+    "balanced": true,
+    "subset_seed": 0,
+    "synth_dim": 784
+  },
+  "topology": {
+    "hidden_sizes": [
+      16,
+      16,
+      16
+    ],
+    "n_hidden_layers": 3,
+    "n_classes": 10,
+    "activation": "hermite_pulse",
+    "arch": "x->16->16->16->10",
+    "l2": 0.0001
+  },
+  "optimizer": {
+    "name": "QQN-L50-Fix-S4-NoRem",
+    "type": "qqn",
+    "line_search": "fixed",
+    "line_search_options": {},
+    "path_strategy": "spline"
+  },
+  "stop": {
+    "f_target": 0.0001,
+    "gtol": 1e-08,
+    "time_budget": 90.0,
+    "milestones": [
+      1.0,
+      0.5,
+      0.2,
+      0.1,
+      0.05,
+      0.02,
+      0.01
+    ]
+  },
+  "maxiter": 1000000,
+  "seed": 42,
+  "result": {
+    "name": "QQN-L50-Fix-S4-NoRem",
+    "final_loss": NaN,
+    "best_loss": NaN,
+    "iters": 1,
+    "train_acc": 0.10493333637714386,
+    "test_acc": 0.10450000315904617,
+    "wall": 0.00042910499905701727,
+    "ms_per_iter": 0.42910499905701727,
+    "traj_auc": NaN,
+    "iters_to_target": null,
+    "time_to_target": null,
+    "evals_to_target": null,
+    "evals_per_iter": -1.0,
+    "reached": false,
+    "history": [
+      NaN,
+      NaN
+    ],
+    "times": [
+      0.0,
+      0.0
+    ],
+    "eval_counts": [
+      1,
+      5
+    ],
+    "fwd_counts": [
+      1,
+      5
+    ],
+    "bwd_counts": [
+      1,
+      5
+    ],
+    "milestone_hits": {
+      "1.000000e+00": null,
+      "5.000000e-01": null,
+      "2.000000e-01": null,
+      "1.000000e-01": null,
+      "5.000000e-02": null,
+      "2.000000e-02": null,
+      "1.000000e-02": null
+    },
+    "target_iters": {
+      "2.000000e-01": null,
+      "1.000000e-01": null,
+      "6.000000e-02": null,
+      "4.000000e-02": null,
+      "2.000000e-02": null
+    }
+  }
+}

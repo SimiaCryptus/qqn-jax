@@ -8,5 +8,5 @@ Focused Report Tour:
 Results discussion notes
 
 * L-BFGS and QQN both show an extra 2.6s on the first iteration due to jax compilation - need to explain and discuss
-* LBFGS implementation only provides iterations - we don't have the eval count (need to implement an adaptive estimation workaround)
-* Anomalous "Fix" strategy performance (open question for study)
+* LBFGS implementation only provides iterations - we don't have a good eval count (we plan to implement an adaptive timing-based estimation workaround, but for now just call it out)
+* Anomalous "Fix" strategy performance (open question for study) - this performs suprisingly well, often winning againt other variants
