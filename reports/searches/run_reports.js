@@ -93,6 +93,9 @@ const ACTIVATION_TYPES = [
      'rolling_xlog_share',
      'rolling_harmonic',
      'rolling_softmin',
+     'rolling_sum_over_prod',
+     'rolling_parallel',
+     'rolling_ratio',
     'hermite_wave','hermite_step','hermite_pulse',
     'hermite_valley','hermite_double_wave','hermite_sramp','hermite_ramp'
 ];
@@ -167,8 +170,12 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
         "comparison_act_hermite_sramp",
         "comparison_act_hermite_ramp",
 
-        "comparison_act_rolling_sin",
-        "comparison_act_rolling_atan2",
+        "comparison_act_rolling_sum_over_prod",
+        "comparison_act_rolling_parallel",
+        "comparison_act_rolling_ratio",
+
+        // "comparison_act_rolling_sin",
+        // "comparison_act_rolling_atan2",
         "comparison_act_rolling_euclidean",
         "comparison_act_rolling_tan_ratio",
         "comparison_act_rolling_xlog_share",

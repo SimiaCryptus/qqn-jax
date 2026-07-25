@@ -23,6 +23,7 @@ by the comparison experiments.
 """
 
 import jax.numpy as jnp
+import jax
 
 
 def _sin_diff(x, y):
@@ -100,6 +101,38 @@ def _ratio(x, y):
     and asymmetric (order-dependent), giving a scale-relative coupling.
     """
     return x / (y + jnp.where(y >= 0, 1e-3, -1e-3))
+def _soft_xor(x, y):
+    """Symmetric 2-input base activation: smooth XOR of two "soft bits".
+    Squashes a unit and its (circular) right-neighbour to ``(0, 1)`` via
+    ``sigmoid`` (treating them as fuzzy truth values ``a``/``b``) and combines
+    them with the probabilistic XOR ``a + b - 2*a*b``. Smooth, bounded in
+    ``(0, 1)``, symmetric, and relational (peaks when the two disagree).
+    """
+    a = jax.nn.sigmoid(x)
+    b = jax.nn.sigmoid(y)
+    return a + b - 2.0 * a * b
+def _soft_and(x, y):
+    """Symmetric 2-input base activation: smooth AND of two "soft bits".
+    Squashes a unit and its (circular) right-neighbour to ``(0, 1)`` via
+    ``sigmoid`` and multiplies them (``a * b``), the probabilistic AND. Smooth,
+    bounded in ``(0, 1)``, symmetric; high only when both signals are strongly
+    positive.
+    """
+    a = jax.nn.sigmoid(x)
+    b = jax.nn.sigmoid(y)
+    return a * b
+def _soft_or(x, y):
+    """Symmetric 2-input base activation: smooth OR of two "soft bits".
+    Squashes a unit and its (circular) right-neighbour to ``(0, 1)`` via
+    ``sigmoid`` and combines them with the probabilistic OR ``a + b - a*b``.
+    Smooth, bounded in ``(0, 1)``, symmetric; low only when both signals are
+    strongly negative.
+    """
+    a = jax.nn.sigmoid(x)
+    b = jax.nn.sigmoid(y)
+    return a + b - a * b
+
+
 
 
 
@@ -160,3 +193,6 @@ rolling_softmin = make_rolling_window(_softmin_diff, window=2)
 rolling_sum_over_prod = make_rolling_window(_sum_over_prod, window=2)
 rolling_parallel = make_rolling_window(_parallel, window=2)
 rolling_ratio = make_rolling_window(_ratio, window=2)
+rolling_soft_xor = make_rolling_window(_soft_xor, window=2)
+rolling_soft_and = make_rolling_window(_soft_and, window=2)
+rolling_soft_or = make_rolling_window(_soft_or, window=2)

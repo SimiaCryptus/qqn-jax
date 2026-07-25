@@ -159,6 +159,9 @@ try:
          rolling_sum_over_prod,
          rolling_parallel,
          rolling_ratio,
+         rolling_soft_xor,
+         rolling_soft_and,
+         rolling_soft_or,
     )
 
     _ROLLING_ACTIVATIONS = {
@@ -172,6 +175,9 @@ try:
          "rolling_sum_over_prod": rolling_sum_over_prod,
          "rolling_parallel": rolling_parallel,
          "rolling_ratio": rolling_ratio,
+         "rolling_soft_xor": rolling_soft_xor,
+         "rolling_soft_and": rolling_soft_and,
+         "rolling_soft_or": rolling_soft_or,
     }
 except Exception:
     _ROLLING_ACTIVATIONS = {}
