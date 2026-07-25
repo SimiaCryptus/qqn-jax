@@ -36,6 +36,9 @@ class RunResult:
     eval_counts: Optional[list] = None
     fwd_counts: Optional[list] = None
     bwd_counts: Optional[list] = None
+    param_snapshots: Optional[list] = None
+    test_acc_history: Optional[list] = None
+    train_acc_history: Optional[list] = None
 
     def as_tuple(self):
         """Backward-compat shim: the legacy positional 8-tuple.

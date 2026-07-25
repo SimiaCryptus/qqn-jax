@@ -38,6 +38,7 @@ class ExperimentConfig:
 
     sgd_lr: float = 0.05
     adam_lr: float = 0.01
+    track_accuracy: bool = False
 
     activation_name: object = None
     activation_fn: object = None
@@ -111,4 +112,5 @@ class ExperimentConfig:
             "gtol": self.gtol,
             "time_budget": self.time_budget,
             "milestones": tuple(self.milestones),
+            "snapshot": self.track_accuracy,
         }

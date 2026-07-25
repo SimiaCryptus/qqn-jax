@@ -15,8 +15,8 @@ import jax.numpy as jnp
 from experiments.models.spline_activations import _build_hermite_presets, _cubic_hermite_spline
 from experiments.models.rolling_window_activation import _ROLLING_ACTIVATIONS
 
-__all__ = ["ACTIVATIONS", "resolve_activation", "parse_activation"]
-ACTIVATIONS = {
+__all__ = ["ACTIVATIONS","UNIVARIATE_ACTIVATIONS", "resolve_activation", "parse_activation"]
+UNIVARIATE_ACTIVATIONS = {
     "relu": jax.nn.relu,
     "sigmoid": jax.nn.sigmoid,
     "sine": jnp.sin,
@@ -74,8 +74,7 @@ ACTIVATIONS = {
     "abs": jnp.abs,
     "identity": lambda x: x,
 }
-ACTIVATIONS.update(_ROLLING_ACTIVATIONS)
-ACTIVATIONS.update(
+UNIVARIATE_ACTIVATIONS.update(
     {
         name: (
             lambda x, _xs=xs, _ys=ys, _ms=ms, _p=period: _cubic_hermite_spline(
@@ -85,6 +84,8 @@ ACTIVATIONS.update(
         for name, (xs, ys, ms, period) in _build_hermite_presets().items()
     }
 )
+ACTIVATIONS = dict(UNIVARIATE_ACTIVATIONS)
+ACTIVATIONS.update(_ROLLING_ACTIVATIONS)
 
 
 def resolve_activation(name, *, default="sigmoid"):

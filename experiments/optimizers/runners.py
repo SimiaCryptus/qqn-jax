@@ -26,12 +26,14 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
     gtol = stop.get("gtol")
     time_budget = stop.get("time_budget")
     milestones = stop.get("milestones", ())
+    snapshot = stop.get("snapshot", False)
 
     solver = QQN(loss_fn, maxiter=maxiter, **qqn_kwargs)
     state = solver.init_state(params0)
     params = params0
     history = [float(state.value)]
     times = [0.0]
+    param_snapshots = [params0] if snapshot else None
 
     eval_counts = [int(state.num_evals)]
 
@@ -62,6 +64,8 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
     eval_counts.append(cum_evals)
     fwd_counts.append(cum_evals)
     bwd_counts.append(cum_evals)
+    if snapshot:
+        param_snapshots.append(params)
     t0 = time.perf_counter()
     times.append(0.0)
     gnorm = float(state.error)
@@ -94,6 +98,8 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
         eval_counts.append(cum_evals)
         fwd_counts.append(cum_evals)
         bwd_counts.append(cum_evals)
+        if snapshot:
+            param_snapshots.append(params)
         update_milestones(
             milestones,
             milestone_hits,
@@ -126,6 +132,7 @@ def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
         eval_counts=eval_counts,
         fwd_counts=fwd_counts,
         bwd_counts=bwd_counts,
+        param_snapshots=param_snapshots,
     )
 
 
@@ -136,6 +143,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     gtol = stop.get("gtol")
     time_budget = stop.get("time_budget")
     milestones = stop.get("milestones", ())
+    snapshot = stop.get("snapshot", False)
 
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     opt_state = optimizer.init(params0)
@@ -154,6 +162,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
 
     fwd_counts = [0]
     bwd_counts = [0]
+    param_snapshots = [params0] if snapshot else None
     iters_to_target = None
     time_to_target = None
     milestone_hits = {m: None for m in milestones}
@@ -166,13 +175,15 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     eval_counts.append(1)
     fwd_counts.append(1)
     bwd_counts.append(1)
+    if snapshot:
+        param_snapshots.append(params)
     t0 = time.perf_counter()
     times.append(0.0)
     update_milestones(
         milestones, milestone_hits, history[-1], 1, 0.0, 1, fwd=1, bwd=1
     )
     if iters_to_target is None and converged(
-        history[-1], float(gnorm), f_target, gtol
+            history[-1], float(gnorm), f_target, gtol
     ):
         iters_to_target = 1
         time_to_target = 0.0
@@ -190,6 +201,8 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         eval_counts.append(cum_evals)
         fwd_counts.append(cum_evals)
         bwd_counts.append(cum_evals)
+        if snapshot:
+            param_snapshots.append(params)
         update_milestones(
             milestones,
             milestone_hits,
@@ -201,7 +214,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
             bwd=cum_evals,
         )
         if iters_to_target is None and converged(
-            history[-1], float(gnorm), f_target, gtol
+                history[-1], float(gnorm), f_target, gtol
         ):
             iters_to_target = it + 1
             time_to_target = now
@@ -222,6 +235,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         eval_counts=eval_counts,
         fwd_counts=fwd_counts,
         bwd_counts=bwd_counts,
+        param_snapshots=param_snapshots,
     )
 
 
@@ -245,6 +259,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
     gtol = stop.get("gtol")
     time_budget = stop.get("time_budget")
     milestones = stop.get("milestones", ())
+    snapshot = stop.get("snapshot", False)
 
     value_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     optimizer = optax.lbfgs(memory_size=memory_size)
@@ -266,6 +281,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
 
     fwd_counts = [0]
     bwd_counts = [0]
+    param_snapshots = [params0] if snapshot else None
     cum_fwd = 0
     cum_bwd = 0
     cum_evals = 0
@@ -279,6 +295,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
     _ls_obs_sum = 0.0
     _ls_obs_count = 0
     _ls_default = 2.0  # prior mean line-search steps before any observation
+
     def _est_ls_steps(opt_state):
         nonlocal _ls_obs_sum, _ls_obs_count
         observed = _extract_ls_evals(opt_state)
@@ -304,6 +321,8 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
     eval_counts.append(int(round(cum_evals)))
     fwd_counts.append(int(round(cum_fwd)))
     bwd_counts.append(int(round(cum_bwd)))
+    if snapshot:
+        param_snapshots.append(params)
     t0 = time.perf_counter()
     times.append(0.0)
     update_milestones(
@@ -317,7 +336,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
         bwd=int(round(cum_bwd)),
     )
     if iters_to_target is None and converged(
-        history[-1], float(gnorm), f_target, gtol
+            history[-1], float(gnorm), f_target, gtol
     ):
         iters_to_target = 1
         time_to_target = 0.0
@@ -339,6 +358,8 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
         eval_counts.append(int(round(cum_evals)))
         fwd_counts.append(int(round(cum_fwd)))
         bwd_counts.append(int(round(cum_bwd)))
+        if snapshot:
+            param_snapshots.append(params)
         update_milestones(
             milestones,
             milestone_hits,
@@ -350,7 +371,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
             bwd=int(round(cum_bwd)),
         )
         if iters_to_target is None and converged(
-            history[-1], float(gnorm), f_target, gtol
+                history[-1], float(gnorm), f_target, gtol
         ):
             iters_to_target = it + 1
             time_to_target = now
@@ -368,4 +389,5 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
         time_to_target=time_to_target,
         milestone_hits=milestone_hits,
         evals_to_target=evals_to_target,
+        param_snapshots=param_snapshots,
     )

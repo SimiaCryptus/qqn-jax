@@ -172,7 +172,7 @@ def plot_base_3d(
 
 
 def plot_all_rolling_bases(
-    outdir="rolling_activation_plots", *, span=6.0, num=400,
+    outdir="../../reports/activation_plots/rolling", *, span=6.0, num=400,
     slices=(-3.0, 0.0, 3.0), vmin=None, vmax=None,
 ):
     """Plot every registered rolling-window base function.
@@ -207,8 +207,8 @@ def _main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--outdir",
-        default="rolling_activation_plots",
-        help="Directory to write PNGs into (default: rolling_activation_plots).",
+        default="../../reports/activation_plots/rolling",
+        help="Directory to write PNGs into (default: ../../reports/activation_plots/rolling).",
     )
     parser.add_argument(
         "--span", type=float, default=6.0,

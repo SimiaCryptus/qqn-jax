@@ -21,7 +21,7 @@ import matplotlib
 matplotlib.use("Agg")  # headless-safe backend
 import matplotlib.pyplot as plt
 
-from experiments.models.activations import ACTIVATIONS
+from experiments.models.activations import ACTIVATIONS, UNIVARIATE_ACTIVATIONS
 
 
 def _sanitize(name):
@@ -79,7 +79,7 @@ def plot_activation(name, fn, outdir, *, xmin=-6.0, xmax=6.0, num=1000):
     return path
 
 
-def plot_all_activations(outdir="activation_plots", *, xmin=-6.0, xmax=6.0, num=1000):
+def plot_all_activations(outdir="../../reports/activation_plots", *, xmin=-6.0, xmax=6.0, num=1000):
     """Plot every activation in the registry, one PNG per function.
 
     Args:
@@ -92,7 +92,7 @@ def plot_all_activations(outdir="activation_plots", *, xmin=-6.0, xmax=6.0, num=
         A list of the written PNG paths.
     """
     written = []
-    for name, fn in sorted(ACTIVATIONS.items()):
+    for name, fn in sorted(UNIVARIATE_ACTIVATIONS.items()):
         path = plot_activation(name, fn, outdir, xmin=xmin, xmax=xmax, num=num)
         if path is not None:
             written.append(path)
@@ -105,8 +105,8 @@ def _main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--outdir",
-        default="activation_plots",
-        help="Directory to write PNGs into (default: activation_plots).",
+        default="../../reports/activation_plots",
+        help="Directory to write PNGs into (default: ../../reports/activation_plots).",
     )
     parser.add_argument("--xmin", type=float, default=-6.0, help="Min input value.")
     parser.add_argument("--xmax", type=float, default=6.0, help="Max input value.")

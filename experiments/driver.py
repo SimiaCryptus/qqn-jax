@@ -64,6 +64,21 @@ def enrich(result, model, data, config):
 
     n_iters = max(len(result.history) - 1, 1)
     result.ms_per_iter = (result.wall / n_iters) * 1e3
+    # Per-iteration accuracy history (only if params snapshots were recorded).
+    if result.param_snapshots is not None:
+        train_acc_hist = []
+        test_acc_hist = []
+        for snap in result.param_snapshots:
+            train_acc_hist.append(
+                float(model.accuracy(snap, X_train, y_train))
+            )
+            test_acc_hist.append(
+                float(model.accuracy(snap, X_test, y_test))
+            )
+        result.train_acc_history = train_acc_hist
+        result.test_acc_history = test_acc_hist
+        # Drop the (potentially large) snapshots once accuracies are computed.
+        result.param_snapshots = None
 
     log_hist = np.log10(np.maximum(np.asarray(result.history), 1e-12))
     if len(log_hist) > 1:
