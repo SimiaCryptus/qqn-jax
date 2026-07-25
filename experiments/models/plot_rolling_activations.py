@@ -29,40 +29,8 @@ matplotlib.use("Agg")  # headless-safe backend
 import matplotlib.pyplot as plt
 
 from experiments.models.rolling_window_activation import (
-    _sin_diff,
-    _euclidean,
-    _tan_ratio,
-    _xlog_share,
-    _harmonic,
-    _softmin_diff,
-    _sum_over_prod,
-    _parallel,
-    _ratio,
-    _soft_xor,
-    _soft_and,
-    _soft_or,
-    _atan2_ramp,
+     _ROLLING_BASE_FUNCTIONS as BASE_FUNCTIONS,
 )
-
-
-# Registry of base functions with their window width. Keyed by a display
-# name; each value is ``(base_fn, window)``.
-BASE_FUNCTIONS = {
-    "sin_diff": (_sin_diff, 2),
-    "euclidean": (_euclidean, 2),
-    "tan_ratio": (_tan_ratio, 2),
-    "xlog_share": (_xlog_share, 2),
-    "harmonic": (_harmonic, 2),
-    "softmin": (_softmin_diff, 2),
-    "sum_over_prod": (_sum_over_prod, 2),
-    "parallel": (_parallel, 2),
-    "ratio": (_ratio, 2),
-    "soft_xor": (_soft_xor, 2),
-    "soft_and": (_soft_and, 2),
-    "soft_or": (_soft_or, 2),
-    "atan2_ramp": (_atan2_ramp, 3),
-}
-
 
 def _sanitize(name):
     """Turn a base-function name into a filesystem-safe stem."""

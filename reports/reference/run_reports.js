@@ -99,6 +99,24 @@ const ACTIVATION_TYPES = [
     'rolling_soft_xor',
     'rolling_soft_and',
     'rolling_soft_or',
+    // Symmetric couplings g(x, y) = g(y, x).
+    'rolling_sym_mixed_poly',
+    'rolling_sym_sig_sum',
+    'rolling_sym_sig_prod',
+    'rolling_sym_sig_hybrid',
+    'rolling_sym_interaction_norm',
+    'rolling_sym_param_kernel',
+    // Antisymmetric couplings g(x, y) = -g(y, x).
+    'rolling_anti_diff',
+    'rolling_anti_tanh_diff',
+    'rolling_anti_mixed_poly',
+    'rolling_anti_gated',
+    'rolling_anti_normalized',
+    // Asymmetric couplings (no constraint).
+    'rolling_asym_directional_gate',
+    'rolling_asym_forward_biased',
+    'rolling_asym_source_sink',
+    'rolling_asym_tiny_mlp',
     'hermite_wave','hermite_step','hermite_pulse',
     'hermite_valley','hermite_double_wave','hermite_sramp','hermite_ramp'
 ];
@@ -173,7 +191,6 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
         // "comparison_act_hermite_sramp",
         // "comparison_act_hermite_ramp",
 
-
         // "comparison_act_rolling_sin",
         // "comparison_act_rolling_atan2",
         // "comparison_act_rolling_euclidean",
@@ -182,16 +199,34 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
         // "comparison_act_rolling_harmonic",
         // "comparison_act_rolling_softmin",
 
-        "comparison_act_rolling_sum_over_prod",
-        "comparison_act_rolling_parallel",
-        "comparison_act_rolling_ratio",
-        "comparison_act_rolling_soft_xor",
-        "comparison_act_rolling_soft_and",
-        "comparison_act_rolling_soft_or",
+        // "comparison_act_rolling_soft_xor",
+        // "comparison_act_rolling_sum_over_prod",
+        // "comparison_act_rolling_parallel",
+        // "comparison_act_rolling_ratio",
+        // "comparison_act_rolling_soft_and",
+        // "comparison_act_rolling_soft_or",
+
+        "comparison_act_rolling_sym_mixed_poly",
+        "comparison_act_rolling_sym_sig_sum",
+        "comparison_act_rolling_sym_sig_prod",
+        "comparison_act_rolling_sym_sig_hybrid",
+        "comparison_act_rolling_sym_interaction_norm",
+        "comparison_act_rolling_sym_param_kernel",
+
+        "comparison_act_rolling_anti_diff",
+        "comparison_act_rolling_anti_tanh_diff",
+        "comparison_act_rolling_anti_mixed_poly",
+        "comparison_act_rolling_anti_gated",
+        "comparison_act_rolling_anti_normalized",
+
+        "comparison_act_rolling_asym_directional_gate",
+        "comparison_act_rolling_asym_forward_biased",
+        "comparison_act_rolling_asym_source_sink",
+        "comparison_act_rolling_asym_tiny_mlp",
 
         // "comparison_act_mexican_hat",
         // "comparison_act_morlet",
-        "comparison_act_chirplet",
+        // "comparison_act_chirplet",
         // "comparison_act_sine2",
         // "comparison_act_sine8",
         // "comparison_act_triangle2",
