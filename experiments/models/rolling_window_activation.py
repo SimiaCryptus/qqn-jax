@@ -72,6 +72,36 @@ def _softmin_diff(x, y):
      """
      m = jnp.minimum(x, y)
      return m - jnp.log(jnp.exp(-(x - m)) + jnp.exp(-(y - m)))
+def _sum_over_prod(x, y):
+    """2-input base activation: ``(x + y) / (x * y)``.
+    Equivalent to ``1/x + 1/y`` (the sum of reciprocals). Small signed floors
+    on the denominator keep the value finite near ``x*y = 0``. Symmetric and
+    relational, emphasizing small-magnitude signals via the reciprocal terms.
+    """
+    denom = x * y
+    denom = denom + jnp.where(denom >= 0, 1e-3, -1e-3)
+    return (x + y) / denom
+def _parallel(x, y):
+    """Symmetric 2-input base activation: ``1 / (1/x + 1/y)``.
+    The "parallel resistor" combination of a unit and its (circular)
+    neighbour, equal to ``x*y / (x + y)`` (half the harmonic mean). Small
+    signed floors keep the reciprocals and final division finite. Symmetric
+    and relational.
+    """
+    rx = 1.0 / (x + jnp.where(x >= 0, 1e-3, -1e-3))
+    ry = 1.0 / (y + jnp.where(y >= 0, 1e-3, -1e-3))
+    inv = rx + ry
+    inv = inv + jnp.where(inv >= 0, 1e-3, -1e-3)
+    return 1.0 / inv
+def _ratio(x, y):
+    """2-input base activation: ``x / y``.
+    The raw ratio of a unit to its (circular) right-neighbour. A small signed
+    floor on the denominator keeps the value finite near ``y = 0``. Unbounded
+    and asymmetric (order-dependent), giving a scale-relative coupling.
+    """
+    return x / (y + jnp.where(y >= 0, 1e-3, -1e-3))
+
+
 
 
 
@@ -127,3 +157,6 @@ rolling_tan_ratio = make_rolling_window(_tan_ratio, window=2)
 rolling_xlog_share = make_rolling_window(_xlog_share, window=2)
 rolling_harmonic = make_rolling_window(_harmonic, window=2)
 rolling_softmin = make_rolling_window(_softmin_diff, window=2)
+rolling_sum_over_prod = make_rolling_window(_sum_over_prod, window=2)
+rolling_parallel = make_rolling_window(_parallel, window=2)
+rolling_ratio = make_rolling_window(_ratio, window=2)

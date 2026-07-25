@@ -156,6 +156,9 @@ try:
          rolling_xlog_share,
          rolling_harmonic,
          rolling_softmin,
+         rolling_sum_over_prod,
+         rolling_parallel,
+         rolling_ratio,
     )
 
     _ROLLING_ACTIVATIONS = {
@@ -166,6 +169,9 @@ try:
          "rolling_xlog_share": rolling_xlog_share,
          "rolling_harmonic": rolling_harmonic,
          "rolling_softmin": rolling_softmin,
+         "rolling_sum_over_prod": rolling_sum_over_prod,
+         "rolling_parallel": rolling_parallel,
+         "rolling_ratio": rolling_ratio,
     }
 except Exception:
     _ROLLING_ACTIVATIONS = {}

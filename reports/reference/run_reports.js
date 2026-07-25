@@ -167,6 +167,14 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
         // "comparison_act_hermite_sramp",
         // "comparison_act_hermite_ramp",
 
+        // "comparison_act_rolling_sin",
+        // "comparison_act_rolling_atan2",
+        "comparison_act_rolling_euclidean",
+        "comparison_act_rolling_tan_ratio",
+        "comparison_act_rolling_xlog_share",
+        "comparison_act_rolling_harmonic",
+        "comparison_act_rolling_softmin",
+
         "comparison_act_mexican_hat",
         "comparison_act_morlet",
         "comparison_act_sine2",
@@ -177,13 +185,6 @@ const DEFAULT_VARIANTS = //Object.keys(buildActivationVariants());
         "comparison_act_sawtooth8",
         "comparison_act_chirplet",
 
-        // "comparison_act_rolling_sin",
-        // "comparison_act_rolling_atan2",
-        "comparison_act_rolling_euclidean",
-        "comparison_act_rolling_tan_ratio",
-        "comparison_act_rolling_xlog_share",
-        "comparison_act_rolling_harmonic",
-        "comparison_act_rolling_softmin"
 
         // "sparse_act_relu",
         // "sparse_act_sigmoid",
