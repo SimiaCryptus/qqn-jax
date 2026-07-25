@@ -26,12 +26,14 @@ __all__ = [
 ]
 
 
-def init_params(key, sizes: List[int], activation: Any = "tanh"):
+def init_params(key, sizes: List[int], activation: Any = "tanh", bias_scale=0.0):
     """Initialize MLP parameters with scaled Gaussian weights.
 
     Uses He-style init for ReLU hidden layers and Xavier/Glorot-style init
     otherwise. ``activation`` may be a single name string (applied uniformly)
-    or a per-hidden-layer list of names for mixed-activation networks.
+     or a per-hidden-layer list of names for mixed-activation networks.
+     ``bias_scale`` controls the std of the (Gaussian) bias init; the default
+     of 0.0 keeps the historical zero-bias behaviour.
     """
     params: List[Dict[str, jnp.ndarray]] = []
     keys = jax.random.split(key, len(sizes) - 1)
@@ -46,16 +48,20 @@ def init_params(key, sizes: List[int], activation: Any = "tanh"):
 
     layer_names = hidden_names + ["identity"]
     for li, (k, (n_in, n_out)) in enumerate(zip(keys, zip(sizes[:-1], sizes[1:]))):
-        wk, _bk = jax.random.split(k)
+        wk, bk = jax.random.split(k)
         act_name = layer_names[li] if li < len(layer_names) else "identity"
         if act_name == "relu":
             scale = jnp.sqrt(2.0 / n_in)
         else:
             scale = 1.0 / jnp.sqrt(n_in)
+        if bias_scale > 0.0:
+             b = bias_scale * jax.random.normal(bk, (n_out,))
+        else:
+             b = jnp.zeros((n_out,))
         params.append(
             {
                 "w": scale * jax.random.normal(wk, (n_in, n_out)),
-                "b": jnp.zeros((n_out,)),
+                 "b": b,
             }
         )
     return params

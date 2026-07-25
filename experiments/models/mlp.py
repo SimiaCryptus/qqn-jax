@@ -56,12 +56,16 @@ def partition_sizes(dim, hidden_sizes, n_classes):
     return tuple(int(s) for s in sizes)
 
 
-def init_params(dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid"):
+def init_params(
+        dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid", bias_scale=0.0
+):
     """Flat parameter vector for a multi-layer MLP.
 
     Uses He-style init for ReLU and Xavier/Glorot-style init otherwise, which
     keeps activations well-scaled at init. ``activation`` may be a single name
-    string (applied uniformly) or a list of per-hidden-layer name strings.
+     string (applied uniformly) or a list of per-hidden-layer name strings.
+     ``bias_scale`` controls the std of the (Gaussian) bias init; the default
+     of 0.0 keeps the historical zero-bias behaviour.
     """
     dims = layer_dims(dim, hidden_sizes, n_classes)
     keys = jax.random.split(key, len(dims) - 1)
@@ -81,8 +85,12 @@ def init_params(dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid"):
             scale = jnp.sqrt(2.0 / fan_in)
         else:
             scale = jnp.sqrt(1.0 / fan_in)
-        w = jax.random.normal(k, (fan_in * fan_out,)) * scale
-        b = jnp.zeros((fan_out,))
+        wk, bk = jax.random.split(k)
+        w = jax.random.normal(wk, (fan_in * fan_out,)) * scale
+        if bias_scale > 0.0:
+            b = jax.random.normal(bk, (fan_out,)) * bias_scale
+        else:
+            b = jnp.zeros((fan_out,))
         blocks.append(w)
         blocks.append(b)
     return jnp.concatenate(blocks)
@@ -126,7 +134,7 @@ def make_loss(X, y, dim, hidden_sizes, n_classes, l2=1e-4, activation=jax.nn.sig
         logits = forward(params, X, dim, hidden_sizes, n_classes, activation)
         log_probs = jax.nn.log_softmax(logits, axis=-1)
         ce = -jnp.mean(jnp.sum(Y * log_probs, axis=-1))
-        reg = 0.5 * l2 * jnp.sum(params**2)
+        reg = 0.5 * l2 * jnp.sum(params ** 2)
         return ce + reg
 
     return loss
@@ -147,12 +155,21 @@ class FlatMLP:
     params, and compute accuracy without re-threading the geometry args.
     """
 
-    def __init__(self, dim, hidden_sizes, n_classes, activation_fn, activation_name):
+    def __init__(
+            self,
+            dim,
+            hidden_sizes,
+            n_classes,
+            activation_fn,
+            activation_name,
+            bias_scale=0.0,
+    ):
         self.dim = dim
         self.hidden_sizes = list(hidden_sizes)
         self.n_classes = n_classes
         self.activation_fn = activation_fn
         self.activation_name = activation_name
+        self.bias_scale = bias_scale
 
     @property
     def n_hidden_layers(self):
@@ -170,6 +187,7 @@ class FlatMLP:
             self.n_classes,
             key,
             activation=self.activation_name,
+            bias_scale=self.bias_scale,
         )
 
     def make_loss(self, X, y, l2=1e-4):
