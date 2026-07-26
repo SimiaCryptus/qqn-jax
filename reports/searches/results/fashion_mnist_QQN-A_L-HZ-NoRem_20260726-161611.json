@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "optimizer_run",
+  "timestamp": "20260726-161611",
+  "dataset": {
+    "name": "fashion_mnist",
+    "n_train": 30000,
+    "n_test": 2000,
+    "n_classes": 10,
+    "balanced": true,
+    "subset_seed": 0,
+    "synth_dim": 784
+  },
+  "topology": {
+    "hidden_sizes": [
+      16,
+      16,
+      16
+    ],
+    "n_hidden_layers": 3,
+    "n_classes": 10,
+    "activation": "hermite_ramp",
+    "arch": "x->16->16->16->10",
+    "l2": 0.0001
+  },
+  "optimizer": {
+    "name": "QQN-A+L-HZ-NoRem",
+    "type": "qqn",
+    "line_search": "hager_zhang",
+    "line_search_options": {
+      "c1": 0.1,
+      "max_iter": 10
+    }
+  },
+  "stop": {
+    "f_target": 0.0001,
+    "gtol": 1e-08,
+    "time_budget": 90.0,
+    "milestones": [
+      1.0,
+      0.5,
+      0.2,
+      0.1,
+      0.05,
+      0.02,
+      0.01
+    ],
+    "snapshot": false
+  },
+  "maxiter": 1000000,
+  "seed": 42,
+  "result": {
+    "name": "QQN-A+L-HZ-NoRem",
+    "final_loss": 2.243605613708496,
+    "best_loss": 2.243605613708496,
+    "iters": 3,
+    "train_acc": 0.20573332905769348,
+    "test_acc": 0.2135000079870224,
+    "wall": 3.8956557250003243,
+    "ms_per_iter": 1298.5519083334414,
+    "traj_auc": 0.36866758503157265,
+    "iters_to_target": null,
+    "time_to_target": null,
+    "evals_to_target": null,
+    "evals_per_iter": -1.0,
+    "reached": false,
+    "history": [
+      2.5114071369171143,
+      2.396759271621704,
+      2.243605613708496,
+      2.243605613708496
+    ],
+    "times": [
+      0.0,
+      0.0,
+      3.8747541949996958,
+      3.8950770279998324
+    ],
+    "eval_counts": [
+      1,
+      13,
+      25,
+      37
+    ],
+    "fwd_counts": [
+      1,
+      13,
+      25,
+      37
+    ],
+    "bwd_counts": [
+      1,
+      13,
+      25,
+      37
+    ],
+    "milestone_hits": {
+      "1.000000e+00": null,
+      "5.000000e-01": null,
+      "2.000000e-01": null,
+      "1.000000e-01": null,
+      "5.000000e-02": null,
+      "2.000000e-02": null,
+      "1.000000e-02": null
+    },
+    "target_iters": {
+      "2.000000e-01": null,
+      "1.000000e-01": null,
+      "6.000000e-02": null,
+      "4.000000e-02": null,
+      "2.000000e-02": null
+    }
+  }
+}
