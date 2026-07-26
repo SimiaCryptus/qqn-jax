@@ -253,6 +253,7 @@
         </label>
         <label>X axis:
             <select id="xaxis">
+                <option value="time_rel">wall time − warmup (s)</option>
                 <option value="iter">iteration</option>
                 <option value="time">wall time (s)</option>
                 <option value="evals">eval count</option>
@@ -320,7 +321,7 @@
         const q = $('search').value.trim();
         if (q) params.set('q', q);
         if ($('filterActivation').value) params.set('act', $('filterActivation').value);
-        if ($('xaxis').value !== 'iter') params.set('x', $('xaxis').value);
+        if ($('xaxis').value !== 'time_rel') params.set('x', $('xaxis').value);
         if (!$('logY').checked) params.set('logy', '0');
         if ($('theme').value !== 'dark') params.set('theme', $('theme').value);
         // Persist selection by run name (disambiguated by the active filters).
@@ -337,7 +338,7 @@
         const p = new URLSearchParams(location.search);
         $('search').value = p.get('q') ?? '';
         $('filterActivation').value = p.get('act') ?? '';
-        $('xaxis').value = p.get('x') ?? 'iter';
+        $('xaxis').value = p.get('x') ?? 'time_rel';
         $('logY').checked = p.get('logy') !== '0';
         setTheme(p.get('theme') ?? 'dark');
         return (p.get('sel') ?? '').split('|').filter(Boolean);
@@ -544,7 +545,13 @@
         const times = Array.isArray(run.times) ? run.times : null;
         const evals = Array.isArray(run.eval_counts) ? run.eval_counts : null;
         let x;
-        if (xaxis === 'time' && times) {
+        if (xaxis === 'time_rel' && times) {
+            // Subtract the time at iteration=2 to discount JIT warmup so
+            // curves are aligned on steady-state wall time.
+            const warmupIdx = Math.min(2, times.length - 1);
+            const base = times[warmupIdx] ?? 0;
+            x = times.map((t) => t - base);
+        } else if (xaxis === 'time' && times) {
             x = times;
         } else if (xaxis === 'evals' && evals) {
             x = evals;
@@ -553,6 +560,8 @@
         }
         const n = Math.min(x.length, y.length);
         const pts = [];
+        const warmupBase = (xaxis === 'time_rel' && times)
+            ? (times[Math.min(2, times.length - 1)] ?? 0) : 0;
         for (let i = 0; i < n; i++) {
             const yi = y[i];
             if (yi === null || yi === undefined || Number.isNaN(yi)) continue;
@@ -563,6 +572,7 @@
                 _meta: {
                     iter: i,
                     time: times ? times[i] : undefined,
+                    time_rel: times ? times[i] - warmupBase : undefined,
                     evals: evals ? evals[i] : undefined,
                     loss: yi,
                 },
@@ -592,7 +602,8 @@
             });
         }
 
-        const xTitle = xaxis === 'time' ? 'wall time (s)'
+        const xTitle = xaxis === 'time_rel' ? 'wall time − warmup (s)'
+            : xaxis === 'time' ? 'wall time (s)'
             : xaxis === 'evals' ? 'eval count' : 'iteration';
 
         const config = {
@@ -615,6 +626,7 @@
                                 parts.push(`loss: ${fmt(m.loss ?? c.parsed.y)}`);
                                 if (m.iter !== undefined) parts.push(`iter: ${fmt(m.iter, 0)}`);
                                 if (m.time !== undefined) parts.push(`time: ${fmt(m.time)}s`);
+                                if (m.time_rel !== undefined) parts.push(`time−warmup: ${fmt(m.time_rel)}s`);
                                 if (m.evals !== undefined) parts.push(`evals: ${fmt(m.evals, 0)}`);
                                 return parts;
                             },
