@@ -20,6 +20,13 @@ from qqn_jax.regions.no_decrease import NoDecreaseRegion
 from qqn_jax.regions.trustregion import TrustRegion
 from qqn_jax.regions.psd_secant import PSDSecantRegion, PSDSecantState
 from qqn_jax.regions.sequence import Sequential
+from qqn_jax.regions.entropy_gated import (
+     EntropyGatedRegion,
+     EntropyGatedState,
+     gate_statistics,
+     make_gated_loss,
+     entropy_gate_report,
+)
 
 __all__ = [
     "Region",
@@ -36,4 +43,9 @@ __all__ = [
     "PSDSecantRegion",
     "PSDSecantState",
     "Sequential",
+     "EntropyGatedRegion",
+     "EntropyGatedState",
+     "gate_statistics",
+     "make_gated_loss",
+     "entropy_gate_report",
 ]

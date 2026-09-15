@@ -30,6 +30,7 @@ from qqn_jax.regions.strategy import (
     IdentityRegion,
 )
 from qqn_jax.regions.orthant import OrthantRegion
+from qqn_jax.regions.entropy_gated import EntropyGatedRegion, make_gated_loss
 
 __version__ = "0.1.0"
 
@@ -55,5 +56,7 @@ __all__ = [
     "OrthantRegion",
     "TrustRegion",
     "Sequential",
+     "EntropyGatedRegion",
+     "make_gated_loss",
     "__version__",
 ]
