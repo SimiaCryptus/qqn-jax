@@ -34,8 +34,9 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import LBFGSOracle, AdamOracle, MomentumOracle, PathHistoryMomentumOracle, Fallback
-from qqn_jax.regions import PSDSecantRegion
+from qqn_jax import (
+    AdamOracle,
+)
 
 ENABLED = [
     "QQN",
@@ -69,7 +70,7 @@ def _line_search_axis():
         },
         "Fix": {
             "line_search": "fixed",
-            "line_search_options": {  },
+            "line_search_options": {},
         },
     }
 
@@ -182,7 +183,12 @@ def _temperature_axis():
     return {
         "": {},
         # "T001": {"line_search_options": {"temperature": 0.01}},
-        "T01": {"line_search_options": {"temperature": 0.1, "cooling": 0.95,}},
+        "T01": {
+            "line_search_options": {
+                "temperature": 0.1,
+                "cooling": 0.95,
+            }
+        },
         "T1": {"line_search_options": {"temperature": 1.0}},
         "T10": {"line_search_options": {"temperature": 10.0}},
         # "T100": {"line_search_options": {"temperature": 100.0}},

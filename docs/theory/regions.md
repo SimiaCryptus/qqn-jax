@@ -80,8 +80,9 @@ instead evaluates at the **projected candidate**:
 
 ```python
 def projected_point(region, state, params, t):
-    candidate = tree_add(params, path_d(params, t))   # x + d(t)
+    candidate = tree_add(params, path_d(params, t))  # x + d(t)
     return region.project(params, candidate, state)
+
 
 # effective update returned to optax.apply_updates:
 updates = tree_sub(projected_point(...), params)
@@ -216,8 +217,8 @@ while fine-tuning on a specialized one.
 ```python
 qqn(
     history_size=10,
-     line_search="armijo",        # default; see results.md
-    region=None,                 # Region | None
+    line_search="armijo",  # default; see results.md
+    region=None,  # Region | None
 )
 
 QQN(
@@ -225,9 +226,9 @@ QQN(
     maxiter=100,
     tol=1e-5,
     history_size=10,
-     line_search="armijo",        # default; see results.md
+    line_search="armijo",  # default; see results.md
     has_aux=False,
-    region=None,                 # Region | None
+    region=None,  # Region | None
 )
 ```
 
@@ -235,14 +236,18 @@ Convenience constructors:
 
 ```python
 from qqn_jax.regions import (
-    TrustRegion, BoxRegion, Sequential,
+    TrustRegion,
+    BoxRegion,
+    Sequential,
 )
 from qqn_jax import OrthantRegion
 
-region = Sequential([
-    BoxRegion(lo=0.0, hi=1.0),
-    TrustRegion(radius=0.5),
-])
+region = Sequential(
+    [
+        BoxRegion(lo=0.0, hi=1.0),
+        TrustRegion(radius=0.5),
+    ]
+)
 
 solver = QQN(fun, region=region)
 ```

@@ -5,6 +5,20 @@ exposes the ``Region`` protocol along with the concrete region
 implementations and the composition helper ``Sequential``.
 """
 
+from qqn_jax.regions.box import BoxRegion
+from qqn_jax.regions.entropy_gated import (
+    EntropyGatedRegion,
+    EntropyGatedState,
+    entropy_gate_report,
+    gate_statistics,
+    make_gated_loss,
+)
+from qqn_jax.regions.identity import IdentityRegion
+from qqn_jax.regions.no_decrease import NoDecreaseRegion
+from qqn_jax.regions.orthant import OrthantRegion
+from qqn_jax.regions.psd_secant import PSDSecantRegion, PSDSecantState
+from qqn_jax.regions.quantization import QuantizationRegion
+from qqn_jax.regions.sequence import Sequential
 from qqn_jax.regions.strategy import (
     Region,
     RegionInfo,
@@ -12,40 +26,26 @@ from qqn_jax.regions.strategy import (
     TrustRegionState,
     resolve_region,
 )
-from qqn_jax.regions.identity import IdentityRegion
-from qqn_jax.regions.box import BoxRegion
-from qqn_jax.regions.orthant import OrthantRegion
-from qqn_jax.regions.quantization import QuantizationRegion
-from qqn_jax.regions.no_decrease import NoDecreaseRegion
 from qqn_jax.regions.trustregion import TrustRegion
-from qqn_jax.regions.psd_secant import PSDSecantRegion, PSDSecantState
-from qqn_jax.regions.sequence import Sequential
-from qqn_jax.regions.entropy_gated import (
-     EntropyGatedRegion,
-     EntropyGatedState,
-     gate_statistics,
-     make_gated_loss,
-     entropy_gate_report,
-)
 
 __all__ = [
+    "BoxRegion",
+    "EntropyGatedRegion",
+    "EntropyGatedState",
+    "IdentityRegion",
+    "NoDecreaseRegion",
+    "OrthantRegion",
+    "PSDSecantRegion",
+    "PSDSecantState",
+    "QuantizationRegion",
     "Region",
     "RegionInfo",
     "RegionState",
-    "TrustRegionState",
-    "resolve_region",
-    "IdentityRegion",
-    "BoxRegion",
-    "OrthantRegion",
-    "QuantizationRegion",
-    "NoDecreaseRegion",
-    "TrustRegion",
-    "PSDSecantRegion",
-    "PSDSecantState",
     "Sequential",
-     "EntropyGatedRegion",
-     "EntropyGatedState",
-     "gate_statistics",
-     "make_gated_loss",
-     "entropy_gate_report",
+    "TrustRegion",
+    "TrustRegionState",
+    "entropy_gate_report",
+    "gate_statistics",
+    "make_gated_loss",
+    "resolve_region",
 ]

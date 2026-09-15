@@ -1,15 +1,15 @@
 """Optimizer package: canonical runners, profiles, and eval-counting."""
 
+from experiments.optimizers import profiles
 from experiments.optimizers.runners import (
-    run_qqn,
     run_optax,
     run_optax_lbfgs,
+    run_qqn,
 )
-from experiments.optimizers import profiles
 
 __all__ = [
-    "run_qqn",
+    "profiles",
     "run_optax",
     "run_optax_lbfgs",
-    "profiles",
+    "run_qqn",
 ]

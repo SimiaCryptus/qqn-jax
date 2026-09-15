@@ -80,6 +80,7 @@ compiled program and works under `jit`, `vmap`, and `pmap`:
 ```python
 import jax
 
+
 @jax.jit
 def f(x):
     y = x * 2
@@ -109,6 +110,7 @@ defers printing until the value is actually computed at runtime:
 ```python
 import jax
 
+
 @jax.jit
 def f(x):
     jax.debug.print("x = {x}", x=x)
@@ -134,14 +136,23 @@ functions:
    from qqn_jax.line_search.util import _record_probe, _empty_probes
    import jax.numpy as jnp
 
-   probe_params, probe_grads, probe_valid, probe_values, probe_alphas = \
-       _empty_probes(jnp.zeros(4), max_probes=8)
+   probe_params, probe_grads, probe_valid, probe_values, probe_alphas = _empty_probes(
+       jnp.zeros(4), max_probes=8
+   )
 
    breakpoint()
    out = _record_probe(
-       probe_params, probe_grads, probe_valid, probe_values, probe_alphas,
-       slot=jnp.array(2), p=jnp.ones(4), g=jnp.ones(4),
-       v=jnp.array(1.0), a=jnp.array(0.5), max_probes=8,
+       probe_params,
+       probe_grads,
+       probe_valid,
+       probe_values,
+       probe_alphas,
+       slot=jnp.array(2),
+       p=jnp.ones(4),
+       g=jnp.ones(4),
+       v=jnp.array(1.0),
+       a=jnp.array(0.5),
+       max_probes=8,
    )
    ```
 

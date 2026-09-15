@@ -521,13 +521,13 @@ def spline_refine(
 __all__ = [
     "SPLINE_PATH",
     "SplineState",
+    "hermite_basis",
+    "propose_from_points",
+    "propose_step",
+    "segment_candidates",
+    "segment_eval",
     "spline_init",
     "spline_observe",
     "spline_propose",
-    "hermite_basis",
-    "segment_eval",
-    "segment_candidates",
-    "propose_from_points",
-    "propose_step",
     "spline_refine",
 ]

@@ -21,16 +21,16 @@ import argparse
 import os
 
 import jax.numpy as jnp
-import numpy as np
-
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")  # headless-safe backend
 import matplotlib.pyplot as plt
 
 from experiments.models.rolling_window_activation import (
-     _ROLLING_BASE_FUNCTIONS as BASE_FUNCTIONS,
+    _ROLLING_BASE_FUNCTIONS as BASE_FUNCTIONS,
 )
+
 
 def _sanitize(name):
     """Turn a base-function name into a filesystem-safe stem."""
@@ -95,8 +95,14 @@ def plot_base_2d(name, fn, outdir, *, span=6.0, num=400, vmin=None, vmax=None):
         vmax=hi,
     )
     # The y = x diagonal is the "flat signal" locus (unit == its neighbour).
-    ax.plot([-span, span], [-span, span], color="white", linewidth=0.8,
-            alpha=0.6, linestyle="--")
+    ax.plot(
+        [-span, span],
+        [-span, span],
+        color="white",
+        linewidth=0.8,
+        alpha=0.6,
+        linestyle="--",
+    )
     ax.set_title(f"{name}(x, y)")
     ax.set_xlabel("x  (h_i)")
     ax.set_ylabel("y  (h_{i+1})")
@@ -111,8 +117,15 @@ def plot_base_2d(name, fn, outdir, *, span=6.0, num=400, vmin=None, vmax=None):
 
 
 def plot_base_3d(
-    name, fn, outdir, *, span=6.0, num=300, slices=(-3.0, 0.0, 3.0),
-    vmin=None, vmax=None,
+    name,
+    fn,
+    outdir,
+    *,
+    span=6.0,
+    num=300,
+    slices=(-3.0, 0.0, 3.0),
+    vmin=None,
+    vmax=None,
 ):
     """Render a 3-input base as a row of ``(a, c)`` heatmaps per ``b`` slice.
 
@@ -172,8 +185,13 @@ def plot_base_3d(
 
 
 def plot_all_rolling_bases(
-    outdir="../../reports/activation_plots/rolling", *, span=6.0, num=400,
-    slices=(-3.0, 0.0, 3.0), vmin=None, vmax=None,
+    outdir="../../reports/activation_plots/rolling",
+    *,
+    span=6.0,
+    num=400,
+    slices=(-3.0, 0.0, 3.0),
+    vmin=None,
+    vmax=None,
 ):
     """Plot every registered rolling-window base function.
 
@@ -190,8 +208,14 @@ def plot_all_rolling_bases(
             )
         elif window == 3:
             path = plot_base_3d(
-                name, fn, outdir, span=span, num=min(num, 300),
-                slices=slices, vmin=vmin, vmax=vmax,
+                name,
+                fn,
+                outdir,
+                span=span,
+                num=min(num, 300),
+                slices=slices,
+                vmin=vmin,
+                vmax=vmax,
             )
         else:
             print(f"[plot] Skipping {name!r}: unsupported window={window}.")
@@ -211,22 +235,35 @@ def _main():
         help="Directory to write PNGs into (default: ../../reports/activation_plots/rolling).",
     )
     parser.add_argument(
-        "--span", type=float, default=6.0,
+        "--span",
+        type=float,
+        default=6.0,
         help="Inputs sampled on [-span, span] per axis (default: 6.0).",
     )
     parser.add_argument(
-        "--num", type=int, default=400,
+        "--num",
+        type=int,
+        default=400,
         help="Grid resolution per axis (default: 400).",
     )
     parser.add_argument(
-        "--slices", type=float, nargs="+", default=[-3.0, 0.0, 3.0],
+        "--slices",
+        type=float,
+        nargs="+",
+        default=[-3.0, 0.0, 3.0],
         help="Fixed middle-argument values for 3-input bases.",
     )
     parser.add_argument(
-        "--vmin", type=float, default=None, help="Colour-scale minimum.",
+        "--vmin",
+        type=float,
+        default=None,
+        help="Colour-scale minimum.",
     )
     parser.add_argument(
-        "--vmax", type=float, default=None, help="Colour-scale maximum.",
+        "--vmax",
+        type=float,
+        default=None,
+        help="Colour-scale maximum.",
     )
     args = parser.parse_args()
     plot_all_rolling_bases(

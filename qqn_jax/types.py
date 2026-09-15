@@ -18,12 +18,12 @@ ObjectiveFn = Callable[..., Scalar]
 ValueAndGradFn = Callable[..., Tuple[Value, Grad]]
 
 __all__ = [
-    "Params",
-    "Grad",
-    "Direction",
-    "Value",
-    "ObjectiveFn",
-    "ValueAndGradFn",
     "Any",
+    "Direction",
+    "Grad",
+    "ObjectiveFn",
+    "Params",
+    "Value",
+    "ValueAndGradFn",
     "chex",
 ]

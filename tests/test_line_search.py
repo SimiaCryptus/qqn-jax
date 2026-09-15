@@ -13,21 +13,21 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qqn_jax.line_search.util import (
-    _metropolis_accept,
-    _empty_probes,
-    _record_probe,
-)
-from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.line_search import (
-    backtracking_search,
+    LINE_SEARCHES,
     armijo_wolfe_search,
+    backtracking_search,
     bisection_search,
     fixed_step_search,
+    hager_zhang_search,
     null_search,
     strong_wolfe_search,
-    hager_zhang_search,
-    LINE_SEARCHES,
+)
+from qqn_jax.line_search.result import LineSearchResult
+from qqn_jax.line_search.util import (
+    _empty_probes,
+    _metropolis_accept,
+    _record_probe,
 )
 
 

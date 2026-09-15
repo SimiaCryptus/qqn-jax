@@ -1,8 +1,8 @@
 import jax
 from jax import numpy as jnp
 
-from qqn_jax.regions.strategy import Region
 from qqn_jax.regions.identity import _identity_init, _identity_update
+from qqn_jax.regions.strategy import Region
 
 
 def BoxRegion(lo=None, hi=None) -> Region:

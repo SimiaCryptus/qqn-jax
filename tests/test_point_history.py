@@ -6,10 +6,10 @@ import pytest
 
 from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.oracles.point_history import (
-    publish,
-    secant_view,
     PublishedPoints,
     SecantStoreView,
+    publish,
+    secant_view,
 )
 
 

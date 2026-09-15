@@ -43,9 +43,7 @@ The core logic lives in the `project` function:
 
 ```python
 def project(params, candidate, state):
-    return jax.tree_util.tree_map(
-        lambda c: jnp.clip(c, lo_val, hi_val), candidate
-    )
+    return jax.tree_util.tree_map(lambda c: jnp.clip(c, lo_val, hi_val), candidate)
 ```
 
 ### Steps

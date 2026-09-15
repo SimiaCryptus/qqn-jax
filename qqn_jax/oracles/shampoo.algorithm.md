@@ -30,8 +30,8 @@ The oracle exposes the standard `Oracle` interface used throughout
 
 ```python
 class ShampooState(NamedTuple):
-    L: jnp.ndarray   # left preconditioner statistics, shape (n, n)
-    R: jnp.ndarray   # right preconditioner statistics, shape (1, 1)
+    L: jnp.ndarray  # left preconditioner statistics, shape (n, n)
+    R: jnp.ndarray  # right preconditioner statistics, shape (1, 1)
     step: jnp.ndarray  # int32 step counter
 ```
 
@@ -160,9 +160,9 @@ progress flowing between expensive refreshes.
 
 ```python
 oracle = ShampooOracle(block_size=128, update_freq=20, epsilon=1e-6)
-state  = oracle.init(params)
+state = oracle.init(params)
 d, state = oracle.direction(params, grad, state)
-state  = oracle.update(state, info)
+state = oracle.update(state, info)
 ```
 
 The returned direction `d` is a descent direction intended to be fed

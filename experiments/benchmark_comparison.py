@@ -24,14 +24,12 @@ Run with:  python examples/fashion_mnist_mlp_comparison.py
 
 import os
 
-
 os.environ.setdefault("XLA_FLAGS", "--xla_gpu_autotune_level=0")
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
 
-from qqn_jax.profiling import profile_session, device_memory_report
-
 from experiments.config import ExperimentConfig
 from experiments.driver import run_experiment
+from qqn_jax.profiling import device_memory_report, profile_session
 
 
 def main():

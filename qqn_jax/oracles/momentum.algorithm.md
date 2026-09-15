@@ -95,7 +95,7 @@ Both paths return a fresh `MomentumState`.
 
 ```python
 class MomentumState(NamedTuple):
-    velocity: jnp.ndarray   # EMA of realized steps Δx, matching params structure
+    velocity: jnp.ndarray  # EMA of realized steps Δx, matching params structure
 ```
 
 ## Parameters

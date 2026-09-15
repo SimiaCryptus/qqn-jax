@@ -2,8 +2,8 @@
 
 import pytest
 
-from qqn_jax.oracles.strategy import resolve_oracle
 from qqn_jax.oracles.oracle import Oracle
+from qqn_jax.oracles.strategy import resolve_oracle
 
 
 class TestResolveOracle:

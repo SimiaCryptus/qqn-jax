@@ -34,20 +34,23 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import LBFGSOracle, AdamOracle, MomentumOracle, PathHistoryMomentumOracle, Fallback
-from qqn_jax.regions import PSDSecantRegion
+from qqn_jax import (
+    AdamOracle,
+    Fallback,
+    LBFGSOracle,
+)
 
-ENABLED = [
-    "QQN",
-    "Adam",
-    "L-BFGS"
-]
+ENABLED = ["QQN", "Adam", "L-BFGS"]
 
 
 def _oracle_axis():
     """Oracle axis: token -> ``run_qqn`` kwargs selecting the oracle."""
     return {
-        "A+L": {"oracle": Fallback([LBFGSOracle(history_size=50), AdamOracle(learning_rate=1e-3)])},
+        "A+L": {
+            "oracle": Fallback(
+                [LBFGSOracle(history_size=50), AdamOracle(learning_rate=1e-3)]
+            )
+        },
         "L50": {"oracle": LBFGSOracle(history_size=50)},
     }
 
@@ -64,7 +67,7 @@ def _line_search_axis():
         },
         "Fix": {
             "line_search": "fixed",
-            "line_search_options": {  },
+            "line_search_options": {},
         },
     }
 

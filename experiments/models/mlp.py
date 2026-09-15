@@ -16,14 +16,14 @@ import numpy as np
 
 __all__ = [
     "FlatMLP",
+    "accuracy",
+    "forward",
+    "init_params",
     "layer_dims",
+    "make_loss",
     "param_layout",
     "partition_sizes",
-    "init_params",
     "unpack",
-    "forward",
-    "make_loss",
-    "accuracy",
 ]
 
 
@@ -57,7 +57,7 @@ def partition_sizes(dim, hidden_sizes, n_classes):
 
 
 def init_params(
-        dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid", bias_scale=0.0
+    dim, hidden_sizes, n_classes, key, activation: Any = "sigmoid", bias_scale=0.0
 ):
     """Flat parameter vector for a multi-layer MLP.
 
@@ -134,7 +134,7 @@ def make_loss(X, y, dim, hidden_sizes, n_classes, l2=1e-4, activation=jax.nn.sig
         logits = forward(params, X, dim, hidden_sizes, n_classes, activation)
         log_probs = jax.nn.log_softmax(logits, axis=-1)
         ce = -jnp.mean(jnp.sum(Y * log_probs, axis=-1))
-        reg = 0.5 * l2 * jnp.sum(params ** 2)
+        reg = 0.5 * l2 * jnp.sum(params**2)
         return ce + reg
 
     return loss
@@ -156,13 +156,13 @@ class FlatMLP:
     """
 
     def __init__(
-            self,
-            dim,
-            hidden_sizes,
-            n_classes,
-            activation_fn,
-            activation_name,
-            bias_scale=0.0,
+        self,
+        dim,
+        hidden_sizes,
+        n_classes,
+        activation_fn,
+        activation_name,
+        bias_scale=0.0,
     ):
         self.dim = dim
         self.hidden_sizes = list(hidden_sizes)

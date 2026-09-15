@@ -11,12 +11,11 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from qqn_jax import QQN
-
 from experiments.metrics.milestones import converged, update_milestones
 from experiments.metrics.result import RunResult
+from qqn_jax import QQN
 
-__all__ = ["run_qqn", "run_optax", "run_optax_lbfgs"]
+__all__ = ["run_optax", "run_optax_lbfgs", "run_qqn"]
 
 
 def run_qqn(loss_fn, params0, maxiter, stop=None, **qqn_kwargs):
@@ -179,12 +178,8 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         param_snapshots.append(params)
     t0 = time.perf_counter()
     times.append(0.0)
-    update_milestones(
-        milestones, milestone_hits, history[-1], 1, 0.0, 1, fwd=1, bwd=1
-    )
-    if iters_to_target is None and converged(
-            history[-1], float(gnorm), f_target, gtol
-    ):
+    update_milestones(milestones, milestone_hits, history[-1], 1, 0.0, 1, fwd=1, bwd=1)
+    if iters_to_target is None and converged(history[-1], float(gnorm), f_target, gtol):
         iters_to_target = 1
         time_to_target = 0.0
     for it in range(maxiter):
@@ -214,7 +209,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
             bwd=cum_evals,
         )
         if iters_to_target is None and converged(
-                history[-1], float(gnorm), f_target, gtol
+            history[-1], float(gnorm), f_target, gtol
         ):
             iters_to_target = it + 1
             time_to_target = now
@@ -335,9 +330,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
         fwd=int(round(cum_fwd)),
         bwd=int(round(cum_bwd)),
     )
-    if iters_to_target is None and converged(
-            history[-1], float(gnorm), f_target, gtol
-    ):
+    if iters_to_target is None and converged(history[-1], float(gnorm), f_target, gtol):
         iters_to_target = 1
         time_to_target = 0.0
     for it in range(maxiter):
@@ -371,7 +364,7 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
             bwd=int(round(cum_bwd)),
         )
         if iters_to_target is None and converged(
-                history[-1], float(gnorm), f_target, gtol
+            history[-1], float(gnorm), f_target, gtol
         ):
             iters_to_target = it + 1
             time_to_target = now

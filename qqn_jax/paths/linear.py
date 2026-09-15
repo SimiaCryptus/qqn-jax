@@ -20,9 +20,9 @@ sampling interior points of the chord (value-only) and keeping the best.
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.utils import tree_scale
 from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.paths.base import PathStrategy
+from qqn_jax.utils import tree_scale
 
 
 def _linear_offset(t, grad_dir, direction):

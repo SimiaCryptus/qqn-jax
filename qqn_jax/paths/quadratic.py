@@ -50,4 +50,4 @@ QUADRATIC_PATH = PathStrategy(
     offset=_quadratic_path, velocity=quadratic_path_derivative
 )
 
-__all__ = ["quadratic_path_derivative", "QUADRATIC_PATH"]
+__all__ = ["QUADRATIC_PATH", "quadratic_path_derivative"]

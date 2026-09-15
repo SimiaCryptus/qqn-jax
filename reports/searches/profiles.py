@@ -34,14 +34,13 @@ import optax
 
 __all__ = ["ENABLED", "build_runners"]
 
-from qqn_jax import LBFGSOracle, AdamOracle, MomentumOracle, PathHistoryMomentumOracle, Fallback
-from qqn_jax.regions import PSDSecantRegion
+from qqn_jax import (
+    AdamOracle,
+    Fallback,
+    LBFGSOracle,
+)
 
-ENABLED = [
-    "QQN",
-    "Adam",
-    "L-BFGS"
-]
+ENABLED = ["QQN", "Adam", "L-BFGS"]
 
 
 def _oracle_axis():
@@ -53,7 +52,11 @@ def _oracle_axis():
         # "Adam(-1)": {"oracle": AdamOracle(learning_rate=1e-2)},
         # "Adam(-2)": {"oracle": AdamOracle(learning_rate=1e-2)},
         # "Adam(-3)": {"oracle": AdamOracle(learning_rate=1e-3)},
-        "A+L": {"oracle": Fallback([LBFGSOracle(history_size=50), AdamOracle(learning_rate=1e-3)])},
+        "A+L": {
+            "oracle": Fallback(
+                [LBFGSOracle(history_size=50), AdamOracle(learning_rate=1e-3)]
+            )
+        },
         # "Adam(-4)": {"oracle": AdamOracle(learning_rate=1e-4)},
         # "Sec": {"oracle": SecantOracle()}, # Basically just a history of 1
         # "And": {"oracle": AndersonOracle(window=50)},
@@ -112,7 +115,7 @@ def _line_search_axis():
         },
         "Fix": {
             "line_search": "fixed",
-            "line_search_options": {  },
+            "line_search_options": {},
         },
         # Note: strong_wolfe may be more efficient but lacks some instrumentation and features compared to armijo_wolfe
         "SW": {

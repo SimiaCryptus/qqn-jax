@@ -211,8 +211,8 @@ def device_memory_report():
 
 
 __all__ = [
-    "profile_session",
-    "profile_region",
-    "scalene_active",
     "device_memory_report",
+    "profile_region",
+    "profile_session",
+    "scalene_active",
 ]

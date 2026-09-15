@@ -14,14 +14,13 @@ import argparse
 import os
 
 import jax.numpy as jnp
-import numpy as np
-
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")  # headless-safe backend
 import matplotlib.pyplot as plt
 
-from experiments.models.activations import ACTIVATIONS, UNIVARIATE_ACTIVATIONS
+from experiments.models.activations import UNIVARIATE_ACTIVATIONS
 
 
 def _sanitize(name):
@@ -79,7 +78,9 @@ def plot_activation(name, fn, outdir, *, xmin=-6.0, xmax=6.0, num=1000):
     return path
 
 
-def plot_all_activations(outdir="../../reports/activation_plots", *, xmin=-6.0, xmax=6.0, num=1000):
+def plot_all_activations(
+    outdir="../../reports/activation_plots", *, xmin=-6.0, xmax=6.0, num=1000
+):
     """Plot every activation in the registry, one PNG per function.
 
     Args:
@@ -114,9 +115,7 @@ def _main():
         "--num", type=int, default=1000, help="Number of sample points."
     )
     args = parser.parse_args()
-    plot_all_activations(
-        args.outdir, xmin=args.xmin, xmax=args.xmax, num=args.num
-    )
+    plot_all_activations(args.outdir, xmin=args.xmin, xmax=args.xmax, num=args.num)
 
 
 if __name__ == "__main__":

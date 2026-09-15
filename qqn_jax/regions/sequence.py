@@ -1,5 +1,4 @@
-from typing import Sequence
-
+from collections.abc import Sequence
 
 from qqn_jax.regions.strategy import (
     Region,

@@ -11,18 +11,17 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from qqn_jax.profiling import profile_region
-
 from experiments.data.loaders import load_image_dataset
 from experiments.models.mlp import FlatMLP
-from experiments.optimizers import runners as _runners
 from experiments.optimizers import profiles as _default_profiles
-from experiments.reporting.tables import report_tables
-from experiments.reporting.plots import save_plots
+from experiments.optimizers import runners as _runners
 from experiments.reporting.axis_analysis import report_axis_analysis
 from experiments.reporting.json_export import write_results_json, write_run_json
+from experiments.reporting.plots import save_plots
+from experiments.reporting.tables import report_tables
+from qqn_jax.profiling import profile_region
 
-__all__ = ["run_experiment", "build_model", "enrich"]
+__all__ = ["build_model", "enrich", "run_experiment"]
 
 
 class _Ctx:
@@ -69,12 +68,8 @@ def enrich(result, model, data, config):
         train_acc_hist = []
         test_acc_hist = []
         for snap in result.param_snapshots:
-            train_acc_hist.append(
-                float(model.accuracy(snap, X_train, y_train))
-            )
-            test_acc_hist.append(
-                float(model.accuracy(snap, X_test, y_test))
-            )
+            train_acc_hist.append(float(model.accuracy(snap, X_train, y_train)))
+            test_acc_hist.append(float(model.accuracy(snap, X_test, y_test)))
         result.train_acc_history = train_acc_hist
         result.test_acc_history = test_acc_hist
         # Drop the (potentially large) snapshots once accuracies are computed.

@@ -22,8 +22,8 @@ leading (batch) shape, so they slot directly into the MLP forward pass used
 by the comparison experiments.
 """
 
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
 
 
 def _sin_diff(x, y):
@@ -324,41 +324,41 @@ rolling_asym_tiny_mlp = make_rolling_window(_asym_tiny_mlp, window=2)
 # name. Both the wrapped activations below and the plotting utility derive
 # from this so the two never drift out of sync.
 _ROLLING_BASE_FUNCTIONS = {
-     "sin_diff": (_sin_diff, 2),
-     "atan2_ramp": (_atan2_ramp, 3),
-     "euclidean": (_euclidean, 2),
-     "tan_ratio": (_tan_ratio, 2),
-     "xlog_share": (_xlog_share, 2),
-     "harmonic": (_harmonic, 2),
-     "softmin": (_softmin_diff, 2),
-     "sum_over_prod": (_sum_over_prod, 2),
-     "parallel": (_parallel, 2),
-     "ratio": (_ratio, 2),
-     "soft_xor": (_soft_xor, 2),
-     "soft_and": (_soft_and, 2),
-     "soft_or": (_soft_or, 2),
-     # Symmetric couplings g(x, y) = g(y, x).
-     "sym_mixed_poly": (_sym_mixed_poly, 2),
-     "sym_sig_sum": (_sym_sig_sum, 2),
-     "sym_sig_prod": (_sym_sig_prod, 2),
-     "sym_sig_hybrid": (_sym_sig_hybrid, 2),
-     "sym_interaction_norm": (_sym_interaction_norm, 2),
-     "sym_param_kernel": (_sym_param_kernel, 2),
-     # Antisymmetric couplings g(x, y) = -g(y, x).
-     "anti_diff": (_anti_diff, 2),
-     "anti_tanh_diff": (_anti_tanh_diff, 2),
-     "anti_mixed_poly": (_anti_mixed_poly, 2),
-     "anti_gated": (_anti_gated, 2),
-     "anti_normalized": (_anti_normalized, 2),
-     # Asymmetric couplings (no constraint).
-     "asym_directional_gate": (_asym_directional_gate, 2),
-     "asym_forward_biased": (_asym_forward_biased, 2),
-     "asym_source_sink": (_asym_source_sink, 2),
-     "asym_tiny_mlp": (_asym_tiny_mlp, 2),
+    "sin_diff": (_sin_diff, 2),
+    "atan2_ramp": (_atan2_ramp, 3),
+    "euclidean": (_euclidean, 2),
+    "tan_ratio": (_tan_ratio, 2),
+    "xlog_share": (_xlog_share, 2),
+    "harmonic": (_harmonic, 2),
+    "softmin": (_softmin_diff, 2),
+    "sum_over_prod": (_sum_over_prod, 2),
+    "parallel": (_parallel, 2),
+    "ratio": (_ratio, 2),
+    "soft_xor": (_soft_xor, 2),
+    "soft_and": (_soft_and, 2),
+    "soft_or": (_soft_or, 2),
+    # Symmetric couplings g(x, y) = g(y, x).
+    "sym_mixed_poly": (_sym_mixed_poly, 2),
+    "sym_sig_sum": (_sym_sig_sum, 2),
+    "sym_sig_prod": (_sym_sig_prod, 2),
+    "sym_sig_hybrid": (_sym_sig_hybrid, 2),
+    "sym_interaction_norm": (_sym_interaction_norm, 2),
+    "sym_param_kernel": (_sym_param_kernel, 2),
+    # Antisymmetric couplings g(x, y) = -g(y, x).
+    "anti_diff": (_anti_diff, 2),
+    "anti_tanh_diff": (_anti_tanh_diff, 2),
+    "anti_mixed_poly": (_anti_mixed_poly, 2),
+    "anti_gated": (_anti_gated, 2),
+    "anti_normalized": (_anti_normalized, 2),
+    # Asymmetric couplings (no constraint).
+    "asym_directional_gate": (_asym_directional_gate, 2),
+    "asym_forward_biased": (_asym_forward_biased, 2),
+    "asym_source_sink": (_asym_source_sink, 2),
+    "asym_tiny_mlp": (_asym_tiny_mlp, 2),
 }
 
 
 _ROLLING_ACTIVATIONS = {
-     f"rolling_{name}": make_rolling_window(fn, window=window)
-     for name, (fn, window) in _ROLLING_BASE_FUNCTIONS.items()
+    f"rolling_{name}": make_rolling_window(fn, window=window)
+    for name, (fn, window) in _ROLLING_BASE_FUNCTIONS.items()
 }

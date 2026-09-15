@@ -42,13 +42,13 @@ from jax.flatten_util import ravel_pytree
 from qqn_jax.regions.types import Region
 
 __all__ = [
+    "POLICIES",
+    "EntropyGatedRegion",
+    "EntropyGatedState",
     "GateStats",
+    "entropy_gate_report",
     "gate_statistics",
     "make_gated_loss",
-    "EntropyGatedState",
-    "EntropyGatedRegion",
-    "entropy_gate_report",
-    "POLICIES",
 ]
 
 POLICIES = ("mean", "class", "pair", "gradient", "sample", "random")
@@ -408,7 +408,9 @@ def EntropyGatedRegion(
         s_proj, _lam = _project_cone(step, Vbar, eps_c, valid, dual_sweeps)
         if dead_zone_ratio > 0.0:
             ratio = jnp.linalg.norm(s_proj) / (step_norm + _TINY)
-            relaxed = eps_c + dead_zone_relax * jnp.linalg.norm(Vbar, axis=1) * step_norm
+            relaxed = (
+                eps_c + dead_zone_relax * jnp.linalg.norm(Vbar, axis=1) * step_norm
+            )
             s_relax, _ = _project_cone(step, Vbar, relaxed, valid, dual_sweeps)
             s_proj = jnp.where(ratio < dead_zone_ratio, s_relax, s_proj)
 
@@ -452,7 +454,9 @@ def entropy_gate_report(
 ):
     """Return a dict of gate diagnostics at ``params`` (plain floats)."""
     logits = logits_fn(params, jnp.asarray(X))
-    stats = gate_statistics(logits, jnp.asarray(y), h_mem=h_mem, beta=1.0 / tau, hard=hard)
+    stats = gate_statistics(
+        logits, jnp.asarray(y), h_mem=h_mem, beta=1.0 / tau, hard=hard
+    )
     mem = stats.stability > s_min
     return {
         "n_memorized": int(jnp.sum(mem)),

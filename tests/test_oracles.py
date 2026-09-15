@@ -5,19 +5,18 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qqn_jax.oracles.oracle import Oracle, OracleInfo
 from qqn_jax.oracles.adam import AdamOracle, AdamState
+from qqn_jax.oracles.ams_qn import AnchoredMultiSecantOracle
+from qqn_jax.oracles.anderson import AndersonOracle
+from qqn_jax.oracles.fallback import Fallback
 from qqn_jax.oracles.momentum import MomentumOracle, MomentumState
+from qqn_jax.oracles.oracle import Oracle, OracleInfo
 from qqn_jax.oracles.path_history import (
     PathHistoryMomentumOracle,
     PathHistoryMomentumState,
 )
 from qqn_jax.oracles.secant import SecantOracle, SecantState
-from qqn_jax.oracles.anderson import AndersonOracle
-from qqn_jax.oracles.ams_qn import AnchoredMultiSecantOracle
 from qqn_jax.oracles.shampoo import ShampooOracle
-from qqn_jax.oracles.fallback import Fallback
-
 
 N = 4
 

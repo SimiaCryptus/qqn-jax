@@ -8,7 +8,6 @@ import pytest
 from qqn_jax.oracles.lbfgs import LBFGSOracle
 from qqn_jax.oracles.oracle import OracleInfo
 
-
 N = 5
 
 

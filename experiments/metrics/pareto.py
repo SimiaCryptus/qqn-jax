@@ -1,6 +1,6 @@
 """Pareto frontier helper (loss vs. wall-time)."""
 
-__all__ = ["pareto_frontier", "pareto_frontier_2d", "milestone_pareto_frontiers"]
+__all__ = ["milestone_pareto_frontiers", "pareto_frontier", "pareto_frontier_2d"]
 
 
 def pareto_frontier(results, loss_key="final_loss", time_key="wall"):

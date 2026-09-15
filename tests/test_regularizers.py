@@ -6,12 +6,12 @@ import numpy as np
 import pytest
 
 from qqn_jax.regularizers import (
+    elastic_net_penalty,
     l1_penalty,
     l2_penalty,
-    elastic_net_penalty,
     quantization_delta_penalty,
-    select_weights,
     round_to_grid,
+    select_weights,
 )
 
 jax.config.update("jax_enable_x64", True)

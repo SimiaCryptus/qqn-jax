@@ -101,9 +101,9 @@ is raised.
 ```python
 def _delta(dtype):
     if step is not None:
-        return step                       # explicit spacing
+        return step  # explicit spacing
     levels = (2**bits) - 1
-    return (hi - lo) / levels             # derived from bit width
+    return (hi - lo) / levels  # derived from bit width
 ```
 
 The delta is materialized in the candidate's dtype to keep the arithmetic

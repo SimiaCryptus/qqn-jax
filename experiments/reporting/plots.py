@@ -1,8 +1,8 @@
 """Convergence plotting (matplotlib-safe, degrades gracefully)."""
 
+import math
 import os
 import time
-import math
 
 __all__ = ["save_plots"]
 

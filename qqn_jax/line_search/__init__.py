@@ -1,12 +1,11 @@
-from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.line_search.armijo_wolfe import armijo_wolfe_search
+from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.line_search.bisection import bisection_search
 from qqn_jax.line_search.fixed_step import fixed_step_search
 from qqn_jax.line_search.hager_zhang import hager_zhang_search
 from qqn_jax.line_search.null_search import null_search
-from qqn_jax.line_search.strong_wolfe import strong_wolfe_search
 from qqn_jax.line_search.spline import spline_search
-
+from qqn_jax.line_search.strong_wolfe import strong_wolfe_search
 
 LINE_SEARCHES = {
     "strong_wolfe": strong_wolfe_search,
@@ -16,17 +15,17 @@ LINE_SEARCHES = {
     "fixed": fixed_step_search,
     "null": null_search,
     "bisection": bisection_search,
-     "spline": spline_search,
+    "spline": spline_search,
 }
 
 __all__ = [
-    "strong_wolfe_search",
-    "backtracking_search",
-    "armijo_wolfe_search",
-    "hager_zhang_search",
-    "fixed_step_search",
-    "null_search",
-    "bisection_search",
-     "spline_search",
     "LINE_SEARCHES",
+    "armijo_wolfe_search",
+    "backtracking_search",
+    "bisection_search",
+    "fixed_step_search",
+    "hager_zhang_search",
+    "null_search",
+    "spline_search",
+    "strong_wolfe_search",
 ]

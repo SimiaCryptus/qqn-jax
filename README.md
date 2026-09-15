@@ -148,10 +148,12 @@ Oracles compose. `Fallback` uses the first valid (descending) direction and othe
 ```python
 from qqn_jax.oracles import LBFGSOracle, MomentumOracle, Fallback
 
-oracle = Fallback([
-    LBFGSOracle(history_size=10),
-    MomentumOracle(beta=0.9),
-])
+oracle = Fallback(
+    [
+        LBFGSOracle(history_size=10),
+        MomentumOracle(beta=0.9),
+    ]
+)
 solver = QQN(fun, oracle=oracle)
 ```
 
@@ -165,8 +167,11 @@ QQN(fun, line_search="hager_zhang")
 QQN(fun, line_search="fixed")
 
 # Forward extra kwargs to the inner search:
-QQN(fun, line_search="backtracking",
-    line_search_options={"c1": 1e-3, "shrink": 0.6, "max_iter": 10})
+QQN(
+    fun,
+    line_search="backtracking",
+    line_search_options={"c1": 1e-3, "shrink": 0.6, "max_iter": 10},
+)
 ```
 
 > `"strong_wolfe"` can over-restrict the quadratic-path step; the Armijo /
@@ -187,10 +192,12 @@ QQN(fun, line_search="backtracking",
 ```python
 from qqn_jax.regions import BoxRegion, TrustRegion, Sequential
 
-region = Sequential([
-    BoxRegion(lo=0.0, hi=1.0),
-    TrustRegion(radius=0.5),
-])
+region = Sequential(
+    [
+        BoxRegion(lo=0.0, hi=1.0),
+        TrustRegion(radius=0.5),
+    ]
+)
 solver = QQN(fun, region=region)
 ```
 

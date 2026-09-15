@@ -11,23 +11,22 @@ The solver follows the JAXopt-style ``init_state`` / ``update`` / ``run``
 interface and keeps all state in JIT-compatible NamedTuples.
 """
 
-from functools import partial
-from typing import Any, Callable, Dict, NamedTuple, Optional
 import inspect
 import random
-
+from functools import partial
+from typing import Any, Callable, Dict, NamedTuple, Optional
 
 import jax
 import jax.numpy as jnp
 
-from qqn_jax.oracles.strategy import resolve_oracle
-from qqn_jax.oracles.oracle import OracleInfo
 from qqn_jax.line_search import LINE_SEARCHES
+from qqn_jax.oracles.oracle import OracleInfo
+from qqn_jax.oracles.strategy import resolve_oracle
 from qqn_jax.paths import SPLINE_PATH
-from qqn_jax.paths.spline import spline_refine
 from qqn_jax.paths.base import make_evaluator
 from qqn_jax.paths.linear import LINEAR_PATH, linear_refine
 from qqn_jax.paths.quadratic import QUADRATIC_PATH
+from qqn_jax.paths.spline import spline_refine
 from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
@@ -460,7 +459,7 @@ class QQN:
         # the run early instead of producing the expected fuzzy/spiky
         # convergence curve at high temperature.
         accept = jnp.logical_and(
-           step_finite, jnp.logical_or(new_value <= state.value, res.done)
+            step_finite, jnp.logical_or(new_value <= state.value, res.done)
         )
 
         gnorm_sq = tree_vdot(grad, grad)

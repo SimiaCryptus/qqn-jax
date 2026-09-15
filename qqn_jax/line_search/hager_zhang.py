@@ -4,12 +4,12 @@ import jax
 import optax
 from jax import numpy as jnp
 
+from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.line_search.util import (
-    _metropolis_accept,
     _empty_probes,
+    _metropolis_accept,
     _record_probe,
 )
-from qqn_jax.line_search.result import LineSearchResult
 
 
 def hager_zhang_search(

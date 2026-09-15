@@ -1,10 +1,11 @@
+from typing import NamedTuple
+
 import jax
 from jax import numpy as jnp
 
-from qqn_jax.utils import tree_negative
-from typing import NamedTuple
 from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.point_history import publish, secant_view
+from qqn_jax.utils import tree_negative
 
 
 class SecantState(NamedTuple):

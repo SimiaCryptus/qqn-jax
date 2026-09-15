@@ -13,33 +13,33 @@ unflattens before evaluating the pytree network.
 """
 
 import time
-from typing import Any, Dict, List, Sequence, Union
+from collections.abc import Sequence
+from typing import Any, Dict, List, Union
 
 import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
-from qqn_jax.regions.quantization import QuantizationRegion
-from qqn_jax.regions.sequence import Sequential
-from qqn_jax.solver import QQN
-from qqn_jax import OrthantRegion
-from qqn_jax.regularizers import l1_penalty, quantization_delta_penalty
-
 from experiments.data.loaders import load_image_dataset
 from experiments.models.pytree_mlp import (
-    init_params,
     cross_entropy_loss,
-    test_loss,
-    sparsity,
+    init_params,
     round_params_to_grid,
+    sparsity,
+    test_loss,
 )
 from experiments.reporting.sparse_plots import (
     plot_convergence,
-    plot_pareto,
     plot_metrics_bar,
+    plot_pareto,
 )
+from qqn_jax import OrthantRegion
+from qqn_jax.regions.quantization import QuantizationRegion
+from qqn_jax.regions.sequence import Sequential
+from qqn_jax.regularizers import l1_penalty, quantization_delta_penalty
+from qqn_jax.solver import QQN
 
-__all__ = ["run_sparse_experiment", "run_config"]
+__all__ = ["run_config", "run_sparse_experiment"]
 
 
 def run_config(

@@ -23,7 +23,7 @@ import time
 
 import numpy as np
 
-__all__ = ["write_run_json", "write_results_json"]
+__all__ = ["write_results_json", "write_run_json"]
 
 SCHEMA_VERSION = "1.0.0"
 

@@ -1,4 +1,4 @@
-from typing import NamedTuple, Callable, Any, Tuple
+from typing import Any, Callable, NamedTuple, Tuple
 
 
 class Oracle(NamedTuple):

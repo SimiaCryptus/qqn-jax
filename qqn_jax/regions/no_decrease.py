@@ -3,12 +3,12 @@ from typing import Callable
 import jax
 from jax import numpy as jnp
 
+from qqn_jax.regions.identity import _identity_init, _identity_update
 from qqn_jax.regions.strategy import (
     Region,
-    _tree_sub,
     _tree_add,
+    _tree_sub,
 )
-from qqn_jax.regions.identity import _identity_init, _identity_update
 
 
 def NoDecreaseRegion(secondary_grad_fn: Callable) -> Region:

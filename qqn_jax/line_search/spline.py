@@ -29,12 +29,12 @@ from typing import Callable
 import jax
 from jax import numpy as jnp
 
+from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.line_search.util import (
     _empty_probes,
-    _record_probe,
     _metropolis_accept,
+    _record_probe,
 )
-from qqn_jax.line_search.result import LineSearchResult
 
 
 def _hermite_basis(s):
@@ -375,10 +375,10 @@ def spline_search(
 
 
 __all__ = [
-    "spline_search",
     "hermite_basis",
-    "segment_eval",
     "segment_candidates",
+    "segment_eval",
+    "spline_search",
 ]
 
 # Public aliases (documented helper names).

@@ -9,54 +9,54 @@ and uses a line search over this path to select the optimal blend of
 gradient and quasi-Newton directions.
 """
 
+from qqn_jax.line_search.backtracking import backtracking_search
 from qqn_jax.line_search.strong_wolfe import strong_wolfe_search
+from qqn_jax.oracles import Oracle, OracleInfo
 from qqn_jax.oracles.adam import AdamOracle
+from qqn_jax.oracles.anderson import AndersonOracle
 from qqn_jax.oracles.fallback import Fallback
 from qqn_jax.oracles.lbfgs import LBFGSOracle
 from qqn_jax.oracles.momentum import MomentumOracle
 from qqn_jax.oracles.path_history import PathHistoryMomentumOracle
 from qqn_jax.oracles.secant import SecantOracle
 from qqn_jax.oracles.shampoo import ShampooOracle
-from qqn_jax.oracles import Oracle, OracleInfo
 from qqn_jax.regions.box import BoxRegion
+from qqn_jax.regions.entropy_gated import EntropyGatedRegion, make_gated_loss
+from qqn_jax.regions.orthant import OrthantRegion
 from qqn_jax.regions.sequence import Sequential
-from qqn_jax.regions.trustregion import TrustRegion
-from qqn_jax.solver import QQN, QQNState
-from qqn_jax.line_search.backtracking import backtracking_search
-from qqn_jax.oracles.anderson import AndersonOracle
 from qqn_jax.regions.strategy import (
+    IdentityRegion,
     Region,
     RegionInfo,
-    IdentityRegion,
 )
-from qqn_jax.regions.orthant import OrthantRegion
-from qqn_jax.regions.entropy_gated import EntropyGatedRegion, make_gated_loss
+from qqn_jax.regions.trustregion import TrustRegion
+from qqn_jax.solver import QQN, QQNState
 
 __version__ = "0.1.0"
 
 __all__ = [
     "QQN",
-    "QQNState",
-    "strong_wolfe_search",
-    "backtracking_search",
-    "Oracle",
-    "OracleInfo",
+    "AdamOracle",
+    "AndersonOracle",
+    "BoxRegion",
+    "EntropyGatedRegion",
+    "Fallback",
+    "IdentityRegion",
     "LBFGSOracle",
     "MomentumOracle",
-    "AdamOracle",
+    "Oracle",
+    "OracleInfo",
+    "OrthantRegion",
     "PathHistoryMomentumOracle",
-    "ShampooOracle",
-    "SecantOracle",
-    "AndersonOracle",
-    "Fallback",
+    "QQNState",
     "Region",
     "RegionInfo",
-    "IdentityRegion",
-    "BoxRegion",
-    "OrthantRegion",
-    "TrustRegion",
+    "SecantOracle",
     "Sequential",
-     "EntropyGatedRegion",
-     "make_gated_loss",
+    "ShampooOracle",
+    "TrustRegion",
     "__version__",
+    "backtracking_search",
+    "make_gated_loss",
+    "strong_wolfe_search",
 ]

@@ -6,12 +6,12 @@ import numpy as np
 import pytest
 
 from qqn_jax.utils import (
-    tree_vdot,
-    tree_add_scaled,
-    tree_scale,
-    tree_negative,
-    tree_l2_norm,
     make_value_and_grad,
+    tree_add_scaled,
+    tree_l2_norm,
+    tree_negative,
+    tree_scale,
+    tree_vdot,
 )
 
 jax.config.update("jax_enable_x64", True)

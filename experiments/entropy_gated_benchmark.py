@@ -21,18 +21,17 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from experiments import env
+from experiments.data.loaders import load_image_dataset
+from experiments.models import mlp
+from experiments.models.activations import parse_activation
+from experiments.models.topology import parse_hidden_sizes
 from qqn_jax import QQN
 from qqn_jax.regions.entropy_gated import (
     EntropyGatedRegion,
     gate_statistics,
     make_gated_loss,
 )
-
-from experiments import env
-from experiments.data.loaders import load_image_dataset
-from experiments.models import mlp
-from experiments.models.activations import parse_activation
-from experiments.models.topology import parse_hidden_sizes
 
 
 def _ece(probs, labels, n_bins=15):
@@ -141,7 +140,9 @@ def main():
         log_every=env.env_int("LOG_EVERY", 10),
     )
     print("=== EG-PTGP ablation ===")
-    print(f"  dataset={dataset} n_train={n_train} n_test={n_test} hidden={hidden} act={act_name}")
+    print(
+        f"  dataset={dataset} n_train={n_train} n_test={n_test} hidden={hidden} act={act_name}"
+    )
     print(
         f"  H_mem={cfg['h_mem']} tau={cfg['tau']} kappa={cfg['kappa']} zeta={cfg['zeta']} "
         f"policy={cfg['policy']} k={cfg['num_regions']} max_constraints={cfg['max_constraints']} "
@@ -165,7 +166,12 @@ def main():
 
     erm_loss = model.make_loss(X_train, y_train, l2=cfg["l2"])
     gated_loss = make_gated_loss(
-        logits_fn, X_train, y_train, h_mem=cfg["h_mem"], beta=1.0 / cfg["tau"], l2=cfg["l2"]
+        logits_fn,
+        X_train,
+        y_train,
+        h_mem=cfg["h_mem"],
+        beta=1.0 / cfg["tau"],
+        l2=cfg["l2"],
     )
 
     def make_region():
@@ -195,7 +201,9 @@ def main():
     summaries = []
     for name, loss_fn, region in variants:
         print(f"--- {name} ---")
-        summary, _rows = run_variant(name, loss_fn, region, params0, logits_fn, data, cfg)
+        summary, _rows = run_variant(
+            name, loss_fn, region, params0, logits_fn, data, cfg
+        )
         summaries.append(summary)
 
     print("\n" + "=" * 100)

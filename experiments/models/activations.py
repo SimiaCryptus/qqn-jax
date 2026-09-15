@@ -12,56 +12,62 @@ import os
 import jax
 import jax.numpy as jnp
 
-from experiments.models.spline_activations import _build_hermite_presets, _cubic_hermite_spline
 from experiments.models.rolling_window_activation import _ROLLING_ACTIVATIONS
+from experiments.models.spline_activations import (
+    _build_hermite_presets,
+    _cubic_hermite_spline,
+)
 
-__all__ = ["ACTIVATIONS","UNIVARIATE_ACTIVATIONS", "resolve_activation", "parse_activation"]
+__all__ = [
+    "ACTIVATIONS",
+    "UNIVARIATE_ACTIVATIONS",
+    "parse_activation",
+    "resolve_activation",
+]
 UNIVARIATE_ACTIVATIONS = {
     "relu": jax.nn.relu,
     "sigmoid": jax.nn.sigmoid,
     "sine": jnp.sin,
-    "gaussian": lambda x: jnp.exp(-(x ** 2)),
-     # --- Continuous wavelets ---
-     # Mexican hat / Ricker wavelet: 2nd derivative of a Gaussian.
-     "mexican_hat": lambda x: (
-             (2.0 / (jnp.sqrt(3.0) * jnp.pi ** 0.25))
-             * (1.0 - x ** 2)
-             * jnp.exp(-(x ** 2) / 2.0)
-     ),
-     # Real-valued Morlet wavelet: modulated cosine under a Gaussian envelope.
-     "morlet": lambda x: (
-             jnp.cos(5.0 * x) * jnp.exp(-(x ** 2) / 2.0)
-     ),
-     # --- Frequency multiples of the core periodics ---
-     "sine2": lambda x: jnp.sin(2.0 * x),
-     "sine8": lambda x: jnp.sin(8.0 * x),
-     "triangle2": lambda x: (
-             2.0 * jnp.abs(2.0 * ((2.0 * x) / (2.0 * jnp.pi)
-                                  - jnp.floor((2.0 * x) / (2.0 * jnp.pi) + 0.5)))
-             - 1.0
-     ),
-     "triangle8": lambda x: (
-             2.0 * jnp.abs(2.0 * ((8.0 * x) / (2.0 * jnp.pi)
-                                  - jnp.floor((8.0 * x) / (2.0 * jnp.pi) + 0.5)))
-             - 1.0
-     ),
-     "sawtooth2": lambda x: (
-             2.0 * ((2.0 * x) / (2.0 * jnp.pi)
-                    - jnp.floor((2.0 * x) / (2.0 * jnp.pi) + 0.5))
-     ),
-     "sawtooth8": lambda x: (
-             2.0 * ((8.0 * x) / (2.0 * jnp.pi)
-                    - jnp.floor((8.0 * x) / (2.0 * jnp.pi) + 0.5))
-     ),
-     # --- Chirplet: Gaussian-windowed cosine with time-varying frequency. ---
-     # Instantaneous frequency grows linearly (chirp rate 1.0) about a base
-     # frequency of 3.0, all under a unit-variance Gaussian envelope.
-     "chirplet": lambda x: (
-             jnp.cos(3.0 * x + 0.5 * x ** 2) * jnp.exp(-(x ** 2) / 2.0)
-     ),
+    "gaussian": lambda x: jnp.exp(-(x**2)),
+    # --- Continuous wavelets ---
+    # Mexican hat / Ricker wavelet: 2nd derivative of a Gaussian.
+    "mexican_hat": lambda x: (
+        (2.0 / (jnp.sqrt(3.0) * jnp.pi**0.25)) * (1.0 - x**2) * jnp.exp(-(x**2) / 2.0)
+    ),
+    # Real-valued Morlet wavelet: modulated cosine under a Gaussian envelope.
+    "morlet": lambda x: jnp.cos(5.0 * x) * jnp.exp(-(x**2) / 2.0),
+    # --- Frequency multiples of the core periodics ---
+    "sine2": lambda x: jnp.sin(2.0 * x),
+    "sine8": lambda x: jnp.sin(8.0 * x),
+    "triangle2": lambda x: (
+        2.0
+        * jnp.abs(
+            2.0
+            * ((2.0 * x) / (2.0 * jnp.pi) - jnp.floor((2.0 * x) / (2.0 * jnp.pi) + 0.5))
+        )
+        - 1.0
+    ),
+    "triangle8": lambda x: (
+        2.0
+        * jnp.abs(
+            2.0
+            * ((8.0 * x) / (2.0 * jnp.pi) - jnp.floor((8.0 * x) / (2.0 * jnp.pi) + 0.5))
+        )
+        - 1.0
+    ),
+    "sawtooth2": lambda x: (
+        2.0 * ((2.0 * x) / (2.0 * jnp.pi) - jnp.floor((2.0 * x) / (2.0 * jnp.pi) + 0.5))
+    ),
+    "sawtooth8": lambda x: (
+        2.0 * ((8.0 * x) / (2.0 * jnp.pi) - jnp.floor((8.0 * x) / (2.0 * jnp.pi) + 0.5))
+    ),
+    # --- Chirplet: Gaussian-windowed cosine with time-varying frequency. ---
+    # Instantaneous frequency grows linearly (chirp rate 1.0) about a base
+    # frequency of 3.0, all under a unit-variance Gaussian envelope.
+    "chirplet": lambda x: jnp.cos(3.0 * x + 0.5 * x**2) * jnp.exp(-(x**2) / 2.0),
     "triangle": lambda x: (
-            2.0 * jnp.abs(2.0 * (x / (2.0 * jnp.pi) - jnp.floor(x / (2.0 * jnp.pi) + 0.5)))
-            - 1.0
+        2.0 * jnp.abs(2.0 * (x / (2.0 * jnp.pi) - jnp.floor(x / (2.0 * jnp.pi) + 0.5)))
+        - 1.0
     ),
     "logabs": lambda x: jnp.sign(x) * jnp.log1p(jnp.abs(x)),
     "tanh": jnp.tanh,
@@ -69,7 +75,7 @@ UNIVARIATE_ACTIVATIONS = {
     "swish": jax.nn.swish,
     "softplus": jax.nn.softplus,
     "sawtooth": lambda x: (
-            2.0 * (x / (2.0 * jnp.pi) - jnp.floor(x / (2.0 * jnp.pi) + 0.5))
+        2.0 * (x / (2.0 * jnp.pi) - jnp.floor(x / (2.0 * jnp.pi) + 0.5))
     ),
     "abs": jnp.abs,
     "identity": lambda x: x,

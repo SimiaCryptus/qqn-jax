@@ -170,8 +170,7 @@ The **Momentum** oracle returns `-(β·v + (1-β)·∇f)` at `t = 1`. With a `fi
 search that accepts `t = 1`:
 
 ```python
-QQN(fun, oracle="momentum", line_search="fixed",
-    line_search_options={"step": 1.0})
+QQN(fun, oracle="momentum", line_search="fixed", line_search_options={"step": 1.0})
 ```
 
 each step uses the heavy-ball velocity direction, while QQN retains the raw

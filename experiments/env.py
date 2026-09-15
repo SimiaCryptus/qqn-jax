@@ -11,7 +11,7 @@ This is the single source of truth replacing the per-script copies of
 
 import os
 
-__all__ = ["env_int", "env_float", "env_str", "env_float_list", "env_int_list"]
+__all__ = ["env_float", "env_float_list", "env_int", "env_int_list", "env_str"]
 
 
 def env_str(name, default):

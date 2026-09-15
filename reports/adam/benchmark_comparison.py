@@ -11,19 +11,17 @@ driver (rather than the driver reaching into ``experiments.optimizers``).
 import os
 import sys
 
-
 os.environ.setdefault("XLA_FLAGS", "--xla_gpu_autotune_level=0")
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
 
 # Make sibling module (profiles.py) importable when run by file path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from qqn_jax.profiling import profile_session, device_memory_report
+import profiles as _profiles
 
 from experiments.config import ExperimentConfig
 from experiments.driver import run_experiment
-
-import profiles as _profiles
+from qqn_jax.profiling import device_memory_report, profile_session
 
 
 def main():

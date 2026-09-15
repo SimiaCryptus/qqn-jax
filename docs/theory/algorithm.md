@@ -219,9 +219,9 @@ default is **L-BFGS**, but the oracle is a swappable, pure-functional interface:
 
 ```python
 class Oracle(NamedTuple):
-    init:      Callable[[Params], OracleState]
+    init: Callable[[Params], OracleState]
     direction: Callable[[Params, Grad, OracleState], Tuple[Direction, OracleState]]
-    update:    Callable[[OracleState, OracleInfo], OracleState]
+    update: Callable[[OracleState, OracleInfo], OracleState]
 ```
 
 Because the line search always retains the gradient direction's influence at the
@@ -278,9 +278,9 @@ are pure functions with the interface:
 
 ```python
 class Region(NamedTuple):
-    init:    Callable[[Params], RegionState]
+    init: Callable[[Params], RegionState]
     project: Callable[[Params, Candidate, RegionState], Candidate]
-    update:  Callable[[RegionState, RegionInfo], RegionState]
+    update: Callable[[RegionState, RegionInfo], RegionState]
 ```
 
 Concrete regions (see [`regions.md`](regions.md)):
@@ -303,14 +303,14 @@ state held in a JIT-compatible `QQNState` NamedTuple:
 
 ```python
 QQNState(
-    iter,          # iteration counter
-    value,         # current objective value f(x)
-    grad,          # current gradient ∇f(x)
+    iter,  # iteration counter
+    value,  # current objective value f(x)
+    grad,  # current gradient ∇f(x)
     oracle_state,  # e.g. L-BFGS history / momentum buffer
-     step_size,     # last accepted path parameter t
-    error,         # ‖∇f‖ (convergence metric)
-    done,          # error ≤ tol
-    aux,           # optional auxiliary output of the objective
+    step_size,  # last accepted path parameter t
+    error,  # ‖∇f‖ (convergence metric)
+    done,  # error ≤ tol
+    aux,  # optional auxiliary output of the objective
     region_state,  # optional region state (e.g. trust radius)
 )
 ```

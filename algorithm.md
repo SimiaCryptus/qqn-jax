@@ -133,9 +133,9 @@ is L-BFGS, but the oracle is a swappable, pure-functional interface:
 
 ```python
 class Oracle(NamedTuple):
-    init:      Callable[[Params], OracleState]
+    init: Callable[[Params], OracleState]
     direction: Callable[[Params, Grad, OracleState], Tuple[Direction, OracleState]]
-    update:    Callable[[OracleState, OracleInfo], OracleState]
+    update: Callable[[OracleState, OracleInfo], OracleState]
 ```
 
 Because the line search always retains the gradient direction's influence at

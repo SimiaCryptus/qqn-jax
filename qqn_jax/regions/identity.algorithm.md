@@ -96,9 +96,9 @@ from qqn_jax.regions.identity import IdentityRegion
 
 region = IdentityRegion()
 
-state = region.init(params)                       # ()
-x_next = region.project(params, candidate, state) # == candidate
-state = region.update(state, info)                # == state (unchanged)
+state = region.init(params)  # ()
+x_next = region.project(params, candidate, state)  # == candidate
+state = region.update(state, info)  # == state (unchanged)
 ```
 
 ## Discussion

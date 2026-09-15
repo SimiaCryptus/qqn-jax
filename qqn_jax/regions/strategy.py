@@ -15,9 +15,9 @@ equivalent to the un-regioned optimizer.
 
 from typing import Any, Optional
 
-from qqn_jax.regions.types import Region, RegionInfo, _tree_add, _tree_sub
 from qqn_jax.regions.identity import IdentityRegion
 from qqn_jax.regions.trustregion import TrustRegionState
+from qqn_jax.regions.types import Region, RegionInfo, _tree_add, _tree_sub
 
 
 def resolve_region(region: Optional[Region]) -> Region:
@@ -33,7 +33,7 @@ __all__ = [
     "RegionInfo",
     "RegionState",
     "TrustRegionState",
-    "resolve_region",
     "_tree_add",
     "_tree_sub",
+    "resolve_region",
 ]

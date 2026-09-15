@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from qqn_jax.paths.base import PathStrategy, make_evaluator
-from qqn_jax.paths.quadratic import QUADRATIC_PATH
 from qqn_jax.paths.linear import LINEAR_PATH
+from qqn_jax.paths.quadratic import QUADRATIC_PATH
 
 
 def _close(a, b, tol=1e-5):

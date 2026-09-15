@@ -11,19 +11,19 @@ import pytest
 from jax import numpy as jnp
 
 from qqn_jax.regions import (
-    Region,
-    RegionInfo,
-    resolve_region,
-    IdentityRegion,
     BoxRegion,
+    IdentityRegion,
+    NoDecreaseRegion,
     OrthantRegion,
     QuantizationRegion,
-    NoDecreaseRegion,
-    TrustRegion,
+    Region,
+    RegionInfo,
     Sequential,
+    TrustRegion,
+    resolve_region,
 )
-from qqn_jax.regions.types import _tree_add, _tree_sub
 from qqn_jax.regions.trustregion import TrustRegionState
+from qqn_jax.regions.types import _tree_add, _tree_sub
 
 
 def _run(region, params, candidate):

@@ -25,12 +25,12 @@ import jax
 import jax.numpy as jnp
 
 __all__ = [
+    "elastic_net_penalty",
     "l1_penalty",
     "l2_penalty",
     "quantization_delta_penalty",
-    "elastic_net_penalty",
-    "select_weights",
     "round_to_grid",
+    "select_weights",
 ]
 
 

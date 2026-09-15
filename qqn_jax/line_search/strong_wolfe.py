@@ -4,12 +4,12 @@ import jax
 import optax
 from jax import numpy as jnp
 
+from qqn_jax.line_search.result import LineSearchResult
 from qqn_jax.line_search.util import (
-    _metropolis_accept,
     _empty_probes,
+    _metropolis_accept,
     _record_probe,
 )
-from qqn_jax.line_search.result import LineSearchResult
 
 
 def strong_wolfe_search(
@@ -96,9 +96,7 @@ def strong_wolfe_search(
     new_grad = jnp.where(stochastic_init, g_init, ls_new_grad)
 
     delta_e = new_value - value
-    stochastic, _key = _metropolis_accept(
-        delta_e, temperature, key0, new_value.dtype
-    )
+    stochastic, _key = _metropolis_accept(delta_e, temperature, key0, new_value.dtype)
     done = jnp.logical_or(
         jnp.logical_or(new_value < value, stochastic), stochastic_init
     )

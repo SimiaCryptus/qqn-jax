@@ -17,12 +17,12 @@ import jax
 import jax.numpy as jnp
 
 __all__ = [
+    "cross_entropy_loss",
     "init_params",
     "mlp_forward",
-    "cross_entropy_loss",
-    "test_loss",
-    "sparsity",
     "round_params_to_grid",
+    "sparsity",
+    "test_loss",
 ]
 
 
@@ -55,13 +55,13 @@ def init_params(key, sizes: List[int], activation: Any = "tanh", bias_scale=0.0)
         else:
             scale = 1.0 / jnp.sqrt(n_in)
         if bias_scale > 0.0:
-             b = bias_scale * jax.random.normal(bk, (n_out,))
+            b = bias_scale * jax.random.normal(bk, (n_out,))
         else:
-             b = jnp.zeros((n_out,))
+            b = jnp.zeros((n_out,))
         params.append(
             {
                 "w": scale * jax.random.normal(wk, (n_in, n_out)),
-                 "b": b,
+                "b": b,
             }
         )
     return params

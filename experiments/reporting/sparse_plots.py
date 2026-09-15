@@ -7,7 +7,7 @@ per-config result dicts produced by ``sparse_driver.run_config``.
 
 from typing import Any, Dict, List
 
-__all__ = ["plot_convergence", "plot_pareto", "plot_metrics_bar"]
+__all__ = ["plot_convergence", "plot_metrics_bar", "plot_pareto"]
 
 
 def plot_convergence(results: List[Dict[str, Any]], fname: str = "convergence.png"):

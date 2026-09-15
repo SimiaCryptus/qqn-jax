@@ -65,22 +65,21 @@ JAX-traceable and operate on pytrees of parameters.
 
 ```python
 class Oracle(NamedTuple):
-  # Optional per-oracle state (e.g. L-BFGS history, momentum buffer).
-  # Use an empty pytree () when no state is needed.
-  init: Callable[[Params], OracleState]
+    # Optional per-oracle state (e.g. L-BFGS history, momentum buffer).
+    # Use an empty pytree () when no state is needed.
+    init: Callable[[Params], OracleState]
 
-  # Produce the oracle direction -H∇f at the current point.
-  #   params:   current iterate x (pytree)
-  #   grad:     current gradient ∇f(x) (pytree)
-  #   state:    oracle state
-  # returns (direction, new_state). `direction` has the same structure
-  # as params and represents the t = 1 endpoint of d(t).
-  direction: Callable[[Params, Grad, OracleState],
-                       Tuple[Direction, OracleState]]
+    # Produce the oracle direction -H∇f at the current point.
+    #   params:   current iterate x (pytree)
+    #   grad:     current gradient ∇f(x) (pytree)
+    #   state:    oracle state
+    # returns (direction, new_state). `direction` has the same structure
+    # as params and represents the t = 1 endpoint of d(t).
+    direction: Callable[[Params, Grad, OracleState], Tuple[Direction, OracleState]]
 
-  # Optional update of oracle state after a step is accepted.
-  #   Used by history-based oracles (e.g. L-BFGS curvature pairs).
-  update: Callable[[OracleState, OracleInfo], OracleState]
+    # Optional update of oracle state after a step is accepted.
+    #   Used by history-based oracles (e.g. L-BFGS curvature pairs).
+    update: Callable[[OracleState, OracleInfo], OracleState]
 ```
 
 `OracleState` and `OracleInfo` are oracle-specific pytrees. `OracleInfo`
@@ -94,13 +93,13 @@ builds the quadratic path:
 
 ```python
 def path_d(oracle, state, params, grad, t):
-  neg_grad = tree_neg(grad)                       # -∇f
-  oracle_dir, _ = oracle.direction(params, grad, state)  # -H∇f
-  # d(t) = t(1 - t)(-∇f) + t²(-H∇f)
-  return tree_add(
-      tree_scale(neg_grad, t * (1.0 - t)),
-      tree_scale(oracle_dir, t * t),
-  )
+    neg_grad = tree_neg(grad)  # -∇f
+    oracle_dir, _ = oracle.direction(params, grad, state)  # -H∇f
+    # d(t) = t(1 - t)(-∇f) + t²(-H∇f)
+    return tree_add(
+        tree_scale(neg_grad, t * (1.0 - t)),
+        tree_scale(oracle_dir, t * t),
+    )
 ```
 
 The default L-BFGS oracle reproduces the current behavior exactly.
@@ -225,21 +224,21 @@ structure so they remain `jit`-friendly.
 
 ```python
 qqn(
-  history_size=10,
-   line_search="armijo",       # default; see results.md (strong_wolfe over-restricts)
-   oracle="lbfgs",             # "lbfgs"|"momentum"|"secant"|"anderson"|"shampoo"|Oracle
-  region=None,
+    history_size=10,
+    line_search="armijo",  # default; see results.md (strong_wolfe over-restricts)
+    oracle="lbfgs",  # "lbfgs"|"momentum"|"secant"|"anderson"|"shampoo"|Oracle
+    region=None,
 )
 
 QQN(
-  fun,
-  maxiter=100,
-  tol=1e-5,
-  history_size=10,
-   line_search="armijo",       # default; see results.md (strong_wolfe over-restricts)
-  has_aux=False,
-   oracle="lbfgs",             # "lbfgs"|"momentum"|"secant"|"anderson"|"shampoo"|Oracle
-  region=None,
+    fun,
+    maxiter=100,
+    tol=1e-5,
+    history_size=10,
+    line_search="armijo",  # default; see results.md (strong_wolfe over-restricts)
+    has_aux=False,
+    oracle="lbfgs",  # "lbfgs"|"momentum"|"secant"|"anderson"|"shampoo"|Oracle
+    region=None,
 )
 ```
 
@@ -250,13 +249,18 @@ Convenience constructors:
 
 ```python
 from qqn_jax.oracles import (
-  LBFGSOracle, MomentumOracle, ShampooOracle, Fallback,
+    LBFGSOracle,
+    MomentumOracle,
+    ShampooOracle,
+    Fallback,
 )
 
-oracle = Fallback([
-  LBFGSOracle(history_size=10),
-  MomentumOracle(beta=0.9),
-])
+oracle = Fallback(
+    [
+        LBFGSOracle(history_size=10),
+        MomentumOracle(beta=0.9),
+    ]
+)
 
 solver = QQN(fun, oracle=oracle)
 ```
