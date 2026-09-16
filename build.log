@@ -1,0 +1,2355 @@
+Obtaining file:///home/andrew/code/Math/optimization/QQN/qqn-jax
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Installing backend dependencies: started
+  Installing backend dependencies: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: chex>=0.1 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (0.1.92)
+Requirement already satisfied: jax>=0.4 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (0.11.1)
+Requirement already satisfied: jaxtyping>=0.2 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (0.3.11)
+Requirement already satisfied: optax>=0.2.3 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (0.2.8)
+Requirement already satisfied: numpy>=1.22 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (2.5.3)
+Requirement already satisfied: pyright>=1.1 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (1.1.414)
+Requirement already satisfied: pytest-cov>=4.0 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (7.1.0)
+Requirement already satisfied: pytest>=7.0 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (9.1.1)
+Requirement already satisfied: ruff>=0.4 in ./.venv/lib/python3.12/site-packages (from qqn-jax==0.2.0) (0.16.7)
+Requirement already satisfied: absl-py>=2.3.1 in ./.venv/lib/python3.12/site-packages (from chex>=0.1->qqn-jax==0.2.0) (2.5.0)
+Requirement already satisfied: typing_extensions>=4.15.0 in ./.venv/lib/python3.12/site-packages (from chex>=0.1->qqn-jax==0.2.0) (4.16.0)
+Requirement already satisfied: jaxlib>=0.7.0 in ./.venv/lib/python3.12/site-packages (from chex>=0.1->qqn-jax==0.2.0) (0.11.1)
+Requirement already satisfied: toolz>=1.0.0 in ./.venv/lib/python3.12/site-packages (from chex>=0.1->qqn-jax==0.2.0) (1.1.0)
+Requirement already satisfied: ml_dtypes>=0.5.0 in ./.venv/lib/python3.12/site-packages (from jax>=0.4->qqn-jax==0.2.0) (0.6.0)
+Requirement already satisfied: opt_einsum in ./.venv/lib/python3.12/site-packages (from jax>=0.4->qqn-jax==0.2.0) (3.4.0)
+Requirement already satisfied: scipy>=1.15 in ./.venv/lib/python3.12/site-packages (from jax>=0.4->qqn-jax==0.2.0) (1.18.1)
+Requirement already satisfied: wadler-lindig>=0.1.3 in ./.venv/lib/python3.12/site-packages (from jaxtyping>=0.2->qqn-jax==0.2.0) (0.1.7)
+Requirement already satisfied: nodeenv>=1.6.0 in ./.venv/lib/python3.12/site-packages (from pyright>=1.1->qqn-jax==0.2.0) (1.10.0)
+Requirement already satisfied: iniconfig>=1.0.1 in ./.venv/lib/python3.12/site-packages (from pytest>=7.0->qqn-jax==0.2.0) (2.3.0)
+Requirement already satisfied: packaging>=22 in ./.venv/lib/python3.12/site-packages (from pytest>=7.0->qqn-jax==0.2.0) (26.3)
+Requirement already satisfied: pluggy<2,>=1.5 in ./.venv/lib/python3.12/site-packages (from pytest>=7.0->qqn-jax==0.2.0) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in ./.venv/lib/python3.12/site-packages (from pytest>=7.0->qqn-jax==0.2.0) (2.21.0)
+Requirement already satisfied: coverage>=7.10.6 in ./.venv/lib/python3.12/site-packages (from coverage[toml]>=7.10.6->pytest-cov>=4.0->qqn-jax==0.2.0) (7.16.1)
+Checking if build backend supports build_editable: started
+Checking if build backend supports build_editable: finished with status 'done'
+Building wheels for collected packages: qqn-jax
+  Building editable for qqn-jax (pyproject.toml): started
+  Building editable for qqn-jax (pyproject.toml): finished with status 'done'
+  Created wheel for qqn-jax: filename=qqn_jax-0.2.0-py3-none-any.whl size=9839 sha256=0dec26d48bcf50b5cbf96d7315ed8f2e12225ecaec92eb69a6e6ce3349eb852c
+  Stored in directory: /tmp/pip-ephem-wheel-cache-qv4ioae_/wheels/d0/6b/ee/13d1a2cb7e9d1e66a43ca8b2007936f3787a5c2cde21878bbb
+Successfully built qqn-jax
+Installing collected packages: qqn-jax
+  Attempting uninstall: qqn-jax
+    Found existing installation: qqn-jax 0.2.0
+    Uninstalling qqn-jax-0.2.0:
+      Successfully uninstalled qqn-jax-0.2.0
+Successfully installed qqn-jax-0.2.0
+190 files left unchanged
+RUF059 Unpacked variable `state_j` is never used
+  --> examples/basic_usage.py:28:15
+   |
+27 |     run_jit = jax.jit(solver.run)
+28 |     params_j, state_j = run_jit(x0)
+   |               ^^^^^^^
+29 |     print("\n=== JIT ===")
+30 |     print(f"  solution: {params_j}")
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `states_b` is never used
+  --> examples/basic_usage.py:34:15
+   |
+32 |     x0_batch = jnp.array([[-1.2, 1.0], [2.0, 2.0], [-0.5, 0.5]])
+33 |     batched = jax.vmap(solver.run)
+34 |     params_b, states_b = batched(x0_batch)
+   |               ^^^^^^^^
+35 |     print("\n=== Batched ===")
+36 |     for i in range(x0_batch.shape[0]):
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:23:22
+   |
+21 |     times: list
+22 |     wall: float
+23 |     iters_to_target: Optional[int]
+   |                      ^^^^^^^^^^^^^
+24 |     time_to_target: Optional[float]
+25 |     milestone_hits: dict
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:24:21
+   |
+22 |     wall: float
+23 |     iters_to_target: Optional[int]
+24 |     time_to_target: Optional[float]
+   |                     ^^^^^^^^^^^^^^^
+25 |     milestone_hits: dict
+26 |     evals_to_target: Optional[int]
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:26:22
+   |
+24 |     time_to_target: Optional[float]
+25 |     milestone_hits: dict
+26 |     evals_to_target: Optional[int]
+   |                      ^^^^^^^^^^^^^
+27 |
+28 |     final_loss: Optional[float] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:28:17
+   |
+26 |     evals_to_target: Optional[int]
+27 |
+28 |     final_loss: Optional[float] = None
+   |                 ^^^^^^^^^^^^^^^
+29 |     best_loss: Optional[float] = None
+30 |     iters: Optional[int] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:29:16
+   |
+28 |     final_loss: Optional[float] = None
+29 |     best_loss: Optional[float] = None
+   |                ^^^^^^^^^^^^^^^
+30 |     iters: Optional[int] = None
+31 |     train_acc: Optional[float] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:30:12
+   |
+28 |     final_loss: Optional[float] = None
+29 |     best_loss: Optional[float] = None
+30 |     iters: Optional[int] = None
+   |            ^^^^^^^^^^^^^
+31 |     train_acc: Optional[float] = None
+32 |     test_acc: Optional[float] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:31:16
+   |
+29 |     best_loss: Optional[float] = None
+30 |     iters: Optional[int] = None
+31 |     train_acc: Optional[float] = None
+   |                ^^^^^^^^^^^^^^^
+32 |     test_acc: Optional[float] = None
+33 |     ms_per_iter: Optional[float] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:32:15
+   |
+30 |     iters: Optional[int] = None
+31 |     train_acc: Optional[float] = None
+32 |     test_acc: Optional[float] = None
+   |               ^^^^^^^^^^^^^^^
+33 |     ms_per_iter: Optional[float] = None
+34 |     traj_auc: Optional[float] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:33:18
+   |
+31 |     train_acc: Optional[float] = None
+32 |     test_acc: Optional[float] = None
+33 |     ms_per_iter: Optional[float] = None
+   |                  ^^^^^^^^^^^^^^^
+34 |     traj_auc: Optional[float] = None
+35 |     evals_per_iter: Optional[float] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:34:15
+   |
+32 |     test_acc: Optional[float] = None
+33 |     ms_per_iter: Optional[float] = None
+34 |     traj_auc: Optional[float] = None
+   |               ^^^^^^^^^^^^^^^
+35 |     evals_per_iter: Optional[float] = None
+36 |     target_iters: dict = field(default_factory=dict)
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:35:21
+   |
+33 |     ms_per_iter: Optional[float] = None
+34 |     traj_auc: Optional[float] = None
+35 |     evals_per_iter: Optional[float] = None
+   |                     ^^^^^^^^^^^^^^^
+36 |     target_iters: dict = field(default_factory=dict)
+37 |     reached: bool = False
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:38:18
+   |
+36 |     target_iters: dict = field(default_factory=dict)
+37 |     reached: bool = False
+38 |     eval_counts: Optional[list] = None
+   |                  ^^^^^^^^^^^^^^
+39 |     fwd_counts: Optional[list] = None
+40 |     bwd_counts: Optional[list] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:39:17
+   |
+37 |     reached: bool = False
+38 |     eval_counts: Optional[list] = None
+39 |     fwd_counts: Optional[list] = None
+   |                 ^^^^^^^^^^^^^^
+40 |     bwd_counts: Optional[list] = None
+41 |     param_snapshots: Optional[list] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:40:17
+   |
+38 |     eval_counts: Optional[list] = None
+39 |     fwd_counts: Optional[list] = None
+40 |     bwd_counts: Optional[list] = None
+   |                 ^^^^^^^^^^^^^^
+41 |     param_snapshots: Optional[list] = None
+42 |     test_acc_history: Optional[list] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:41:22
+   |
+39 |     fwd_counts: Optional[list] = None
+40 |     bwd_counts: Optional[list] = None
+41 |     param_snapshots: Optional[list] = None
+   |                      ^^^^^^^^^^^^^^
+42 |     test_acc_history: Optional[list] = None
+43 |     train_acc_history: Optional[list] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:42:23
+   |
+40 |     bwd_counts: Optional[list] = None
+41 |     param_snapshots: Optional[list] = None
+42 |     test_acc_history: Optional[list] = None
+   |                       ^^^^^^^^^^^^^^
+43 |     train_acc_history: Optional[list] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> experiments/metrics/result.py:43:24
+   |
+41 |     param_snapshots: Optional[list] = None
+42 |     test_acc_history: Optional[list] = None
+43 |     train_acc_history: Optional[list] = None
+   |                        ^^^^^^^^^^^^^^
+44 |
+45 |     def as_tuple(self):
+   |
+help: Convert to `X | None`
+
+BLE001 Do not catch blind exception: `Exception`
+  --> experiments/reporting/json_export.py:53:12
+   |
+51 |     try:
+52 |         raw = dataclasses.asdict(config)
+53 |     except Exception:
+   |            ^^^^^^^^^
+54 |         raw = {k: getattr(config, k) for k in vars(config)}
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> experiments/reporting/plots.py:17:12
+   |
+15 |     try:
+16 |         import matplotlib.pyplot as plt
+17 |     except Exception:
+   |            ^^^^^^^^^
+18 |         print("\n[plot] matplotlib not available; skipping plot.")
+19 |         return
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> experiments/reporting/sparse_plots.py:20:12
+   |
+18 |         matplotlib.use("Agg")
+19 |         import matplotlib.pyplot as plt
+20 |     except Exception as exc:
+   |            ^^^^^^^^^
+21 |         print(f"[plot_convergence] matplotlib unavailable ({exc!r}); skipping plot.")
+22 |         return
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> experiments/reporting/sparse_plots.py:40:5
+   |
+38 |       try:
+39 |           plt.show()
+40 | /     except Exception:
+41 | |         pass
+   | |____________^
+
+BLE001 Do not catch blind exception: `Exception`
+  --> experiments/reporting/sparse_plots.py:40:12
+   |
+38 |     try:
+39 |         plt.show()
+40 |     except Exception:
+   |            ^^^^^^^^^
+41 |         pass
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> experiments/reporting/sparse_plots.py:51:12
+   |
+49 |         matplotlib.use("Agg")
+50 |         import matplotlib.pyplot as plt
+51 |     except Exception as exc:
+   |            ^^^^^^^^^
+52 |         print(f"[plot_pareto] matplotlib unavailable ({exc!r}); skipping plot.")
+53 |         return
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> experiments/reporting/sparse_plots.py:107:5
+    |
+105 |       try:
+106 |           plt.show()
+107 | /     except Exception:
+108 | |         pass
+    | |____________^
+
+BLE001 Do not catch blind exception: `Exception`
+   --> experiments/reporting/sparse_plots.py:107:12
+    |
+105 |     try:
+106 |         plt.show()
+107 |     except Exception:
+    |            ^^^^^^^^^
+108 |         pass
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> experiments/reporting/sparse_plots.py:119:12
+    |
+117 |         import matplotlib.pyplot as plt
+118 |         import numpy as _np
+119 |     except Exception as exc:
+    |            ^^^^^^^^^
+120 |         print(f"[plot_metrics_bar] matplotlib unavailable ({exc!r}); skipping plot.")
+121 |         return
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> experiments/reporting/sparse_plots.py:147:5
+    |
+145 |       try:
+146 |           plt.show()
+147 | /     except Exception:
+148 | |         pass
+    | |____________^
+
+BLE001 Do not catch blind exception: `Exception`
+   --> experiments/reporting/sparse_plots.py:147:12
+    |
+145 |     try:
+146 |         plt.show()
+147 |     except Exception:
+    |            ^^^^^^^^^
+148 |         pass
+    |
+
+RUF059 Unpacked variable `a_prev` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:86:13
+   |
+84 |     def bracket_cond(carry):
+85 |         (
+86 |             a_prev,
+   |             ^^^^^^
+87 |             phi_prev,
+88 |             s_prev,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `phi_prev` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:87:13
+   |
+85 |         (
+86 |             a_prev,
+87 |             phi_prev,
+   |             ^^^^^^^^
+88 |             s_prev,
+89 |             a_cur,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_prev` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:88:13
+   |
+86 |             a_prev,
+87 |             phi_prev,
+88 |             s_prev,
+   |             ^^^^^^
+89 |             a_cur,
+90 |             phi_cur,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `phi_cur` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:90:13
+   |
+88 |             s_prev,
+89 |             a_cur,
+90 |             phi_cur,
+   |             ^^^^^^^
+91 |             s_cur,
+92 |             g_cur,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_cur` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:91:13
+   |
+89 |             a_cur,
+90 |             phi_cur,
+91 |             s_cur,
+   |             ^^^^^
+92 |             g_cur,
+93 |             p_cur,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_cur` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:92:13
+   |
+90 |             phi_cur,
+91 |             s_cur,
+92 |             g_cur,
+   |             ^^^^^
+93 |             p_cur,
+94 |             found,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_cur` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:93:13
+   |
+91 |             s_cur,
+92 |             g_cur,
+93 |             p_cur,
+   |             ^^^^^
+94 |             found,
+95 |             bracketed,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `lo` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:96:13
+   |
+94 |             found,
+95 |             bracketed,
+96 |             lo,
+   |             ^^
+97 |             hi,
+98 |             phi_lo,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `hi` is never used
+  --> qqn_jax/line_search/armijo_wolfe.py:97:13
+   |
+95 |             bracketed,
+96 |             lo,
+97 |             hi,
+   |             ^^
+98 |             phi_lo,
+99 |             s_lo,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `phi_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:98:13
+    |
+ 96 |             lo,
+ 97 |             hi,
+ 98 |             phi_lo,
+    |             ^^^^^^
+ 99 |             s_lo,
+100 |             phi_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:99:13
+    |
+ 97 |             hi,
+ 98 |             phi_lo,
+ 99 |             s_lo,
+    |             ^^^^
+100 |             phi_hi,
+101 |             s_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `phi_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:100:13
+    |
+ 98 |             phi_lo,
+ 99 |             s_lo,
+100 |             phi_hi,
+    |             ^^^^^^
+101 |             s_hi,
+102 |             p_lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:101:13
+    |
+ 99 |             s_lo,
+100 |             phi_hi,
+101 |             s_hi,
+    |             ^^^^
+102 |             p_lo,
+103 |             g_lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:102:13
+    |
+100 |             phi_hi,
+101 |             s_hi,
+102 |             p_lo,
+    |             ^^^^
+103 |             g_lo,
+104 |             p_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:103:13
+    |
+101 |             s_hi,
+102 |             p_lo,
+103 |             g_lo,
+    |             ^^^^
+104 |             p_hi,
+105 |             g_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:104:13
+    |
+102 |             p_lo,
+103 |             g_lo,
+104 |             p_hi,
+    |             ^^^^
+105 |             g_hi,
+106 |             best_a,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:105:13
+    |
+103 |             g_lo,
+104 |             p_hi,
+105 |             g_hi,
+    |             ^^^^
+106 |             best_a,
+107 |             best_v,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_a` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:106:13
+    |
+104 |             p_hi,
+105 |             g_hi,
+106 |             best_a,
+    |             ^^^^^^
+107 |             best_v,
+108 |             best_p,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_v` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:107:13
+    |
+105 |             g_hi,
+106 |             best_a,
+107 |             best_v,
+    |             ^^^^^^
+108 |             best_p,
+109 |             best_g,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_p` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:108:13
+    |
+106 |             best_a,
+107 |             best_v,
+108 |             best_p,
+    |             ^^^^^^
+109 |             best_g,
+110 |             i,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_g` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:109:13
+    |
+107 |             best_v,
+108 |             best_p,
+109 |             best_g,
+    |             ^^^^^^
+110 |             i,
+111 |             evals,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `evals` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:111:13
+    |
+109 |             best_g,
+110 |             i,
+111 |             evals,
+    |             ^^^^^
+112 |             temp,
+113 |             key,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `temp` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:112:13
+    |
+110 |             i,
+111 |             evals,
+112 |             temp,
+    |             ^^^^
+113 |             key,
+114 |             pp,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `key` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:113:13
+    |
+111 |             evals,
+112 |             temp,
+113 |             key,
+    |             ^^^
+114 |             pp,
+115 |             pg,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pp` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:114:13
+    |
+112 |             temp,
+113 |             key,
+114 |             pp,
+    |             ^^
+115 |             pg,
+116 |             pv,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pg` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:115:13
+    |
+113 |             key,
+114 |             pp,
+115 |             pg,
+    |             ^^
+116 |             pv,
+117 |             pval,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pv` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:116:13
+    |
+114 |             pp,
+115 |             pg,
+116 |             pv,
+    |             ^^
+117 |             pval,
+118 |             pa,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pval` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:117:13
+    |
+115 |             pg,
+116 |             pv,
+117 |             pval,
+    |             ^^^^
+118 |             pa,
+119 |         ) = carry
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pa` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:118:13
+    |
+116 |             pv,
+117 |             pval,
+118 |             pa,
+    |             ^^
+119 |         ) = carry
+120 |         stop = jnp.logical_or(found, bracketed)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `found` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:134:13
+    |
+132 |             g_cur,
+133 |             p_cur,
+134 |             found,
+    |             ^^^^^
+135 |             bracketed,
+136 |             lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `bracketed` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:135:13
+    |
+133 |             p_cur,
+134 |             found,
+135 |             bracketed,
+    |             ^^^^^^^^^
+136 |             lo,
+137 |             hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:142:13
+    |
+140 |             phi_hi,
+141 |             s_hi,
+142 |             p_lo,
+    |             ^^^^
+143 |             g_lo,
+144 |             p_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:143:13
+    |
+141 |             s_hi,
+142 |             p_lo,
+143 |             g_lo,
+    |             ^^^^
+144 |             p_hi,
+145 |             g_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:144:13
+    |
+142 |             p_lo,
+143 |             g_lo,
+144 |             p_hi,
+    |             ^^^^
+145 |             g_hi,
+146 |             best_a,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:145:13
+    |
+143 |             g_lo,
+144 |             p_hi,
+145 |             g_hi,
+    |             ^^^^
+146 |             best_a,
+147 |             best_v,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_cur` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:270:9
+    |
+268 |         a_cur,
+269 |         phi_cur,
+270 |         s_cur,
+    |         ^^^^^
+271 |         g_cur,
+272 |         p_cur,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `phi_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:279:9
+    |
+277 |         phi_lo,
+278 |         s_lo,
+279 |         phi_hi,
+    |         ^^^^^^
+280 |         s_hi,
+281 |         p_lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:280:9
+    |
+278 |         s_lo,
+279 |         phi_hi,
+280 |         s_hi,
+    |         ^^^^
+281 |         p_lo,
+282 |         g_lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:281:9
+    |
+279 |         phi_hi,
+280 |         s_hi,
+281 |         p_lo,
+    |         ^^^^
+282 |         g_lo,
+283 |         p_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:282:9
+    |
+280 |         s_hi,
+281 |         p_lo,
+282 |         g_lo,
+    |         ^^^^
+283 |         p_hi,
+284 |         g_hi,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:283:9
+    |
+281 |         p_lo,
+282 |         g_lo,
+283 |         p_hi,
+    |         ^^^^
+284 |         g_hi,
+285 |         best_a,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:284:9
+    |
+282 |         g_lo,
+283 |         p_hi,
+284 |         g_hi,
+    |         ^^^^
+285 |         best_a,
+286 |         best_v,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:345:13
+    |
+343 |     def zoom_cond(carry):
+344 |         (
+345 |             lo,
+    |             ^^
+346 |             hi,
+347 |             phi_lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `hi` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:346:13
+    |
+344 |         (
+345 |             lo,
+346 |             hi,
+    |             ^^
+347 |             phi_lo,
+348 |             s_lo,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `phi_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:347:13
+    |
+345 |             lo,
+346 |             hi,
+347 |             phi_lo,
+    |             ^^^^^^
+348 |             s_lo,
+349 |             i,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `s_lo` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:348:13
+    |
+346 |             hi,
+347 |             phi_lo,
+348 |             s_lo,
+    |             ^^^^
+349 |             i,
+350 |             evals,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `evals` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:350:13
+    |
+348 |             s_lo,
+349 |             i,
+350 |             evals,
+    |             ^^^^^
+351 |             z_found,
+352 |             z_a,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `z_a` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:352:13
+    |
+350 |             evals,
+351 |             z_found,
+352 |             z_a,
+    |             ^^^
+353 |             z_v,
+354 |             z_p,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `z_v` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:353:13
+    |
+351 |             z_found,
+352 |             z_a,
+353 |             z_v,
+    |             ^^^
+354 |             z_p,
+355 |             z_g,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `z_p` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:354:13
+    |
+352 |             z_a,
+353 |             z_v,
+354 |             z_p,
+    |             ^^^
+355 |             z_g,
+356 |             best_a,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `z_g` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:355:13
+    |
+353 |             z_v,
+354 |             z_p,
+355 |             z_g,
+    |             ^^^
+356 |             best_a,
+357 |             best_v,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_a` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:356:13
+    |
+354 |             z_p,
+355 |             z_g,
+356 |             best_a,
+    |             ^^^^^^
+357 |             best_v,
+358 |             best_p,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_v` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:357:13
+    |
+355 |             z_g,
+356 |             best_a,
+357 |             best_v,
+    |             ^^^^^^
+358 |             best_p,
+359 |             best_g,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_p` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:358:13
+    |
+356 |             best_a,
+357 |             best_v,
+358 |             best_p,
+    |             ^^^^^^
+359 |             best_g,
+360 |             temp,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_g` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:359:13
+    |
+357 |             best_v,
+358 |             best_p,
+359 |             best_g,
+    |             ^^^^^^
+360 |             temp,
+361 |             key,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `temp` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:360:13
+    |
+358 |             best_p,
+359 |             best_g,
+360 |             temp,
+    |             ^^^^
+361 |             key,
+362 |             pp,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `key` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:361:13
+    |
+359 |             best_g,
+360 |             temp,
+361 |             key,
+    |             ^^^
+362 |             pp,
+363 |             pg,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pp` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:362:13
+    |
+360 |             temp,
+361 |             key,
+362 |             pp,
+    |             ^^
+363 |             pg,
+364 |             pv,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pg` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:363:13
+    |
+361 |             key,
+362 |             pp,
+363 |             pg,
+    |             ^^
+364 |             pv,
+365 |             pval,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pv` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:364:13
+    |
+362 |             pp,
+363 |             pg,
+364 |             pv,
+    |             ^^
+365 |             pval,
+366 |             pa,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pval` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:365:13
+    |
+363 |             pg,
+364 |             pv,
+365 |             pval,
+    |             ^^^^
+366 |             pa,
+367 |         ) = carry
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pa` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:366:13
+    |
+364 |             pv,
+365 |             pval,
+366 |             pa,
+    |             ^^
+367 |         ) = carry
+368 |         keep = jnp.logical_and(jnp.logical_not(z_found), i < max_iter)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `zoom_iters` is never used
+   --> qqn_jax/line_search/armijo_wolfe.py:459:9
+    |
+457 |         _phi_lo,
+458 |         _s_lo,
+459 |         zoom_iters,
+    |         ^^^^^^^^^^
+460 |         total_evals,
+461 |         zoom_found,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `alpha` is never used
+  --> qqn_jax/line_search/backtracking.py:66:13
+   |
+64 |     def cond(carry):
+65 |         (
+66 |             alpha,
+   |             ^^^^^
+67 |             i,
+68 |             evals,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `evals` is never used
+  --> qqn_jax/line_search/backtracking.py:68:13
+   |
+66 |             alpha,
+67 |             i,
+68 |             evals,
+   |             ^^^^^
+69 |             val,
+70 |             _g,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `val` is never used
+  --> qqn_jax/line_search/backtracking.py:69:13
+   |
+67 |             i,
+68 |             evals,
+69 |             val,
+   |             ^^^
+70 |             _g,
+71 |             _p,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `evals` is never used
+   --> qqn_jax/line_search/backtracking.py:149:19
+    |
+148 |     def extrap_cond(carry):
+149 |         alpha, i, evals, val, _g, _p, _acc, _pp, _pg, _pv, _pval, _pa = carry
+    |                   ^^^^^
+150 |         next_alpha = alpha * grow
+151 |         can_grow = jnp.logical_and(next_alpha <= max_alpha, i < max_iter)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `val` is never used
+   --> qqn_jax/line_search/backtracking.py:149:26
+    |
+148 |     def extrap_cond(carry):
+149 |         alpha, i, evals, val, _g, _p, _acc, _pp, _pg, _pv, _pval, _pa = carry
+    |                          ^^^
+150 |         next_alpha = alpha * grow
+151 |         can_grow = jnp.logical_and(next_alpha <= max_alpha, i < max_iter)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `n_iters` is never used
+   --> qqn_jax/line_search/backtracking.py:228:9
+    |
+226 |     (
+227 |         alpha,
+228 |         n_iters,
+    |         ^^^^^^^
+229 |         eval_count,
+230 |         final_val,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `v_hi` is never used
+  --> qqn_jax/line_search/bisection.py:78:13
+   |
+76 |             hi,
+77 |             s_hi,
+78 |             v_hi,
+   |             ^^^^
+79 |             p_hi,
+80 |             g_hi,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `p_hi` is never used
+  --> qqn_jax/line_search/bisection.py:79:13
+   |
+77 |             s_hi,
+78 |             v_hi,
+79 |             p_hi,
+   |             ^^^^
+80 |             g_hi,
+81 |             i,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g_hi` is never used
+  --> qqn_jax/line_search/bisection.py:80:13
+   |
+78 |             v_hi,
+79 |             p_hi,
+80 |             g_hi,
+   |             ^^^^
+81 |             i,
+82 |             evals,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `evals` is never used
+  --> qqn_jax/line_search/bisection.py:82:13
+   |
+80 |             g_hi,
+81 |             i,
+82 |             evals,
+   |             ^^^^^
+83 |             accepted,
+84 |             temp,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `temp` is never used
+  --> qqn_jax/line_search/bisection.py:84:13
+   |
+82 |             evals,
+83 |             accepted,
+84 |             temp,
+   |             ^^^^
+85 |             key,
+86 |             _pp,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `key` is never used
+  --> qqn_jax/line_search/bisection.py:85:13
+   |
+83 |             accepted,
+84 |             temp,
+85 |             key,
+   |             ^^^
+86 |             _pp,
+87 |             _pg,
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `accepted` is never used
+   --> qqn_jax/line_search/bisection.py:106:13
+    |
+104 |             i,
+105 |             evals,
+106 |             accepted,
+    |             ^^^^^^^^
+107 |             temp,
+108 |             key,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `lo` is never used
+   --> qqn_jax/line_search/bisection.py:181:13
+    |
+179 |     def bisect_cond(carry):
+180 |         (
+181 |             lo,
+    |             ^^
+182 |             hi,
+183 |             i,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `hi` is never used
+   --> qqn_jax/line_search/bisection.py:182:13
+    |
+180 |         (
+181 |             lo,
+182 |             hi,
+    |             ^^
+183 |             i,
+184 |             evals,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `evals` is never used
+   --> qqn_jax/line_search/bisection.py:184:13
+    |
+182 |             hi,
+183 |             i,
+184 |             evals,
+    |             ^^^^^
+185 |             best_a,
+186 |             best_v,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_a` is never used
+   --> qqn_jax/line_search/bisection.py:185:13
+    |
+183 |             i,
+184 |             evals,
+185 |             best_a,
+    |             ^^^^^^
+186 |             best_v,
+187 |             best_p,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_v` is never used
+   --> qqn_jax/line_search/bisection.py:186:13
+    |
+184 |             evals,
+185 |             best_a,
+186 |             best_v,
+    |             ^^^^^^
+187 |             best_p,
+188 |             best_g,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_p` is never used
+   --> qqn_jax/line_search/bisection.py:187:13
+    |
+185 |             best_a,
+186 |             best_v,
+187 |             best_p,
+    |             ^^^^^^
+188 |             best_g,
+189 |             accepted,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `best_g` is never used
+   --> qqn_jax/line_search/bisection.py:188:13
+    |
+186 |             best_v,
+187 |             best_p,
+188 |             best_g,
+    |             ^^^^^^
+189 |             accepted,
+190 |             temp,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `temp` is never used
+   --> qqn_jax/line_search/bisection.py:190:13
+    |
+188 |             best_g,
+189 |             accepted,
+190 |             temp,
+    |             ^^^^
+191 |             key,
+192 |             pp,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `key` is never used
+   --> qqn_jax/line_search/bisection.py:191:13
+    |
+189 |             accepted,
+190 |             temp,
+191 |             key,
+    |             ^^^
+192 |             pp,
+193 |             pg,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pp` is never used
+   --> qqn_jax/line_search/bisection.py:192:13
+    |
+190 |             temp,
+191 |             key,
+192 |             pp,
+    |             ^^
+193 |             pg,
+194 |             pv,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pg` is never used
+   --> qqn_jax/line_search/bisection.py:193:13
+    |
+191 |             key,
+192 |             pp,
+193 |             pg,
+    |             ^^
+194 |             pv,
+195 |             pval,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pv` is never used
+   --> qqn_jax/line_search/bisection.py:194:13
+    |
+192 |             pp,
+193 |             pg,
+194 |             pv,
+    |             ^^
+195 |             pval,
+196 |             pa,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pval` is never used
+   --> qqn_jax/line_search/bisection.py:195:13
+    |
+193 |             pg,
+194 |             pv,
+195 |             pval,
+    |             ^^^^
+196 |             pa,
+197 |         ) = carry
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `pa` is never used
+   --> qqn_jax/line_search/bisection.py:196:13
+    |
+194 |             pv,
+195 |             pval,
+196 |             pa,
+    |             ^^
+197 |         ) = carry
+198 |         return jnp.logical_and(jnp.logical_not(accepted), i < max_iter)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `accepted` is never used
+   --> qqn_jax/line_search/bisection.py:210:13
+    |
+208 |             best_p,
+209 |             best_g,
+210 |             accepted,
+    |             ^^^^^^^^
+211 |             temp,
+212 |             key,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `bisect_iters` is never used
+   --> qqn_jax/line_search/bisection.py:266:9
+    |
+264 |         _lo,
+265 |         _hi,
+266 |         bisect_iters,
+    |         ^^^^^^^^^^^^
+267 |         total_evals,
+268 |         best_alpha,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `temp` is never used
+   --> qqn_jax/line_search/spline.py:346:13
+    |
+344 |             best_g,
+345 |             accepted,
+346 |             temp,
+    |             ^^^^
+347 |             key,
+348 |             pp,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `key` is never used
+   --> qqn_jax/line_search/spline.py:347:13
+    |
+345 |             accepted,
+346 |             temp,
+347 |             key,
+    |             ^^^
+348 |             pp,
+349 |             pg,
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/oracles/point_history.py:60:31
+   |
+60 | def publish(info, max_replay: Optional[int] = None) -> Optional[PublishedPoints]:
+   |                               ^^^^^^^^^^^^^
+61 |     """Publish the accepted point (+ probes) from an ``OracleInfo``.
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/oracles/point_history.py:60:56
+   |
+60 | def publish(info, max_replay: Optional[int] = None) -> Optional[PublishedPoints]:
+   |                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+61 |     """Publish the accepted point (+ probes) from an ``OracleInfo``.
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/paths/base.py:46:17
+   |
+44 |     offset: Callable
+45 |     velocity: Callable
+46 |     init_state: Optional[Callable] = None
+   |                 ^^^^^^^^^^^^^^^^^^
+47 |     observe: Optional[Callable] = None
+48 |     propose: Optional[Callable] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/paths/base.py:47:14
+   |
+45 |     velocity: Callable
+46 |     init_state: Optional[Callable] = None
+47 |     observe: Optional[Callable] = None
+   |              ^^^^^^^^^^^^^^^^^^
+48 |     propose: Optional[Callable] = None
+49 |     stateful: bool = False
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/paths/base.py:48:14
+   |
+46 |     init_state: Optional[Callable] = None
+47 |     observe: Optional[Callable] = None
+48 |     propose: Optional[Callable] = None
+   |              ^^^^^^^^^^^^^^^^^^
+49 |     stateful: bool = False
+   |
+help: Convert to `X | None`
+
+BLE001 Do not catch blind exception: `Exception`
+  --> qqn_jax/profiling.py:80:12
+   |
+78 |     try:
+79 |         have = True
+80 |     except Exception:
+   |            ^^^^^^^^^
+81 |         have = False
+82 |     cmd = "scalene " + " ".join(script_argv)
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> qqn_jax/profiling.py:137:16
+    |
+135 |             started = True
+136 |             print(f"[profile] JAX/Perfetto trace -> {trace_dir}")
+137 |         except Exception as exc:
+    |                ^^^^^^^^^
+138 |             print(f"[profile] Failed to start JAX profiler: {exc}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> qqn_jax/profiling.py:161:20
+    |
+159 |                     "(Profile -> Trace Viewer)"
+160 |                 )
+161 |             except Exception as exc:
+    |                    ^^^^^^^^^
+162 |                 print(f"[profile] Failed to stop JAX profiler: {exc}")
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> qqn_jax/profiling.py:182:12
+    |
+180 |         with jax.profiler.TraceAnnotation(label):
+181 |             yield
+182 |     except Exception:
+    |            ^^^^^^^^^
+183 |         yield
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> qqn_jax/profiling.py:209:12
+    |
+207 |                         )
+208 |         return "\n".join(lines) if lines else None
+209 |     except Exception:
+    |            ^^^^^^^^^
+210 |         return None
+    |
+
+UP045 Use `X | None` for type annotations
+   --> qqn_jax/regions/entropy_gated.py:287:22
+    |
+285 |     kappa: float = 0.1,
+286 |     zeta: float = 0.0,
+287 |     max_constraints: Optional[int] = None,
+    |                      ^^^^^^^^^^^^^
+288 |     param_mask=None,
+289 |     dual_sweeps: int = 20,
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/regions/quantization.py:15:11
+   |
+14 | def QuantizationRegion(
+15 |     bits: Optional[int] = None,
+   |           ^^^^^^^^^^^^^
+16 |     step: Optional[float] = None,
+17 |     lo: float = -1.0,
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/regions/quantization.py:16:11
+   |
+14 | def QuantizationRegion(
+15 |     bits: Optional[int] = None,
+16 |     step: Optional[float] = None,
+   |           ^^^^^^^^^^^^^^^
+17 |     lo: float = -1.0,
+18 |     hi: float = 1.0,
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/regions/strategy.py:25:28
+   |
+25 | def resolve_region(region: Optional[Region]) -> Region:
+   |                            ^^^^^^^^^^^^^^^^
+26 |     """Return ``region`` or the identity region when ``None``."""
+27 |     return IdentityRegion() if region is None else region
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/regularizers.py:46:11
+   |
+44 | def round_to_grid(
+45 |     x: jnp.ndarray,
+46 |     bits: Optional[int] = None,
+   |           ^^^^^^^^^^^^^
+47 |     step: Optional[float] = None,
+48 |     lo: float = -1.0,
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> qqn_jax/regularizers.py:47:11
+   |
+45 |     x: jnp.ndarray,
+46 |     bits: Optional[int] = None,
+47 |     step: Optional[float] = None,
+   |           ^^^^^^^^^^^^^^^
+48 |     lo: float = -1.0,
+49 |     hi: float = 1.0,
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> qqn_jax/regularizers.py:123:11
+    |
+121 |     params: Any,
+122 |     scale: float = 1e-4,
+123 |     bits: Optional[int] = None,
+    |           ^^^^^^^^^^^^^
+124 |     step: Optional[float] = None,
+125 |     lo: float = -1.0,
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> qqn_jax/regularizers.py:124:11
+    |
+122 |     scale: float = 1e-4,
+123 |     bits: Optional[int] = None,
+124 |     step: Optional[float] = None,
+    |           ^^^^^^^^^^^^^^^
+125 |     lo: float = -1.0,
+126 |     hi: float = 1.0,
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> qqn_jax/solver.py:165:30
+    |
+163 |         history_size: int = 10,
+164 |         line_search: str = "backtracking",
+165 |         line_search_options: Optional[dict[str, Any]] = None,
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^
+166 |         path_strategy: str = "quadratic",
+167 |         has_aux: bool = False,
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> qqn_jax/solver.py:173:26
+    |
+171 |         max_probes: int = 32,
+172 |         max_t: float = 1000.0,
+173 |         partition_sizes: Optional[tuple[int, ...]] = None,
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+174 |         spline_refine_rounds: int = 4,
+175 |         spline_max_control_points: int = 32,
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> qqn_jax/solver.py:177:15
+    |
+175 |         spline_max_control_points: int = 32,
+176 |         remember_step_size: bool = False,
+177 |         seed: Optional[int] = None,
+    |               ^^^^^^^^^^^^^
+178 |     ):
+179 |         self.fun = fun
+    |
+help: Convert to `X | None`
+
+RUF059 Unpacked variable `npg` is never used
+   --> tests/test_line_search.py:219:14
+    |
+217 |         g = jnp.asarray([3.0, 4.0])
+218 |
+219 |         npp, npg, npv, npval, npa = _record_probe(
+    |              ^^^
+220 |             pp, pg, pv, pval, pa, 5, p, g, 5.0, 0.5, 2
+221 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `npval` is never used
+   --> tests/test_line_search.py:219:24
+    |
+217 |         g = jnp.asarray([3.0, 4.0])
+218 |
+219 |         npp, npg, npv, npval, npa = _record_probe(
+    |                        ^^^^^
+220 |             pp, pg, pv, pval, pa, 5, p, g, 5.0, 0.5, 2
+221 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `npa` is never used
+   --> tests/test_line_search.py:219:31
+    |
+217 |         g = jnp.asarray([3.0, 4.0])
+218 |
+219 |         npp, npg, npv, npval, npa = _record_probe(
+    |                               ^^^
+220 |             pp, pg, pv, pval, pa, 5, p, g, 5.0, 0.5, 2
+221 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `npp` is never used
+   --> tests/test_line_search.py:230:9
+    |
+228 |         p = jnp.asarray([1.0, 2.0])
+229 |         g = jnp.asarray([3.0, 4.0])
+230 |         npp, npg, npv, npval, npa = _record_probe(
+    |         ^^^
+231 |             pp, pg, pv, pval, pa, -1, p, g, 5.0, 0.5, 2
+232 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `npg` is never used
+   --> tests/test_line_search.py:230:14
+    |
+228 |         p = jnp.asarray([1.0, 2.0])
+229 |         g = jnp.asarray([3.0, 4.0])
+230 |         npp, npg, npv, npval, npa = _record_probe(
+    |              ^^^
+231 |             pp, pg, pv, pval, pa, -1, p, g, 5.0, 0.5, 2
+232 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `npval` is never used
+   --> tests/test_line_search.py:230:24
+    |
+228 |         p = jnp.asarray([1.0, 2.0])
+229 |         g = jnp.asarray([3.0, 4.0])
+230 |         npp, npg, npv, npval, npa = _record_probe(
+    |                        ^^^^^
+231 |             pp, pg, pv, pval, pa, -1, p, g, 5.0, 0.5, 2
+232 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `npa` is never used
+   --> tests/test_line_search.py:230:31
+    |
+228 |         p = jnp.asarray([1.0, 2.0])
+229 |         g = jnp.asarray([3.0, 4.0])
+230 |         npp, npg, npv, npval, npa = _record_probe(
+    |                               ^^^
+231 |             pp, pg, pv, pval, pa, -1, p, g, 5.0, 0.5, 2
+232 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `new_key` is never used
+   --> tests/test_line_search.py:239:19
+    |
+237 |     def test_disabled_at_zero_temperature(self):
+238 |         key = jax.random.PRNGKey(0)
+239 |         accepted, new_key = _metropolis_accept(
+    |                   ^^^^^^^
+240 |             jnp.asarray(-1.0), jnp.asarray(0.0), key, jnp.float32
+241 |         )
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `slope` is never used
+   --> tests/test_line_search.py:300:18
+    |
+298 |     def test_eval_at_zero_recovers_params(self):
+299 |         s = descent_setup()
+300 |         p, v, g, slope = s["eval_at"](jnp.asarray(0.0, dtype=jnp.float32))
+    |                  ^^^^^
+301 |         np.testing.assert_allclose(p, s["params"], rtol=1e-5)
+302 |         assert np.isclose(float(v), float(s["value"]), rtol=1e-5)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `v` is never used
+   --> tests/test_line_search.py:308:12
+    |
+306 |         s = descent_setup()
+307 |         t = jnp.asarray(0.1, dtype=jnp.float32)
+308 |         p, v, g, slope = s["eval_at"](t)
+    |            ^
+309 |         expected_p = s["params"] + t * s["direction"]
+310 |         np.testing.assert_allclose(p, expected_p, rtol=1e-5)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g` is never used
+   --> tests/test_line_search.py:308:15
+    |
+306 |         s = descent_setup()
+307 |         t = jnp.asarray(0.1, dtype=jnp.float32)
+308 |         p, v, g, slope = s["eval_at"](t)
+    |               ^
+309 |         expected_p = s["params"] + t * s["direction"]
+310 |         np.testing.assert_allclose(p, expected_p, rtol=1e-5)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `slope` is never used
+   --> tests/test_line_search.py:308:18
+    |
+306 |         s = descent_setup()
+307 |         t = jnp.asarray(0.1, dtype=jnp.float32)
+308 |         p, v, g, slope = s["eval_at"](t)
+    |                  ^^^^^
+309 |         expected_p = s["params"] + t * s["direction"]
+310 |         np.testing.assert_allclose(p, expected_p, rtol=1e-5)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `new_state` is never used
+  --> tests/test_oracles.py:72:12
+   |
+70 |         state = oracle.init(x0)
+71 |         grad = quad_grad(x0)
+72 |         d, new_state = oracle.direction(x0, grad, state)
+   |            ^^^^^^^^^
+73 |         assert d.shape == x0.shape
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `ns` is never used
+   --> tests/test_oracles.py:119:12
+    |
+117 |             return d, ns2
+118 |
+119 |         d, ns = step(state, x0, grad)
+    |            ^^
+120 |         assert np.all(np.isfinite(np.asarray(d)))
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `grad` is never used
+  --> tests/test_paths_base.py:58:26
+   |
+57 |     def test_quadratic_probe_at_endpoint(self):
+58 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+   |                          ^^^^
+59 |
+60 |         projected, val, g, slope = eval_at(1.0)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g` is never used
+  --> tests/test_paths_base.py:60:25
+   |
+58 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+59 |
+60 |         projected, val, g, slope = eval_at(1.0)
+   |                         ^
+61 |         expected = params["w"] + direction["w"]
+62 |         assert _close(projected["w"], expected)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `slope` is never used
+  --> tests/test_paths_base.py:60:28
+   |
+58 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+59 |
+60 |         projected, val, g, slope = eval_at(1.0)
+   |                            ^^^^^
+61 |         expected = params["w"] + direction["w"]
+62 |         assert _close(projected["w"], expected)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `grad` is never used
+  --> tests/test_paths_base.py:67:26
+   |
+66 |     def test_quadratic_probe_at_origin(self):
+67 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+   |                          ^^^^
+68 |         projected, val, g, slope = eval_at(0.0)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `direction` is never used
+  --> tests/test_paths_base.py:67:32
+   |
+66 |     def test_quadratic_probe_at_origin(self):
+67 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+   |                                ^^^^^^^^^
+68 |         projected, val, g, slope = eval_at(0.0)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g` is never used
+  --> tests/test_paths_base.py:68:25
+   |
+66 |     def test_quadratic_probe_at_origin(self):
+67 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+68 |         projected, val, g, slope = eval_at(0.0)
+   |                         ^
+69 |
+70 |         assert _close(projected["w"], params["w"])
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `slope` is never used
+  --> tests/test_paths_base.py:68:28
+   |
+66 |     def test_quadratic_probe_at_origin(self):
+67 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+68 |         projected, val, g, slope = eval_at(0.0)
+   |                            ^^^^^
+69 |
+70 |         assert _close(projected["w"], params["w"])
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `params` is never used
+  --> tests/test_paths_base.py:75:18
+   |
+73 |     def test_slope_uses_path_velocity(self):
+74 |
+75 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+   |                  ^^^^^^
+76 |         _, _, g, slope = eval_at(0.0)
+77 |         grad_dir = -grad["w"]
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `direction` is never used
+  --> tests/test_paths_base.py:75:32
+   |
+73 |     def test_slope_uses_path_velocity(self):
+74 |
+75 |         eval_at, params, grad, direction = self._setup(QUADRATIC_PATH)
+   |                                ^^^^^^^^^
+76 |         _, _, g, slope = eval_at(0.0)
+77 |         grad_dir = -grad["w"]
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `grad` is never used
+  --> tests/test_paths_base.py:82:26
+   |
+81 |     def test_linear_probe(self):
+82 |         eval_at, params, grad, direction = self._setup(LINEAR_PATH)
+   |                          ^^^^
+83 |         projected, val, g, slope = eval_at(0.5)
+84 |         expected = params["w"] + 0.5 * direction["w"]
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `val` is never used
+  --> tests/test_paths_base.py:83:20
+   |
+81 |     def test_linear_probe(self):
+82 |         eval_at, params, grad, direction = self._setup(LINEAR_PATH)
+83 |         projected, val, g, slope = eval_at(0.5)
+   |                    ^^^
+84 |         expected = params["w"] + 0.5 * direction["w"]
+85 |         assert _close(projected["w"], expected)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `g` is never used
+  --> tests/test_paths_base.py:83:25
+   |
+81 |     def test_linear_probe(self):
+82 |         eval_at, params, grad, direction = self._setup(LINEAR_PATH)
+83 |         projected, val, g, slope = eval_at(0.5)
+   |                         ^
+84 |         expected = params["w"] + 0.5 * direction["w"]
+85 |         assert _close(projected["w"], expected)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `slope` is never used
+  --> tests/test_paths_base.py:83:28
+   |
+81 |     def test_linear_probe(self):
+82 |         eval_at, params, grad, direction = self._setup(LINEAR_PATH)
+83 |         projected, val, g, slope = eval_at(0.5)
+   |                            ^^^^^
+84 |         expected = params["w"] + 0.5 * direction["w"]
+85 |         assert _close(projected["w"], expected)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `y` is never used
+   --> tests/test_point_history.py:196:12
+    |
+194 |         assert pts is not None
+195 |         view = secant_view(pts)
+196 |         s, y = view.newest_secant()
+    |            ^
+197 |
+198 |         assert np.all(np.isfinite(np.asarray(s)))
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `new_params` is never used
+  --> tests/test_solver.py:77:9
+   |
+75 |         x0 = jnp.array([5.0, 5.0])
+76 |         state = solver.init_state(x0)
+77 |         new_params, new_state = solver.update(x0, state)
+   |         ^^^^^^^^^^
+78 |         assert float(new_state.value) <= float(state.value)
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `final_state` is never used
+   --> tests/test_solver.py:114:23
+    |
+112 |         solver = QQN(shifted_quadratic, maxiter=50, tol=1e-6)
+113 |         x0 = jnp.zeros(3)
+114 |         final_params, final_state = solver.run(x0, center)
+    |                       ^^^^^^^^^^^
+115 |         np.testing.assert_allclose(
+116 |             np.asarray(final_params), np.asarray(center), atol=1e-4
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `final_state` is never used
+   --> tests/test_solver.py:122:23
+    |
+120 |         solver = QQN(rosenbrock, maxiter=500, tol=1e-6)
+121 |         x0 = jnp.array([-1.2, 1.0])
+122 |         final_params, final_state = solver.run(x0)
+    |                       ^^^^^^^^^^^
+123 |         np.testing.assert_allclose(
+124 |             np.asarray(final_params), np.array([1.0, 1.0]), atol=1e-2
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `final_params` is never used
+   --> tests/test_solver.py:267:9
+    |
+265 |         solver = QQN(quadratic_bowl, maxiter=100, tol=1e-6)
+266 |         x0 = jnp.linspace(-5.0, 5.0, 20)
+267 |         final_params, final_state = solver.run(x0)
+    |         ^^^^^^^^^^^^
+268 |         assert float(final_state.error) < 1e-3 or bool(final_state.done)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_cand` is never used
+   --> tests/test_spline.py:206:17
+    |
+204 |         t0, f0, m0 = 0.0, 3.0, -2.0
+205 |         t1, f1, m1 = 1.0, 3.0, 2.0
+206 |         t_cand, f_cand, valid = segment_candidates(t0, f0, m0, t1, f1, m1)
+    |                 ^^^^^^
+207 |         eps = 1e-5
+208 |         for i in range(2):
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_cand` is never used
+   --> tests/test_spline.py:231:17
+    |
+229 |         t0, f0, m0 = 0.0, 1.0, 1.0
+230 |         t1, f1, m1 = 1.0, 1.0, -1.0
+231 |         t_cand, f_cand, valid = segment_candidates(t0, f0, m0, t1, f1, m1)
+    |                 ^^^^^^
+232 |
+233 |         assert t_cand.shape == (2,)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_best` is never used
+   --> tests/test_spline.py:254:17
+    |
+252 |         fs = jnp.array([1.0, 0.2, 1.0])
+253 |         ms = jnp.array([-1.0, 0.0, 1.0])
+254 |         t_best, f_best, found = propose_step(ts, fs, ms)
+    |                 ^^^^^^
+255 |         assert bool(found)
+256 |         assert 0.0 <= float(t_best) <= 1.0
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `t_best` is never used
+   --> tests/test_spline.py:263:9
+    |
+261 |         fs = jnp.array([1.0, 0.5, 1.0])
+262 |         ms = jnp.array([-1.0, 0.0, 1.0])
+263 |         t_best, f_best, found = propose_step(ts, fs, ms)
+    |         ^^^^^^
+264 |         assert bool(found)
+265 |         assert float(f_best) < jnp.inf
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_best` is never used
+   --> tests/test_spline.py:273:17
+    |
+271 |         ms = jnp.array([-1.0, 1.0, 0.0, 0.0])
+272 |         valid = jnp.array([True, True, False, False])
+273 |         t_best, f_best, found = propose_from_points(ts, fs, ms, valid)
+    |                 ^^^^^^
+274 |         assert bool(found)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_best` is never used
+   --> tests/test_spline.py:282:17
+    |
+280 |         fs = jnp.array([1.0, 1.0, 0.2])
+281 |         ms = jnp.array([1.0, -1.0, 0.0])
+282 |         t_best, f_best, found = propose_step(ts, fs, ms)
+    |                 ^^^^^^
+283 |         assert bool(found)
+284 |         assert 0.0 <= float(t_best) <= 1.0
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_best` is never used
+   --> tests/test_spline.py:346:17
+    |
+344 |         st = spline_observe(st, 0.0, 1.0, -1.0)
+345 |         st = spline_observe(st, 1.0, 1.0, 1.0)
+346 |         t_best, f_best, found = spline_propose(st)
+    |                 ^^^^^^
+347 |         assert bool(found)
+348 |         assert 0.0 <= float(t_best) <= 1.0
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_cand` is never used
+   --> tests/test_spline.py:536:17
+    |
+534 |     def test_segment_candidates_jit(self):
+535 |         f = jax.jit(segment_candidates)
+536 |         t_cand, f_cand, valid = f(0.0, 1.0, -1.0, 1.0, 1.0, 1.0)
+    |                 ^^^^^^
+537 |         assert t_cand.shape == (2,)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `valid` is never used
+   --> tests/test_spline.py:536:25
+    |
+534 |     def test_segment_candidates_jit(self):
+535 |         f = jax.jit(segment_candidates)
+536 |         t_cand, f_cand, valid = f(0.0, 1.0, -1.0, 1.0, 1.0, 1.0)
+    |                         ^^^^^
+537 |         assert t_cand.shape == (2,)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `t_best` is never used
+   --> tests/test_spline.py:544:9
+    |
+542 |         fs = jnp.array([1.0, 0.2, 1.0])
+543 |         ms = jnp.array([-1.0, 0.0, 1.0])
+544 |         t_best, f_best, found = f(ts, fs, ms)
+    |         ^^^^^^
+545 |         assert bool(found)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `f_best` is never used
+   --> tests/test_spline.py:544:17
+    |
+542 |         fs = jnp.array([1.0, 0.2, 1.0])
+543 |         ms = jnp.array([-1.0, 0.0, 1.0])
+544 |         t_best, f_best, found = f(ts, fs, ms)
+    |                 ^^^^^^
+545 |         assert bool(found)
+    |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+RUF059 Unpacked variable `grad` is never used
+  --> tests/test_types.py:42:16
+   |
+40 |             return jnp.sum(x**2), 2 * x
+41 |
+42 |         value, grad = vg(jnp.array([1.0, 2.0]))
+   |                ^^^^
+43 |         assert float(value) == 5.0
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+Found 189 errors.
+No fixes available (158 hidden fixes can be enabled with the `--unsafe-fixes` option).
+/home/andrew/code/Math/optimization/QQN/qqn-jax/experiments/optimizers/runners.py
+  /home/andrew/code/Math/optimization/QQN/qqn-jax/experiments/optimizers/runners.py:67:25 - error: "append" is not a known attribute of "None" (reportOptionalMemberAccess)
+  /home/andrew/code/Math/optimization/QQN/qqn-jax/experiments/optimizers/runners.py:101:29 - error: "append" is not a known attribute of "None" (reportOptionalMemberAccess)
+2 errors, 0 warnings, 0 informations
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/andrew/code/Math/optimization/QQN/qqn-jax
+configfile: pyproject.toml
+testpaths: tests
+plugins: jaxtyping-0.3.11, cov-7.1.0
+collected 483 items
+
+tests/test_lbfgs_oracle.py .......                                       [  1%]
+tests/test_line_search.py .............................................. [ 10%]
+........................................................................ [ 25%]
+..................                                                       [ 29%]
+tests/test_linear_path.py ........                                       [ 31%]
+tests/test_oracles.py .................................................. [ 41%]
+................................                                         [ 48%]
+tests/test_paths_base.py .....                                           [ 49%]
+tests/test_point_history.py ................                             [ 52%]
+tests/test_psd_secant_region.py ....                                     [ 53%]
+tests/test_regions.py .................................................. [ 63%]
+..............                                                           [ 66%]
+tests/test_regularizers.py ..........................................    [ 75%]
+tests/test_solver.py ....................................                [ 82%]
+tests/test_spline.py ........................................            [ 91%]
+tests/test_strategy.py ...............                                   [ 94%]
+tests/test_types.py .....                                                [ 95%]
+tests/test_utils.py .......................                              [100%]
+
+=============================== warnings summary ===============================
+tests/test_line_search.py::TestRecordProbe::test_records_in_slot
+tests/test_line_search.py::TestRecordProbe::test_out_of_range_slot_ignored
+tests/test_line_search.py::TestRecordProbe::test_negative_slot_ignored
+tests/test_oracles.py::TestOracleContract::test_convergence_on_quadratic[anderson]
+tests/test_oracles.py::TestOracleContract::test_convergence_on_quadratic[ams_qn]
+  /home/andrew/code/Math/optimization/QQN/qqn-jax/.venv/lib/python3.12/site-packages/jax/_src/ops/scatter.py:105: FutureWarning: scatter inputs have incompatible types: cannot safely cast value from dtype=float64 to dtype=float32 with jax_numpy_dtype_promotion=standard. In future JAX releases this will result in an error.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Name                                  Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------
+qqn_jax/__init__.py                      20      0   100%
+qqn_jax/lbfgs.py                         69      0   100%
+qqn_jax/line_search/__init__.py          10      0   100%
+qqn_jax/line_search/armijo_wolfe.py     139      0   100%
+qqn_jax/line_search/backtracking.py      66      0   100%
+qqn_jax/line_search/bisection.py         59      0   100%
+qqn_jax/line_search/fixed_step.py        16      0   100%
+qqn_jax/line_search/hager_zhang.py       26      0   100%
+qqn_jax/line_search/null_search.py       12      0   100%
+qqn_jax/line_search/result.py            14      0   100%
+qqn_jax/line_search/spline.py           159      0   100%
+qqn_jax/line_search/strong_wolfe.py      34      0   100%
+qqn_jax/line_search/util.py              23      0   100%
+qqn_jax/oracles/__init__.py              13      0   100%
+qqn_jax/oracles/adam.py                  42     11    74%   88-102
+qqn_jax/oracles/ams_qn.py                67     14    79%   138-157
+qqn_jax/oracles/anderson.py              63     14    78%   103-122
+qqn_jax/oracles/fallback.py              36      0   100%
+qqn_jax/oracles/lbfgs.py                 21      0   100%
+qqn_jax/oracles/momentum.py              30      9    70%   53-63
+qqn_jax/oracles/oracle.py                16      0   100%
+qqn_jax/oracles/path_history.py          40     12    70%   65-80
+qqn_jax/oracles/point_history.py         75      0   100%
+qqn_jax/oracles/secant.py                37      5    86%   54, 81-84
+qqn_jax/oracles/shampoo.py               41      0   100%
+qqn_jax/oracles/strategy.py              38      0   100%
+qqn_jax/paths/__init__.py                 4      0   100%
+qqn_jax/paths/base.py                    24      0   100%
+qqn_jax/paths/linear.py                  35      1    97%   63
+qqn_jax/paths/quadratic.py               12      0   100%
+qqn_jax/paths/spline.py                 186      1    99%   363
+qqn_jax/profiling.py                     97     97     0%   40-213
+qqn_jax/regions/__init__.py              11      0   100%
+qqn_jax/regions/box.py                   10      0   100%
+qqn_jax/regions/entropy_gated.py        193    161    17%   85-91, 106-117, 155-171, 206-219, 227-233, 238-247, 257-269, 330-447, 457-462
+qqn_jax/regions/identity.py               9      0   100%
+qqn_jax/regions/no_decrease.py           16      0   100%
+qqn_jax/regions/orthant.py               14      0   100%
+qqn_jax/regions/psd_secant.py            60      0   100%
+qqn_jax/regions/quantization.py          34      0   100%
+qqn_jax/regions/sequence.py              14      0   100%
+qqn_jax/regions/strategy.py               9      0   100%
+qqn_jax/regions/trustregion.py           32      0   100%
+qqn_jax/regions/types.py                 20      0   100%
+qqn_jax/regularizers.py                  58      0   100%
+qqn_jax/solver.py                       221      8    96%   410-411, 500-504, 559
+qqn_jax/types.py                         11      0   100%
+qqn_jax/utils.py                         17      0   100%
+-------------------------------------------------------------------
+TOTAL                                  2253    333    85%
+================= 483 passed, 5 warnings in 210.30s (0:03:30) ==================

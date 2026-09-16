@@ -28,17 +28,21 @@ Two channels fall out of the gate:
 
 The region operates on flat parameter vectors (it raveles pytrees at the
 boundary) so it composes with every QQN oracle and line search. All
-control flow is branch-free (``jnp.where`` / ``lax.fori_loop``) so the
-region is ``jit`` / ``vmap`` safe; the number of constraints is bounded by
-``max_constraints`` to keep shapes static.
+control flow is static-shape (``jnp.where`` / ``lax.fori_loop`` /
+``lax.cond``) so the region is ``jit`` / ``vmap`` safe; the number of
+constraints is bounded by ``max_constraints`` to keep shapes static. The
+two genuinely expensive branches — the whole constraint channel during
+warmup and the centroid refresh of the ``gradient`` policy — are skipped
+with ``lax.cond`` rather than computed-and-discarded.
 """
 
 from __future__ import annotations
 
-from typing import Callable, NamedTuple, Optional
+from typing import Any, Callable, NamedTuple, Optional
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.flatten_util import ravel_pytree
 
 from qqn_jax.regions.types import Region
@@ -48,6 +52,7 @@ __all__ = [
     "EntropyGatedRegion",
     "EntropyGatedState",
     "GateStats",
+    "ProjectionRecorder",
     "entropy_gate_report",
     "gate_statistics",
     "make_gated_loss",
@@ -172,6 +177,92 @@ def make_gated_loss(
 
 
 # ---------------------------------------------------------------------------
+# Projection instrumentation (§7.1)
+#
+# ``project`` runs inside ``jit`` and cannot write to the region state (the
+# Region API only lets ``update`` do that), so diagnostics are pushed to the
+# host through ``jax.debug.callback``. Without these numbers a null result
+# ("Region-Only == ERM") is uninterpretable: you cannot tell "the constraint
+# never binds" from "the dual solver returns lambda = 0".
+# ---------------------------------------------------------------------------
+class ProjectionRecorder:
+    """Host-side sink for per-projection region diagnostics.
+
+    Pass one to :func:`EntropyGatedRegion` via ``recorder=``; call
+    :meth:`summary` after a run to get the means (and reset).
+
+    Fields recorded per projection:
+        ``ratio``     ``‖s*‖ / ‖step‖`` — 1.0 means the region did nothing.
+        ``cos``       ``⟨s*, step⟩ / (‖s*‖‖step‖)`` — a Euclidean projection
+                      onto a convex set containing 0 guarantees this is
+                      ``≥ ‖s*‖/‖step‖ > 0``; anything else is a solver bug.
+        ``n_active``  ``#{λ_c > 0}`` — the binding constraints.
+        ``n_valid``   number of non-empty regions.
+        ``n_mem``     ``|M|`` (samples with weight > 0) entering the cone.
+        ``lam_max``   largest multiplier (the "price of stability").
+        ``guard``     0 = no guard, 1 = slack relaxed, 2 = floor applied.
+        ``violation`` max residual ``⟨−v̄_c, s*⟩ − ε̄_c`` after the solve
+                      (should be ~0; large ⇒ Hildreth has not converged).
+        ``vbar_norm`` mean ``‖v̄_c‖`` over *valid* regions (0 ⇒ gradient
+                      cancellation, §4.5).
+        ``eps_mean``  mean slack ``ε̄_c`` over *valid* regions.
+
+    During warmup the channel is skipped and a ``ratio = cos = 1``,
+    all-else-zero row is recorded.
+    """
+
+    FIELDS = (
+        "ratio",
+        "cos",
+        "n_active",
+        "n_valid",
+        "n_mem",
+        "lam_max",
+        "guard",
+        "violation",
+        "vbar_norm",
+        "eps_mean",
+    )
+
+    def __init__(self, keep_rows: bool = False):
+        self.keep_rows = bool(keep_rows)
+        self.reset()
+
+    def reset(self) -> None:
+        self.rows: list[dict[str, float]] = []
+        self._sums = {k: 0.0 for k in self.FIELDS}
+        self._binding = 0
+        self._guarded = 0
+        self.count = 0
+
+    # Called from jax.debug.callback with concrete (numpy) scalars.
+    def record(self, *values: Any) -> None:
+        # Under ``vmap`` the scalars arrive batched; average them so the
+        # recorder still summarises one number per field.
+        vals = [float(np.asarray(v, dtype=float).mean()) for v in values]
+        self.count += 1
+        for k, v in zip(self.FIELDS, vals):
+            self._sums[k] += v
+        row = dict(zip(self.FIELDS, vals))
+        if row["n_active"] > 0.0:
+            self._binding += 1
+        if row["guard"] > 0.0:
+            self._guarded += 1
+        if self.keep_rows:
+            self.rows.append(row)
+
+    def summary(self, reset: bool = True) -> dict[str, float]:
+        n = max(self.count, 1)
+        out = {k: self._sums[k] / n for k in self.FIELDS}
+        out["n_projections"] = float(self.count)
+        out["frac_binding"] = self._binding / n
+        out["frac_guarded"] = self._guarded / n
+        if reset:
+            self.reset()
+        return out
+
+
+# ---------------------------------------------------------------------------
 # Constraint channel (§3.3–§3.7)
 # ---------------------------------------------------------------------------
 class EntropyGatedState(NamedTuple):
@@ -233,6 +324,15 @@ def _project_cone(step, Vbar, eps_c, valid, sweeps: int):
     return step - A.T @ lam, lam
 
 
+def _cone_violation(s, Vbar, eps_c, valid):
+    """Max primal residual ``⟨−v̄_c, s⟩ − ε̄_c`` over valid regions (≥ 0)."""
+    resid = -(Vbar @ s) - eps_c
+    worst = jnp.max(jnp.where(valid, resid, -jnp.inf))
+    return jnp.where(jnp.any(valid), jnp.maximum(worst, 0.0), 0.0)
+
+
+
+
 def _aggregate(assign, k: int, V, w, eps_i):
     """Weighted region means, slacks, validity mask and dispersion radii."""
     onehot = jax.nn.one_hot(assign, k, dtype=V.dtype) * w[:, None]  # (m, k)
@@ -290,7 +390,9 @@ def EntropyGatedRegion(
     warmup_steps: int = 0,
     dead_zone_ratio: float = 0.0,
     dead_zone_relax: float = 0.1,
+    dead_zone_floor: bool = True,
     grad_chunk: Optional[int] = None,
+    recorder: Optional[ProjectionRecorder] = None,
     seed: int = 0,
 ) -> Region:
     """Project the step onto the memorized samples' no-decrease cone.
@@ -322,26 +424,52 @@ def EntropyGatedRegion(
             constraints to a parameter subset (e.g. head-only, §3.6).
         dual_sweeps: Hildreth sweeps for the NNLS dual.
         warmup_steps: accepted steps of plain (unprojected) training before
-            the gate is trusted (§3.8, line 5).
+            the gate is trusted (§3.8, line 5). The constraint channel is
+            skipped entirely (``lax.cond``) during warmup, so those steps
+            cost no more than the unregioned optimizer.
         dead_zone_ratio: if ``‖s*‖ < δ‖step‖`` re-solve with relaxed slack
             ``ε̄_c + relax·‖v̄_c‖‖step‖`` (§8 dead-zone guard). ``0`` disables.
         dead_zone_relax: the relaxation fraction above.
+        dead_zone_floor: if the *relaxed* solve is still inside the dead zone,
+            emit ``δ·step`` (a shortened, unprojected step) rather than a
+            ~zero displacement. Without this the line search is handed a
+            direction of norm ~0, fails Armijo, and the run hard-freezes at
+            ``t = 0`` with the loss constant — the failure mode observed in
+            the first sweep. Constraint satisfaction is traded for progress
+            only in the regime where the region would otherwise stop the
+            optimizer entirely.
         grad_chunk: if set, the ``|M|`` per-sample margin gradients are taken
             ``grad_chunk`` at a time (``lax.map`` over ``vmap`` chunks) instead
             of in one ``vmap``. Bounds peak activation memory on large models
             at the cost of a little sequencing; ``None`` keeps the single
             fused ``vmap``.
+        recorder: optional :class:`ProjectionRecorder` receiving per-projection
+            diagnostics (``‖s*‖/‖step‖``, ``#{λ_c > 0}``, guard rate, primal
+            residual). Costs a host callback per projection; leave ``None``
+            for production runs.
         seed: RNG seed for centroid init / random partition.
     """
     if policy not in POLICIES:
         raise ValueError(f"Unknown policy {policy!r}; choose from {POLICIES}.")
+    if int(num_regions) < 1:
+        raise ValueError("num_regions must be >= 1.")
+    if float(tau) <= 0.0:
+        raise ValueError("tau must be > 0.")
+    if int(dual_sweeps) < 1:
+        raise ValueError("dual_sweeps must be >= 1.")
+    if not 0.0 <= float(dead_zone_ratio) < 1.0:
+        raise ValueError("dead_zone_ratio must lie in [0, 1).")
+    if max_constraints is not None and int(max_constraints) < 1:
+        raise ValueError("max_constraints must be >= 1 (or None).")
+    if grad_chunk is not None and int(grad_chunk) < 1:
+        raise ValueError("grad_chunk must be >= 1 (or None).")
     X = jnp.asarray(X)
     y = jnp.asarray(y, dtype=jnp.int32)
     N = X.shape[0]
     m = N if max_constraints is None else min(int(max_constraints), N)
     beta = 1.0 / float(tau)
-    key = jax.random.PRNGKey(seed)
-    random_assign = jax.random.randint(key, (N,), 0, max(1, num_regions))
+    key_partition, key_centroids = jax.random.split(jax.random.PRNGKey(seed))
+    random_assign = jax.random.randint(key_partition, (N,), 0, num_regions)
     mask = None if param_mask is None else jnp.asarray(param_mask)
 
     def margin_grads(flat_p, unravel, Xs, ys):
@@ -379,8 +507,10 @@ def EntropyGatedRegion(
         """Top-``m`` memorized samples and their constraint weights."""
         s = stats.stability
         w_all = jnp.where(s > s_min, s, 0.0)
-        idx = jnp.arange(N) if m == N else jnp.argsort(-w_all)[:m]
-        return idx, w_all[idx]
+        if m == N:
+            return jnp.arange(N), w_all
+        w, idx = jax.lax.top_k(w_all, m)  # O(N log m), not a full sort
+        return idx, w
 
     def assign_regions(idx, stats, V, w, centroids, K: int):
         if policy == "mean":
@@ -399,7 +529,9 @@ def EntropyGatedRegion(
     def init(params):
         flat, _ = ravel_pytree(params)
         if policy == "gradient":
-            C = jax.random.normal(key, (num_regions, flat.shape[0]), flat.dtype)
+            C = jax.random.normal(
+                key_centroids, (num_regions, flat.shape[0]), flat.dtype
+            )
             C = C / jnp.linalg.norm(C, axis=1, keepdims=True)
         else:
             C = jnp.zeros((1, 1), dtype=flat.dtype)
@@ -417,32 +549,97 @@ def EntropyGatedRegion(
         flat_p, unravel = ravel_pytree(params)
         flat_c, _ = ravel_pytree(candidate)
         step = flat_c - flat_p
-        step_norm = jnp.linalg.norm(step)
 
-        logits = logits_fn(params, X)
-        K = logits.shape[-1]
-        stats = gate_statistics(logits, y, h_mem=h_mem, beta=beta, hard=hard_gate)
-        idx, w = select(stats)
 
-        V = margin_grads(flat_p, unravel, X[idx], y[idx])
-        vnorm = jnp.linalg.norm(V, axis=1)
-        eps_i = kappa * (1.0 - stats.stability[idx]) * vnorm
 
-        assign, k = assign_regions(idx, stats, V, w, state.centroids, K)
-        Vbar, eps_c, valid, sigma = _aggregate(assign, k, V, w, eps_i)
-        eps_c = jnp.maximum(eps_c - zeta * sigma * step_norm, 0.0)
 
-        s_proj, _lam = _project_cone(step, Vbar, eps_c, valid, dual_sweeps)
-        if dead_zone_ratio > 0.0:
-            ratio = jnp.linalg.norm(s_proj) / (step_norm + _TINY)
-            relaxed = (
-                eps_c + dead_zone_relax * jnp.linalg.norm(Vbar, axis=1) * step_norm
+
+
+        dtype = step.dtype
+
+        def constrained(step):
+            """The constraint channel: ``(s*, diagnostics)``."""
+            step_norm = jnp.linalg.norm(step)
+
+            logits = logits_fn(params, X)
+            K = logits.shape[-1]
+            stats = gate_statistics(
+                logits, y, h_mem=h_mem, beta=beta, hard=hard_gate
             )
-            s_relax, _ = _project_cone(step, Vbar, relaxed, valid, dual_sweeps)
-            s_proj = jnp.where(ratio < dead_zone_ratio, s_relax, s_proj)
+            idx, w = select(stats)
 
-        active = state.step_count >= warmup_steps
-        s_out = jnp.where(active, s_proj, step)
+            V = margin_grads(flat_p, unravel, X[idx], y[idx])
+            vnorm = jnp.linalg.norm(V, axis=1)
+            eps_i = kappa * (1.0 - stats.stability[idx]) * vnorm
+
+            assign, k = assign_regions(idx, stats, V, w, state.centroids, K)
+            Vbar, eps_c, valid, sigma = _aggregate(assign, k, V, w, eps_i)
+            eps_c = jnp.maximum(eps_c - zeta * sigma * step_norm, 0.0)
+
+            s_proj, lam = _project_cone(step, Vbar, eps_c, valid, dual_sweeps)
+            guard = jnp.zeros((), dtype)
+            if dead_zone_ratio > 0.0:
+                ratio = jnp.linalg.norm(s_proj) / (step_norm + _TINY)
+                dead = ratio < dead_zone_ratio
+                relaxed = (
+                    eps_c
+                    + dead_zone_relax * jnp.linalg.norm(Vbar, axis=1) * step_norm
+                )
+                s_relax, lam_relax = _project_cone(
+                    step, Vbar, relaxed, valid, dual_sweeps
+                )
+                s_proj = jnp.where(dead, s_relax, s_proj)
+                lam = jnp.where(dead, lam_relax, lam)
+                guard = dead.astype(dtype)
+                if dead_zone_floor:
+                    # Second guard: the relaxed solve can still return ~0
+                    # (every region opposing the step). Emit a shortened raw
+                    # step so the line search has a usable direction instead
+                    # of freezing.
+                    still = (
+                        jnp.linalg.norm(s_proj) / (step_norm + _TINY)
+                    ) < dead_zone_ratio
+                    s_proj = jnp.where(still, dead_zone_ratio * step, s_proj)
+                    guard = guard + still.astype(dtype)
+
+            # Diagnostics (order == ProjectionRecorder.FIELDS). Means are
+            # taken over *valid* regions only; averaging over all k slots
+            # under-reports by #valid/k for the class/pair/random policies.
+            out_norm = jnp.linalg.norm(s_proj)
+            n_valid = jnp.sum(valid)
+            denom = jnp.maximum(n_valid, 1).astype(dtype)
+            vbar_norms = jnp.linalg.norm(Vbar, axis=1)
+            diag = (
+                out_norm / (step_norm + _TINY),
+                jnp.sum(s_proj * step) / (out_norm * step_norm + _TINY),
+                jnp.sum((lam > 0.0) & valid).astype(dtype),
+                n_valid.astype(dtype),
+                jnp.sum(w > 0.0).astype(dtype),
+                jnp.max(lam).astype(dtype),
+                guard,
+                _cone_violation(s_proj, Vbar, eps_c, valid).astype(dtype),
+                (jnp.sum(jnp.where(valid, vbar_norms, 0.0)) / denom).astype(dtype),
+                (jnp.sum(jnp.where(valid, eps_c, 0.0)) / denom).astype(dtype),
+            )
+            return s_proj, diag
+
+        def passthrough(step):
+            """Warmup: raw step, 'region did nothing' diagnostics."""
+            one = jnp.ones((), dtype)
+            zero = jnp.zeros((), dtype)
+            n_rest = len(ProjectionRecorder.FIELDS) - 2
+            return step, (one, one) + (zero,) * n_rest
+
+        if warmup_steps > 0:
+            # ``lax.cond`` (not ``jnp.where``) so warmup steps do not pay for
+            # |M| per-sample gradients + the dual solve only to discard them.
+            active = state.step_count >= warmup_steps
+            s_out, diag = jax.lax.cond(active, constrained, passthrough, step)
+        else:
+            s_out, diag = constrained(step)
+
+        if recorder is not None:
+            jax.debug.callback(recorder.record, *diag)
         return unravel(flat_p + s_out)
 
     def update(state, info):
@@ -454,12 +651,17 @@ def EntropyGatedRegion(
 
         centroids = state.centroids
         if policy == "gradient":
-            flat_p, unravel = ravel_pytree(new_params)
-            idx, w = select(stats)
-            V = margin_grads(flat_p, unravel, X[idx], y[idx])
-            _, fresh = _gradient_clusters(V, w, centroids, cluster_iters)
+
+            def refresh(C):
+                flat_p, unravel = ravel_pytree(new_params)
+                idx, w = select(stats)
+                V = margin_grads(flat_p, unravel, X[idx], y[idx])
+                _, fresh = _gradient_clusters(V, w, C, cluster_iters)
+                return fresh
+
+            # Only pay for |M| margin gradients on refresh steps.
             do_refresh = (state.step_count % max(1, refresh_every)) == 0
-            centroids = jnp.where(do_refresh, fresh, centroids)
+            centroids = jax.lax.cond(do_refresh, refresh, lambda C: C, centroids)
 
         return EntropyGatedState(
             step_count=state.step_count + 1,
