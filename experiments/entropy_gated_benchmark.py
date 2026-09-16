@@ -12,8 +12,22 @@ churn (H1), ECE (H2), train/test accuracy, and the accepted-step norm.
 
 Env vars: DATASET, N_TRAIN, N_TEST, HIDDEN, DEPTH, ACTIVATION, MAXITER,
 TIME_BUDGET, H_MEM, TAU, KAPPA, ZETA, POLICY, NUM_REGIONS, MAX_CONSTRAINTS,
-WARMUP, LINE_SEARCH, L2, SEED.
+GRAD_CHUNK, WARMUP, LINE_SEARCH, L2, SEED.
 """
+
+import os
+
+# --- Memory hygiene (must run BEFORE jax / tensorflow are imported) -------
+# The region takes a per-sample gradient pass, so peak device memory is
+# bursty. Pre-allocating a fixed arena makes those bursts fail; let XLA
+# grow on demand instead. TensorFlow (used only to download the dataset)
+# is additionally kept off the GPU in experiments/data/loaders.py.
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+os.environ.setdefault("XLA_PYTHON_CLIENT_ALLOCATOR", "platform")
+os.environ.setdefault("XLA_FLAGS", "--xla_gpu_autotune_level=0")
+os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+os.environ.setdefault("CUDA_MODULE_LOADING", "LAZY")
 
 import time
 from typing import Any
@@ -50,6 +64,7 @@ def _ece(probs, labels, n_bins=15):
 
 def run_variant(name, loss_fn, region, params0, logits_fn, data, cfg):
     X_train, y_train, X_test, y_test = data
+    y_test_np = np.asarray(y_test)
     solver = QQN(
         loss_fn,
         maxiter=cfg["maxiter"],
@@ -63,24 +78,39 @@ def run_variant(name, loss_fn, region, params0, logits_fn, data, cfg):
     def diagnostics(params):
         tr = logits_fn(params, X_train)
         te = logits_fn(params, X_test)
-        stats = gate_statistics(tr, y_train, h_mem=cfg["h_mem"], beta=1.0 / cfg["tau"])
+        stats = gate_statistics(
+            tr, y_train, h_mem=cfg["h_mem"], beta=1.0 / cfg["tau"]
+        )
         n_mem = jnp.sum(stats.stability > 0.05)
         train_acc = jnp.mean(stats.correct)
         te_probs = jax.nn.softmax(te, axis=-1)
         test_acc = jnp.mean(jnp.argmax(te, -1) == y_test)
         return n_mem, train_acc, test_acc, te_probs, jnp.mean(stats.entropy)
 
+    def _host_diagnostics(params):
+        """Pull the diagnostics to the host and immediately free the
+        device buffers so nothing accumulates across iterations."""
+        n_mem, tr_acc, te_acc, te_probs, H = diagnostics(params)
+        out = (
+            float(n_mem),
+            float(tr_acc),
+            float(te_acc),
+            np.asarray(te_probs),
+            float(H),
+        )
+        del n_mem, tr_acc, te_acc, te_probs, H
+        return out
+
     state = solver.init_state(params0)
     params = params0
-    n_mem, tr_acc, te_acc, te_probs, H = diagnostics(params)
-    prev_pred = np.argmax(np.asarray(te_probs), axis=1)
+    _n_mem, _tr, _te, te_probs_np, _H = _host_diagnostics(params)
+    prev_pred = np.argmax(te_probs_np, axis=1)
     rows = []
     t0 = time.perf_counter()
     churn_total = 0.0
     for it in range(cfg["maxiter"]):
         params, state = update(params, state)
-        n_mem, tr_acc, te_acc, te_probs, H = diagnostics(params)
-        te_probs_np = np.asarray(te_probs)
+        n_mem, tr_acc, te_acc, te_probs_np, H = _host_diagnostics(params)
         pred = np.argmax(te_probs_np, axis=1)
         churn = float(np.mean(pred != prev_pred))
         churn_total += churn
@@ -90,12 +120,12 @@ def run_variant(name, loss_fn, region, params0, logits_fn, data, cfg):
             {
                 "it": it + 1,
                 "value": float(state.value),
-                "frac_mem": float(n_mem) / X_train.shape[0],
-                "train_acc": float(tr_acc),
-                "test_acc": float(te_acc),
+                "frac_mem": n_mem / X_train.shape[0],
+                "train_acc": tr_acc,
+                "test_acc": te_acc,
                 "churn": churn,
-                "ece": _ece(te_probs_np, np.asarray(y_test)),
-                "entropy": float(H),
+                "ece": _ece(te_probs_np, y_test_np),
+                "entropy": H,
                 "step": float(state.step_size),
                 "time": now,
             }
@@ -134,6 +164,7 @@ def main():
         "policy": env.env_str("POLICY", "pair"),
         "num_regions": env.env_int("NUM_REGIONS", 8),
         "max_constraints": env.env_int("MAX_CONSTRAINTS", 256),
+        "grad_chunk": env.env_int("GRAD_CHUNK", 64),
         "warmup": env.env_int("WARMUP", 5),
         "line_search": env.env_str("LINE_SEARCH", "backtracking"),
         "l2": env.env_float("L2", 1e-4),
@@ -142,12 +173,15 @@ def main():
     }
     print("=== EG-PTGP ablation ===")
     print(
-        f"  dataset={dataset} n_train={n_train} n_test={n_test} hidden={hidden} act={act_name}"
+        f"  dataset={dataset} n_train={n_train} n_test={n_test} "
+        f"hidden={hidden} act={act_name}"
     )
     print(
-        f"  H_mem={cfg['h_mem']} tau={cfg['tau']} kappa={cfg['kappa']} zeta={cfg['zeta']} "
-        f"policy={cfg['policy']} k={cfg['num_regions']} max_constraints={cfg['max_constraints']} "
-        f"warmup={cfg['warmup']} line_search={cfg['line_search']}\n"
+        f"  H_mem={cfg['h_mem']} tau={cfg['tau']} kappa={cfg['kappa']} "
+        f"zeta={cfg['zeta']} policy={cfg['policy']} k={cfg['num_regions']} "
+        f"max_constraints={cfg['max_constraints']} "
+        f"grad_chunk={cfg['grad_chunk']} warmup={cfg['warmup']} "
+        f"line_search={cfg['line_search']}\n"
     )
 
     xtr, ytr, xte, yte = load_image_dataset(
@@ -187,25 +221,37 @@ def main():
             policy=cfg["policy"],
             num_regions=cfg["num_regions"],
             max_constraints=cfg["max_constraints"],
+            grad_chunk=cfg["grad_chunk"],
             warmup_steps=cfg["warmup"],
             dead_zone_ratio=0.05,
             seed=cfg["seed"],
         )
 
+    def no_region():
+        return None
+
+    # Regions are built lazily, one at a time, so two copies of the
+    # constraint machinery (and their compiled projections) are never
+    # resident on the device simultaneously.
     variants = [
-        ("ERM", erm_loss, None),
-        ("Gate-Obj", gated_loss, None),
-        ("Region-Only", erm_loss, make_region()),
-        ("EG-PTGP", gated_loss, make_region()),
+        ("ERM", erm_loss, no_region),
+        ("Gate-Obj", gated_loss, no_region),
+        ("Region-Only", erm_loss, make_region),
+        ("EG-PTGP", gated_loss, make_region),
     ]
 
     summaries = []
-    for name, loss_fn, region in variants:
+    for name, loss_fn, region_factory in variants:
         print(f"--- {name} ---")
+        region = region_factory()
         summary, _rows = run_variant(
             name, loss_fn, region, params0, logits_fn, data, cfg
         )
         summaries.append(summary)
+        del region
+        # Drop this variant's compiled executables/buffers before the next
+        # one traces its own (each region compiles a distinct projection).
+        jax.clear_caches()
 
     print("\n" + "=" * 100)
     print(
@@ -215,14 +261,15 @@ def main():
     print("-" * 100)
     for s in summaries:
         print(
-            f"{s['name']:<13}{s['iters']:>6}{s['train_acc']:>11.4f}{s['test_acc']:>10.4f}"
-            f"{s['ece']:>8.4f}{s['mean_churn']:>12.5f}{s['frac_mem']:>8.3f}"
-            f"{s['entropy']:>7.3f}{s['time']:>9.1f}"
+            f"{s['name']:<13}{s['iters']:>6}{s['train_acc']:>11.4f}"
+            f"{s['test_acc']:>10.4f}{s['ece']:>8.4f}{s['mean_churn']:>12.5f}"
+            f"{s['frac_mem']:>8.3f}{s['entropy']:>7.3f}{s['time']:>9.1f}"
         )
     print("=" * 100)
     print(
         "\nH1: EG-PTGP mean_churn should be ≥30% below ERM at matched accuracy.\n"
-        "H2: EG-PTGP ECE should be below ERM; compare with Gate-Obj to isolate the hinge.\n"
+        "H2: EG-PTGP ECE should be below ERM; compare with Gate-Obj to isolate "
+        "the hinge.\n"
         "H8: watch |M|/N -> 1 with the loss stalling: that is the dead zone."
     )
 

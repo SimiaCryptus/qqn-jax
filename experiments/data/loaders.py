@@ -5,6 +5,8 @@ Single ``load_image_dataset`` implementing the canonical fallback chain. The
 subsetting so both historical callers collapse to one code path.
 """
 
+import os
+
 import numpy as np
 
 from experiments.data.subset import balanced_subset, permutation_subset, synthetic
@@ -23,6 +25,22 @@ _INSTALL_HINT = (
 def _subset(xtr, ytr, xte, yte, n_train, n_test, n_classes, *, balanced, seed):
     strategy = balanced_subset if balanced else permutation_subset
     return strategy(xtr, ytr, xte, yte, n_train, n_test, n_classes, seed=seed)
+def _keep_tf_off_the_gpu():
+    """TensorFlow is only used to *download* the dataset — never to compute.
+    By default TF claims ~all of the device memory the instant it is
+    imported, which then starves JAX (``CUDA_ERROR_OUT_OF_MEMORY`` when XLA
+    tries to allocate its own arena / load a CUBIN). Hide the GPU from TF
+    before the import so the two runtimes never fight over the device.
+    """
+    os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
+    os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+    try:
+        import tensorflow as tf  # type: ignore
+        tf.config.set_visible_devices([], "GPU")
+    except Exception:  # noqa: BLE001 - best effort; TF may be absent
+        pass
+
+
 
 
 def load_image_dataset(
@@ -51,6 +69,7 @@ def load_image_dataset(
     """
 
     try:
+        _keep_tf_off_the_gpu()
         if dataset == "fashion_mnist":
             from tensorflow.keras.datasets import fashion_mnist as ds  # type: ignore
         else:

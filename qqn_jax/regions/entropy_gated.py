@@ -290,6 +290,7 @@ def EntropyGatedRegion(
     warmup_steps: int = 0,
     dead_zone_ratio: float = 0.0,
     dead_zone_relax: float = 0.1,
+    grad_chunk: Optional[int] = None,
     seed: int = 0,
 ) -> Region:
     """Project the step onto the memorized samples' no-decrease cone.
@@ -325,6 +326,11 @@ def EntropyGatedRegion(
         dead_zone_ratio: if ``‖s*‖ < δ‖step‖`` re-solve with relaxed slack
             ``ε̄_c + relax·‖v̄_c‖‖step‖`` (§8 dead-zone guard). ``0`` disables.
         dead_zone_relax: the relaxation fraction above.
+        grad_chunk: if set, the ``|M|`` per-sample margin gradients are taken
+            ``grad_chunk`` at a time (``lax.map`` over ``vmap`` chunks) instead
+            of in one ``vmap``. Bounds peak activation memory on large models
+            at the cost of a little sequencing; ``None`` keeps the single
+            fused ``vmap``.
         seed: RNG seed for centroid init / random partition.
     """
     if policy not in POLICIES:
@@ -344,7 +350,27 @@ def EntropyGatedRegion(
             margin, _ = _margin_from_logits(logit, yi)
             return margin
 
-        V = jax.vmap(jax.grad(margin_one), in_axes=(None, 0, 0))(flat_p, Xs, ys)
+        g = jax.grad(margin_one)
+        n = Xs.shape[0]
+        if grad_chunk is None or int(grad_chunk) >= n:
+            V = jax.vmap(g, in_axes=(None, 0, 0))(flat_p, Xs, ys)
+        else:
+            c = int(grad_chunk)
+            pad = (-n) % c
+            if pad:
+                Xs = jnp.concatenate(
+                    [Xs, jnp.zeros((pad,) + Xs.shape[1:], Xs.dtype)], axis=0
+                )
+                ys = jnp.concatenate([ys, jnp.zeros((pad,), ys.dtype)], axis=0)
+            Xc = Xs.reshape((-1, c) + Xs.shape[1:])
+            yc = ys.reshape(-1, c)
+
+            def chunk(xy):
+                xi, yi = xy
+                return jax.vmap(g, in_axes=(None, 0, 0))(flat_p, xi, yi)
+
+            V = jax.lax.map(chunk, (Xc, yc))
+            V = V.reshape((-1,) + V.shape[2:])[:n]
         if mask is not None:
             V = V * mask.astype(V.dtype)[None, :]
         return V
