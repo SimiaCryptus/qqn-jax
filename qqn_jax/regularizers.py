@@ -19,6 +19,8 @@ All functions operate on either a pytree of arrays or a single flat array,
 and are ``jit`` / ``vmap`` / ``grad`` compatible.
 """
 
+from __future__ import annotations
+
 from typing import Any, Optional
 
 import jax

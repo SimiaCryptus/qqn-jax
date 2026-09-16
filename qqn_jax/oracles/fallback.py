@@ -25,6 +25,7 @@ def Fallback(oracles: Sequence[Oracle]) -> Oracle:
         chosen_valid = None
         for o, s in zip(oracles, state):
             d, ns = o.direction(params, grad, s)
+            new_states.append(ns)
 
             gd = jnp.vdot(grad, d)
             finite = jnp.all(jnp.isfinite(d))

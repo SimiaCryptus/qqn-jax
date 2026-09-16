@@ -5,12 +5,12 @@ Moved verbatim from the example driver, parameterized by the list of
 per-config result dicts produced by ``sparse_driver.run_config``.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 __all__ = ["plot_convergence", "plot_metrics_bar", "plot_pareto"]
 
 
-def plot_convergence(results: List[Dict[str, Any]], fname: str = "convergence.png"):
+def plot_convergence(results: list[dict[str, Any]], fname: str = "convergence.png"):
     """Plot loss-vs-evaluation convergence curves for all configs."""
     try:
         import matplotlib
@@ -41,7 +41,7 @@ def plot_convergence(results: List[Dict[str, Any]], fname: str = "convergence.pn
         pass
 
 
-def plot_pareto(results: List[Dict[str, Any]], fname: str = "pareto.png"):
+def plot_pareto(results: list[dict[str, Any]], fname: str = "pareto.png"):
     """Scatter test_loss vs. sparsity, highlighting the Pareto frontier."""
     try:
         import matplotlib
@@ -108,7 +108,7 @@ def plot_pareto(results: List[Dict[str, Any]], fname: str = "pareto.png"):
         pass
 
 
-def plot_metrics_bar(results: List[Dict[str, Any]], fname: str = "metrics_bar.png"):
+def plot_metrics_bar(results: list[dict[str, Any]], fname: str = "metrics_bar.png"):
     """Grouped bar chart comparing key metrics across all configurations."""
     try:
         import matplotlib

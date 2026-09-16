@@ -13,6 +13,8 @@ All regions are pure, functional JAX so they compose with ``jit``,
 equivalent to the un-regioned optimizer.
 """
 
+from __future__ import annotations
+
 from typing import Any, Optional
 
 from qqn_jax.regions.identity import IdentityRegion

@@ -11,10 +11,12 @@ The solver follows the JAXopt-style ``init_state`` / ``update`` / ``run``
 interface and keeps all state in JIT-compatible NamedTuples.
 """
 
+from __future__ import annotations
+
 import inspect
 import random
 from functools import partial
-from typing import Any, Callable, Dict, NamedTuple, Optional
+from typing import Any, Callable, NamedTuple, Optional
 
 import jax
 import jax.numpy as jnp
@@ -160,7 +162,7 @@ class QQN:
         tol: float = 1e-5,
         history_size: int = 10,
         line_search: str = "backtracking",
-        line_search_options: Optional[Dict[str, Any]] = None,
+        line_search_options: Optional[dict[str, Any]] = None,
         path_strategy: str = "quadratic",
         has_aux: bool = False,
         region=None,
@@ -597,7 +599,7 @@ class QQN:
         state = self.init_state(init_params, *args)
 
         def cond(carry):
-            params, state = carry
+            _params, state = carry
             not_converged = jnp.logical_not(state.done)
             not_maxiter = state.iter < self.maxiter
             return jnp.logical_and(not_converged, not_maxiter)

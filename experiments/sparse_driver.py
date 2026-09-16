@@ -12,9 +12,11 @@ L-BFGS oracle operates on a raveled parameter vector; the loss closure
 unflattens before evaluating the pytree network.
 """
 
+from __future__ import annotations
+
 import time
 from collections.abc import Sequence
-from typing import Any, Dict, List, Union
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -49,7 +51,7 @@ def run_config(
     y_train,
     x_test,
     y_test,
-    sizes: List[int],
+    sizes: list[int],
     maxiter: int = 100,
     seed: int = 0,
     line_search: str = "strong_wolfe",
@@ -58,12 +60,12 @@ def run_config(
     init_flat=None,
     unravel_fn=None,
     activation=jnp.tanh,
-    activation_names: Union[str, Sequence[str]] = "tanh",
+    activation_names: str | Sequence[str] = "tanh",
     l2: float = 1e-4,
     history_size: int = 10,
     quant_lo: float = -1.0,
     quant_hi: float = 1.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Train one configuration and collect metrics.
 
     The MLP parameter pytree is flattened to a single 1-D vector so it is
@@ -91,7 +93,7 @@ def run_config(
             activation=activation,
         )
 
-    loss_history: List[float] = []
+    loss_history: list[float] = []
 
     def _record(val):
         loss_history.append(float(val))

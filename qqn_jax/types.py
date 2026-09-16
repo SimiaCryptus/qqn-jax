@@ -4,7 +4,7 @@ All array types are annotated using ``chex.Array`` / ``jaxtyping`` so that
 shapes and dtypes are documented and (optionally) runtime-checkable.
 """
 
-from typing import Any, Callable, Tuple
+from typing import Any, Callable
 
 import chex
 from jaxtyping import Array, Float
@@ -15,7 +15,7 @@ Grad = Float[Array, " n"]
 Direction = Float[Array, " n"]
 Value = Float[Array, ""]
 ObjectiveFn = Callable[..., Scalar]
-ValueAndGradFn = Callable[..., Tuple[Value, Grad]]
+ValueAndGradFn = Callable[..., tuple[Value, Grad]]
 
 __all__ = [
     "Any",

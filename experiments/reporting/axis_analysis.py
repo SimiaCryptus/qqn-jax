@@ -33,7 +33,7 @@ def _axis_token_sets():
     of each axis, preserving the fixed axis order used to build names."""
     axis_tokens = []
     for idx, axis_fn in enumerate(_AXES):
-        tokens = {tok for tok in axis_fn().keys() if tok}
+        tokens = {tok for tok in axis_fn() if tok}
         axis_tokens.append((idx, tokens))
     return axis_tokens
 

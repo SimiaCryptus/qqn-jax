@@ -16,6 +16,7 @@ WARMUP, LINE_SEARCH, L2, SEED.
 """
 
 import time
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -86,18 +87,18 @@ def run_variant(name, loss_fn, region, params0, logits_fn, data, cfg):
         prev_pred = pred
         now = time.perf_counter() - t0
         rows.append(
-            dict(
-                it=it + 1,
-                value=float(state.value),
-                frac_mem=float(n_mem) / X_train.shape[0],
-                train_acc=float(tr_acc),
-                test_acc=float(te_acc),
-                churn=churn,
-                ece=_ece(te_probs_np, np.asarray(y_test)),
-                entropy=float(H),
-                step=float(state.step_size),
-                time=now,
-            )
+            {
+                "it": it + 1,
+                "value": float(state.value),
+                "frac_mem": float(n_mem) / X_train.shape[0],
+                "train_acc": float(tr_acc),
+                "test_acc": float(te_acc),
+                "churn": churn,
+                "ece": _ece(te_probs_np, np.asarray(y_test)),
+                "entropy": float(H),
+                "step": float(state.step_size),
+                "time": now,
+            }
         )
         if (it + 1) % cfg["log_every"] == 0 or bool(state.done):
             r = rows[-1]
@@ -123,22 +124,22 @@ def main():
     n_classes = 10
     hidden = parse_hidden_sizes(default_hidden=128, default_depth=1)
     act_name, act_fn = parse_activation(len(hidden), default="tanh")
-    cfg = dict(
-        maxiter=env.env_int("MAXITER", 300),
-        time_budget=env.env_float("TIME_BUDGET", 120.0),
-        h_mem=env.env_float("H_MEM", 0.5),
-        tau=env.env_float("TAU", 0.1),
-        kappa=env.env_float("KAPPA", 0.1),
-        zeta=env.env_float("ZETA", 0.0),
-        policy=env.env_str("POLICY", "pair"),
-        num_regions=env.env_int("NUM_REGIONS", 8),
-        max_constraints=env.env_int("MAX_CONSTRAINTS", 256),
-        warmup=env.env_int("WARMUP", 5),
-        line_search=env.env_str("LINE_SEARCH", "backtracking"),
-        l2=env.env_float("L2", 1e-4),
-        seed=env.env_int("SEED", 0),
-        log_every=env.env_int("LOG_EVERY", 10),
-    )
+    cfg: dict[str, Any] = {
+        "maxiter": env.env_int("MAXITER", 300),
+        "time_budget": env.env_float("TIME_BUDGET", 120.0),
+        "h_mem": env.env_float("H_MEM", 0.5),
+        "tau": env.env_float("TAU", 0.1),
+        "kappa": env.env_float("KAPPA", 0.1),
+        "zeta": env.env_float("ZETA", 0.0),
+        "policy": env.env_str("POLICY", "pair"),
+        "num_regions": env.env_int("NUM_REGIONS", 8),
+        "max_constraints": env.env_int("MAX_CONSTRAINTS", 256),
+        "warmup": env.env_int("WARMUP", 5),
+        "line_search": env.env_str("LINE_SEARCH", "backtracking"),
+        "l2": env.env_float("L2", 1e-4),
+        "seed": env.env_int("SEED", 0),
+        "log_every": env.env_int("LOG_EVERY", 10),
+    }
     print("=== EG-PTGP ablation ===")
     print(
         f"  dataset={dataset} n_train={n_train} n_test={n_test} hidden={hidden} act={act_name}"

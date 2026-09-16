@@ -174,7 +174,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
     eval_counts.append(1)
     fwd_counts.append(1)
     bwd_counts.append(1)
-    if snapshot:
+    if param_snapshots is not None:
         param_snapshots.append(params)
     t0 = time.perf_counter()
     times.append(0.0)
@@ -196,7 +196,7 @@ def run_optax(loss_fn, params0, optimizer, maxiter, stop=None):
         eval_counts.append(cum_evals)
         fwd_counts.append(cum_evals)
         bwd_counts.append(cum_evals)
-        if snapshot:
+        if param_snapshots is not None:
             param_snapshots.append(params)
         update_milestones(
             milestones,
@@ -242,7 +242,7 @@ def _extract_ls_evals(opt_state):
         if "linesearch" in str(name).lower() and "step" in str(name).lower():
             try:
                 return int(val)
-            except Exception:
+            except Exception:  # noqa: BLE001 - unknown state layout -> unknown count
                 return None
     return None
 
@@ -313,10 +313,10 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
     cum_evals += 1 + _ls0
     cum_fwd += 1 + _ls0
     cum_bwd += 1
-    eval_counts.append(int(round(cum_evals)))
-    fwd_counts.append(int(round(cum_fwd)))
-    bwd_counts.append(int(round(cum_bwd)))
-    if snapshot:
+    eval_counts.append(round(cum_evals))
+    fwd_counts.append(round(cum_fwd))
+    bwd_counts.append(round(cum_bwd))
+    if param_snapshots is not None:
         param_snapshots.append(params)
     t0 = time.perf_counter()
     times.append(0.0)
@@ -326,9 +326,9 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
         history[-1],
         1,
         0.0,
-        int(round(cum_evals)),
-        fwd=int(round(cum_fwd)),
-        bwd=int(round(cum_bwd)),
+        round(cum_evals),
+        fwd=round(cum_fwd),
+        bwd=round(cum_bwd),
     )
     if iters_to_target is None and converged(history[-1], float(gnorm), f_target, gtol):
         iters_to_target = 1
@@ -348,10 +348,10 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
         cum_evals += 1 + ls_steps
         cum_fwd += 1 + ls_steps
         cum_bwd += 1
-        eval_counts.append(int(round(cum_evals)))
-        fwd_counts.append(int(round(cum_fwd)))
-        bwd_counts.append(int(round(cum_bwd)))
-        if snapshot:
+        eval_counts.append(round(cum_evals))
+        fwd_counts.append(round(cum_fwd))
+        bwd_counts.append(round(cum_bwd))
+        if param_snapshots is not None:
             param_snapshots.append(params)
         update_milestones(
             milestones,
@@ -359,9 +359,9 @@ def run_optax_lbfgs(loss_fn, params0, maxiter, stop=None, memory_size=10):
             history[-1],
             it + 1,
             now,
-            int(round(cum_evals)),
-            fwd=int(round(cum_fwd)),
-            bwd=int(round(cum_bwd)),
+            round(cum_evals),
+            fwd=round(cum_fwd),
+            bwd=round(cum_bwd),
         )
         if iters_to_target is None and converged(
             history[-1], float(gnorm), f_target, gtol

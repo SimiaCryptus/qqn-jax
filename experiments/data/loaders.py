@@ -71,8 +71,8 @@ def load_image_dataset(
             balanced=balanced,
             seed=seed,
         )
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - any backend failure falls through
+        print(f"[data] keras backend unavailable ({exc!r}); trying torchvision.")
 
     try:
         from torchvision import datasets
@@ -102,8 +102,8 @@ def load_image_dataset(
             balanced=balanced,
             seed=seed,
         )
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - any backend failure falls through
+        print(f"[data] torchvision backend unavailable ({exc!r}).")
 
     print(_INSTALL_HINT)
     print(f"[data] Real {dataset} unavailable; using synthetic Gaussian blobs.")

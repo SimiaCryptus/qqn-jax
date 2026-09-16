@@ -5,11 +5,12 @@ driver: a pytree MLP trained with region-heavy sparsity / quantization
 machinery, a base->polish cross-product, and sparsity / quant metrics.
 Its env-var contract (DATASET, N_TRAIN, N_TEST, HIDDEN_SIZES, HIDDEN,
 DEPTH, ACTIVATION, MAXITER, POLISH_MAXITER, LINE_SEARCH, HISTORY_SIZE,
-L2, L1_SCALE, QUANT_SCALE, QBITS, SEED) is preserved verbatim.
+QUANT_SCALE, QBITS, SEED) is preserved verbatim.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Union
 
 from experiments import env
 from experiments.models.activations import parse_activation
@@ -35,7 +36,7 @@ class SparseConfig:
     maxiter: int = 50000
     polish_maxiter: int = 5000
     hidden_sizes: list = field(default_factory=lambda: [64, 64])
-    activation: Union[str, list] = "tanh"
+    activation: str | list = "tanh"
 
     activation_name: object = None
     activation_fn: object = None

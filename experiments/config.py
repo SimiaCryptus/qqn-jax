@@ -5,8 +5,9 @@ warning-on-malformed behavior (via ``experiments.env``). The headline
 fashion defaults live here; callers pass overrides for other benchmarks.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Union
 
 from experiments import env
 from experiments.models.activations import parse_activation
@@ -22,7 +23,7 @@ class ExperimentConfig:
     n_train: int = 25000
     n_test: int = 5000
     hidden_sizes: list = field(default_factory=lambda: [256, 256, 256])
-    activation: Union[str, list] = "tanh,gelu"
+    activation: str | list = "tanh,gelu"
     l2: float = 1e-4
     seed: int = 42
     subset_seed: int = 0

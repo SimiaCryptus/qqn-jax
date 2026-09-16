@@ -6,6 +6,8 @@ test accuracy, ms/iter, trajectory AUC, evals/iter, per-target iterations,
 reached flag).
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any, Optional
 

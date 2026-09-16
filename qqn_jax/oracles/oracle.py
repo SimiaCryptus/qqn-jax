@@ -1,4 +1,4 @@
-from typing import Any, Callable, NamedTuple, Tuple
+from typing import Any, Callable, NamedTuple
 
 
 class Oracle(NamedTuple):
@@ -12,7 +12,7 @@ class Oracle(NamedTuple):
     """
 
     init: Callable[[Any], Any]
-    direction: Callable[[Any, Any, Any], Tuple[Any, Any]]
+    direction: Callable[[Any, Any, Any], tuple[Any, Any]]
     update: Callable[[Any, Any], Any]
 
 

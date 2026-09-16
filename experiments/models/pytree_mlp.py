@@ -11,7 +11,7 @@ Shares the suite-wide init policy (He for relu, Glorot otherwise) and the
 per-hidden-layer activation-cycling rule with ``FlatMLP``.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 
-def init_params(key, sizes: List[int], activation: Any = "tanh", bias_scale=0.0):
+def init_params(key, sizes: list[int], activation: Any = "tanh", bias_scale=0.0):
     """Initialize MLP parameters with scaled Gaussian weights.
 
     Uses He-style init for ReLU hidden layers and Xavier/Glorot-style init
@@ -35,7 +35,7 @@ def init_params(key, sizes: List[int], activation: Any = "tanh", bias_scale=0.0)
      ``bias_scale`` controls the std of the (Gaussian) bias init; the default
      of 0.0 keeps the historical zero-bias behaviour.
     """
-    params: List[Dict[str, jnp.ndarray]] = []
+    params: list[dict[str, jnp.ndarray]] = []
     keys = jax.random.split(key, len(sizes) - 1)
     n_layers = len(sizes) - 1
     n_hidden = n_layers - 1

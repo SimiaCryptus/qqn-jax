@@ -657,6 +657,7 @@ class TestRegistry:
             "fixed",
             "null",
             "bisection",
+            "spline",
         }
         assert set(LINE_SEARCHES.keys()) == expected
 

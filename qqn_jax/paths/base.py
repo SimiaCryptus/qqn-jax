@@ -11,6 +11,8 @@ so that, regardless of which curve is being traversed, every consumer
 identically.
 """
 
+from __future__ import annotations
+
 from typing import Callable, NamedTuple, Optional
 
 from qqn_jax.utils import tree_add_scaled, tree_negative, tree_vdot

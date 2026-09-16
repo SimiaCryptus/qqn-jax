@@ -26,6 +26,8 @@ The store objects are plain (jit-friendly) NamedTuples of arrays; there is
 no Python-level mutation, so they compose with ``jax.lax`` control flow.
 """
 
+from __future__ import annotations
+
 from typing import NamedTuple, Optional
 
 from jax import numpy as jnp

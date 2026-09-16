@@ -33,6 +33,8 @@ region is ``jit`` / ``vmap`` safe; the number of constraints is bounded by
 ``max_constraints`` to keep shapes static.
 """
 
+from __future__ import annotations
+
 from typing import Callable, NamedTuple, Optional
 
 import jax
@@ -222,7 +224,6 @@ def _project_cone(step, Vbar, eps_c, valid, sweeps: int):
 
     Returns ``(s_proj, λ)``; ``s_proj = step + Σ_c λ_c v̄_c``.
     """
-    k = Vbar.shape[0]
     A = jnp.where(valid[:, None], -Vbar, 0.0)
     G = A @ A.T + jnp.diag(jnp.where(valid, 0.0, 1.0).astype(A.dtype))
     b = A @ step

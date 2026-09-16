@@ -12,9 +12,7 @@ def converged(value, gnorm, f_target, gtol):
     """Shared convergence test: target loss reached OR gradient ~ 0."""
     if f_target is not None and value <= f_target:
         return True
-    if gtol is not None and gnorm <= gtol:
-        return True
-    return False
+    return bool(gtol is not None and gnorm <= gtol)
 
 
 def update_milestones(milestones, hit, value, it, now, evals=None, fwd=None, bwd=None):

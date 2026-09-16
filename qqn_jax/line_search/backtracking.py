@@ -21,7 +21,7 @@ def backtracking_search(
     init_step: float = 1.0,
     c1: float = 1e-6,
     shrink: float = 0.5,
-    max_iter: int = 5,
+    max_iter: int = 20,
     temperature: float = 0.0,
     cooling: float = 0.95,
     seed: int = 0,
