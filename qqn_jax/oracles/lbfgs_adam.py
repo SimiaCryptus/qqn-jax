@@ -22,7 +22,7 @@ from qqn_jax.lbfgs import (
 )
 from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.point_history import publish
-from qqn_jax.utils import tree_scalar_dtype, tree_vdot, tree_where
+from qqn_jax.utils import tree_l2_norm, tree_scalar_dtype, tree_vdot, tree_where
 
 
 class AdamPreconditionedLBFGSState(NamedTuple):
@@ -45,6 +45,8 @@ def AdamPreconditionedLBFGSOracle(
     epsilon: float = 1e-8,
     learning_rate: float = 1e-3,
     max_probe_replay: int = 2,
+    grad_clip_norm: float = 0.0,
+    max_qn_gain: float = 0.0,
 ) -> Oracle:
     """Hybrid L-BFGS oracle with Adam diagonal initial Hessian ``H0``.
 
@@ -70,11 +72,25 @@ def AdamPreconditionedLBFGSOracle(
             step=jnp.asarray(0, dtype=jnp.int32),
         )
 
-    def _apply_h0(q, v, step_t, scalar_dtype):
+    def _clip_scale_and_grad(g, scalar_dtype):
+        if grad_clip_norm <= 0.0:
+            return jnp.asarray(1.0, dtype=scalar_dtype), g
+        gnorm = tree_l2_norm(g).astype(scalar_dtype)
+        clip = jnp.asarray(grad_clip_norm, dtype=scalar_dtype)
+        c_k = jnp.minimum(
+            jnp.asarray(1.0, dtype=scalar_dtype),
+            clip / (gnorm + jnp.asarray(1e-12, dtype=scalar_dtype)),
+        )
+        g_clipped = jax.tree_util.tree_map(
+            lambda gi: (c_k.astype(gi.dtype) * gi).astype(gi.dtype), g
+        )
+        return c_k, g_clipped
+
+    def _apply_h0(q, v, step_t, c_k, scalar_dtype):
         bc2 = jnp.asarray(1.0, dtype=scalar_dtype) - jnp.asarray(
             beta2, dtype=scalar_dtype
         ) ** step_t.astype(scalar_dtype)
-        lr = jnp.asarray(learning_rate, dtype=scalar_dtype)
+        lr = jnp.asarray(learning_rate, dtype=scalar_dtype) * c_k
         eps = jnp.asarray(epsilon, dtype=scalar_dtype)
         return jax.tree_util.tree_map(
             lambda qi, vi: (
@@ -88,12 +104,13 @@ def AdamPreconditionedLBFGSOracle(
     def direction(params, grad, state: AdamPreconditionedLBFGSState):
         del params
         scalar_dtype = tree_scalar_dtype(grad)
+        c_k, g_for_v = _clip_scale_and_grad(grad, scalar_dtype)
         t = state.step + jnp.asarray(1, dtype=jnp.int32)
         v_eff = jax.tree_util.tree_map(
             lambda vi, g: beta2 * vi
             + (1.0 - beta2) * (g.astype(vi.dtype) * g.astype(vi.dtype)),
             state.v,
-            grad,
+            g_for_v,
         )
 
         s_hist = state.lbfgs.s_history
@@ -112,7 +129,7 @@ def AdamPreconditionedLBFGSOracle(
             return q, alpha_i
 
         q, alphas = jax.lax.scan(first_loop, grad, (s_hist, y_hist, rho_hist))
-        r = _apply_h0(q, v_eff, t, scalar_dtype)
+        r = _apply_h0(q, v_eff, t, c_k, scalar_dtype)
 
         def second_loop(carry, inputs):
             r = carry
@@ -137,20 +154,33 @@ def AdamPreconditionedLBFGSOracle(
         # Descent safeguard: fall back to -H0 * grad if numerical drift breaks descent
         gd = tree_vdot(grad, d, accum_dtype=scalar_dtype)
         d_fb = jax.tree_util.tree_map(
-            lambda ri: -ri, _apply_h0(grad, v_eff, t, scalar_dtype)
+            lambda ri: -ri, _apply_h0(grad, v_eff, t, c_k, scalar_dtype)
         )
         d = tree_where(gd < jnp.asarray(0.0, dtype=scalar_dtype), d, d_fb)
+        if max_qn_gain > 0.0:
+            d_norm = tree_l2_norm(d).astype(scalar_dtype)
+            fb_norm = tree_l2_norm(d_fb).astype(scalar_dtype)
+            cap = jnp.asarray(max_qn_gain, dtype=scalar_dtype) * fb_norm
+            gain_scale = jnp.minimum(
+                jnp.asarray(1.0, dtype=scalar_dtype),
+                cap / (d_norm + jnp.asarray(1e-12, dtype=scalar_dtype)),
+            )
+            d = jax.tree_util.tree_map(
+                lambda di: (gain_scale.astype(di.dtype) * di).astype(di.dtype), d
+            )
         return d, state
 
     def update(
         state: AdamPreconditionedLBFGSState, info
     ) -> AdamPreconditionedLBFGSState:
         def fold_v(v, g):
+            scalar_dtype = tree_scalar_dtype(g)
+            _, g_for_v = _clip_scale_and_grad(g, scalar_dtype)
             return jax.tree_util.tree_map(
                 lambda vi, gi: beta2 * vi
                 + (1.0 - beta2) * (gi.astype(vi.dtype) * gi.astype(vi.dtype)),
                 v,
-                g,
+                g_for_v,
             )
 
         points = publish(info, max_replay=max_probe_replay)

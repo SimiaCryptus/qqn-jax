@@ -5,7 +5,7 @@ from jax import numpy as jnp
 
 from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.point_history import publish
-from qqn_jax.utils import tree_scalar_dtype, tree_where
+from qqn_jax.utils import tree_l2_norm, tree_scalar_dtype, tree_where
 
 
 class AdamState(NamedTuple):
@@ -26,6 +26,7 @@ def AdamOracle(
     beta2: float = 0.999,
     epsilon: float = 1e-8,
     learning_rate: float = 1e-3,
+    grad_clip_norm: float = 0.0,
 ) -> Oracle:
     """ADAM (adaptive moment estimation) oracle.
     The ``t = 1`` endpoint is the classical ADAM update direction, formed by
@@ -48,6 +49,20 @@ def AdamOracle(
      rather than an unscaled — and typically catastrophically large — update.
     """
 
+    def _clip_grad(g):
+        if grad_clip_norm <= 0.0:
+            return g
+        scalar_dtype = tree_scalar_dtype(g)
+        gnorm = tree_l2_norm(g)
+        clip = jnp.asarray(grad_clip_norm, dtype=scalar_dtype)
+        scale = jnp.minimum(
+            jnp.asarray(1.0, dtype=scalar_dtype),
+            clip / (gnorm.astype(scalar_dtype) + jnp.asarray(1e-12, dtype=scalar_dtype)),
+        )
+        return jax.tree_util.tree_map(
+            lambda gi: (scale.astype(gi.dtype) * gi).astype(gi.dtype), g
+        )
+
     def init(params):
         zeros = jax.tree_util.tree_map(jnp.zeros_like, params)
         return AdamState(
@@ -57,19 +72,20 @@ def AdamOracle(
         )
 
     def direction(params, grad, state):
-
+        del params
+        grad_eff = _clip_grad(grad)
         t = state.step + 1
-        scalar_dtype = tree_scalar_dtype(grad)
+        scalar_dtype = tree_scalar_dtype(grad_eff)
         m = jax.tree_util.tree_map(
             lambda mi, g: beta1 * mi + (1.0 - beta1) * g.astype(mi.dtype),
             state.m,
-            grad,
+            grad_eff,
         )
         v = jax.tree_util.tree_map(
             lambda vi, g: beta2 * vi
             + (1.0 - beta2) * (g.astype(vi.dtype) * g.astype(vi.dtype)),
             state.v,
-            grad,
+            grad_eff,
         )
         bc1 = 1.0 - beta1 ** t.astype(scalar_dtype)
         bc2 = 1.0 - beta2 ** t.astype(scalar_dtype)
@@ -88,16 +104,17 @@ def AdamOracle(
     def update(state, info):
 
         def fold(m, v, g):
+            g_eff = _clip_grad(g)
             m = jax.tree_util.tree_map(
                 lambda mi, gi: beta1 * mi + (1.0 - beta1) * gi.astype(mi.dtype),
                 m,
-                g,
+                g_eff,
             )
             v = jax.tree_util.tree_map(
                 lambda vi, gi: beta2 * vi
                 + (1.0 - beta2) * (gi.astype(vi.dtype) * gi.astype(vi.dtype)),
                 v,
-                g,
+                g_eff,
             )
             return m, v
 

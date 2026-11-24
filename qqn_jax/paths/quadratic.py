@@ -65,4 +65,44 @@ QUADRATIC_PATH = PathStrategy(
     offset=_quadratic_path, velocity=quadratic_path_derivative
 )
 
-__all__ = ["QUADRATIC_PATH", "quadratic_path_derivative"]
+
+def _monotone_quadratic_path(t, grad_dir, qn_dir):
+    """Quadratic path on ``[0, 1]`` with linear oracle ray continuation for ``t > 1``.
+
+    Avoids the ``t(1 - t) < 0`` sign flip for ``t > 1`` that would otherwise push
+    extrapolated probes in the uphill ``-grad_dir`` direction.
+    """
+    t_arr = jnp.asarray(t, dtype=jnp.float32)
+    quad = _quadratic_path(t_arr, grad_dir, qn_dir)
+    ray = jax.tree_util.tree_map(
+        lambda g, q: (jnp.asarray(t_arr, dtype=g.dtype) * q.astype(g.dtype)).astype(
+            g.dtype
+        ),
+        grad_dir,
+        qn_dir,
+    )
+    return jax.tree_util.tree_map(
+        lambda q_val, r_val: jnp.where(t_arr <= 1.0, q_val, r_val), quad, ray
+    )
+
+
+def monotone_quadratic_path_derivative(t, grad_dir, qn_dir):
+    """Velocity of :func:`_monotone_quadratic_path` w.r.t. ``t``."""
+    t_arr = jnp.asarray(t, dtype=jnp.float32)
+    quad_v = quadratic_path_derivative(t_arr, grad_dir, qn_dir)
+    ray_v = jax.tree_util.tree_map(lambda g, q: q.astype(g.dtype), grad_dir, qn_dir)
+    return jax.tree_util.tree_map(
+        lambda q_val, r_val: jnp.where(t_arr <= 1.0, q_val, r_val), quad_v, ray_v
+    )
+
+
+MONOTONE_QUADRATIC_PATH = PathStrategy(
+    offset=_monotone_quadratic_path, velocity=monotone_quadratic_path_derivative
+)
+
+__all__ = [
+    "MONOTONE_QUADRATIC_PATH",
+    "QUADRATIC_PATH",
+    "monotone_quadratic_path_derivative",
+    "quadratic_path_derivative",
+]
