@@ -32,9 +32,12 @@ from qqn_jax.paths.spline import spline_refine
 from qqn_jax.regions.strategy import RegionInfo, resolve_region
 from qqn_jax.utils import (
     make_value_and_grad,
+    tree_add_scaled,
+    tree_all_finite,
     tree_l2_norm,
     tree_negative,
     tree_vdot,
+    tree_where,
 )
 
 
@@ -451,7 +454,7 @@ class QQN:
 
         step_finite = jnp.logical_and(
             jnp.isfinite(new_value),
-            jnp.all(jnp.isfinite(new_grad)),
+            tree_all_finite(new_grad),
         )
         # Honor the line search's own acceptance criterion (`res.done`), which
         # already encodes stochastic (temperature-based) acceptance of
@@ -464,27 +467,52 @@ class QQN:
             step_finite, jnp.logical_or(new_value <= state.value, res.done)
         )
 
-        gnorm_sq = tree_vdot(grad, grad)
-        safe_scale = jnp.asarray(1.0, dtype=dtype) / (
-            jnp.asarray(1.0, dtype=dtype) + gnorm_sq
-        )
-        fb_params = params + safe_scale * grad_dir
-        fb_value, fb_grad = self._plain_value_and_grad(fb_params, *args)
-        fb_finite = jnp.logical_and(
-            jnp.isfinite(fb_value), jnp.all(jnp.isfinite(fb_grad))
-        )
-        fb_accept = jnp.logical_and(
-            jnp.logical_not(accept),
-            jnp.logical_and(fb_finite, fb_value < state.value),
-        )
-        new_params = jnp.where(fb_accept, fb_params, new_params)
-        new_value = jnp.where(fb_accept, fb_value, new_value)
-        new_grad = jnp.where(fb_accept, fb_grad, new_grad)
-        accept = jnp.logical_or(accept, fb_accept)
-        step_size = jnp.where(fb_accept, safe_scale, step_size)
-        new_params = jnp.where(accept, new_params, params)
+        def _skip_fallback(_):
+            return (
+                new_params,
+                new_value,
+                new_grad,
+                step_size,
+                accept,
+                jnp.asarray(0, jnp.int32),
+            )
+
+        def _run_fallback(_):
+            gnorm_sq = tree_vdot(grad, grad)
+            safe_scale = jnp.asarray(1.0, dtype=dtype) / (
+                jnp.asarray(1.0, dtype=dtype) + gnorm_sq
+            )
+            fb_params = tree_add_scaled(params, safe_scale, grad_dir)
+            fb_value, fb_grad = self._plain_value_and_grad(fb_params, *args)
+            fb_finite = jnp.logical_and(
+                jnp.isfinite(fb_value), tree_all_finite(fb_grad)
+            )
+            fb_accept = jnp.logical_and(fb_finite, fb_value < state.value)
+            out_p = tree_where(fb_accept, fb_params, new_params)
+            out_v = jnp.where(fb_accept, fb_value, new_value)
+            out_g = tree_where(fb_accept, fb_grad, new_grad)
+            out_step = jnp.where(fb_accept, safe_scale, step_size)
+            return (
+                out_p,
+                out_v,
+                out_g,
+                out_step,
+                fb_accept,
+                jnp.asarray(1, jnp.int32),
+            )
+
+        (
+            new_params,
+            new_value,
+            new_grad,
+            step_size,
+            accept,
+            extra_recovery_evals,
+        ) = jax.lax.cond(accept, _skip_fallback, _run_fallback, operand=None)
+
+        new_params = tree_where(accept, new_params, params)
         new_value = jnp.where(accept, new_value, state.value)
-        new_grad = jnp.where(accept, new_grad, grad)
+        new_grad = tree_where(accept, new_grad, grad)
         step_size = jnp.where(
             accept, step_size, jnp.asarray(0.0, dtype=step_size.dtype)
         )
@@ -495,7 +523,6 @@ class QQN:
         else:
             aux = None
 
-        extra_recovery_evals = jnp.asarray(0, jnp.int32)
         if self.feed_probes_to_oracle and res.probe_params is not None:
             probe_valid = res.probe_valid
             if res.probe_alphas is not None:
@@ -560,9 +587,7 @@ class QQN:
         aux_evals = (
             jnp.asarray(1, jnp.int32) if self.has_aux else jnp.asarray(0, jnp.int32)
         )
-        step_evals = (
-            ls_evals + aux_evals + extra_recovery_evals + jnp.asarray(1, jnp.int32)
-        )
+        step_evals = ls_evals + aux_evals + extra_recovery_evals
         new_num_evals = state.num_evals + step_evals
 
         new_state = QQNState(
@@ -581,6 +606,26 @@ class QQN:
             last_reduction=actual_reduction,
         )
         return new_params, new_state
+
+    def refresh_state(self, params, state: QQNState, *args) -> QQNState:
+        """Re-evaluate ``(value, grad, aux)`` at ``params`` on new ``*args``.
+
+        Used for consistent macro-batch stochastic optimization: when switching
+        to a new macro-batch, refreshing ``value`` and ``grad`` ensures that the
+        line search compares candidates against the current batch's baseline
+        without discarding the accumulated oracle curvature history.
+        """
+        value, grad, aux = self._eval(params, *args)
+        error = tree_l2_norm(grad)
+        finite = jnp.logical_and(jnp.isfinite(value), jnp.isfinite(error))
+        return state._replace(
+            value=value,
+            grad=grad,
+            aux=aux,
+            error=error,
+            done=jnp.logical_or(error <= self.tol, jnp.logical_not(finite)),
+            num_evals=state.num_evals + jnp.asarray(1, jnp.int32),
+        )
 
     def run(self, init_params, *args):
         """Run QQN to convergence (or ``maxiter``).

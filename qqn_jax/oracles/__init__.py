@@ -3,6 +3,10 @@ from qqn_jax.oracles.ams_qn import AnchoredMultiSecantOracle, AnchoredMultiSecan
 from qqn_jax.oracles.anderson import AndersonOracle, AndersonState
 from qqn_jax.oracles.fallback import Fallback
 from qqn_jax.oracles.lbfgs import LBFGSOracle
+from qqn_jax.oracles.lbfgs_adam import (
+    AdamPreconditionedLBFGSOracle,
+    AdamPreconditionedLBFGSState,
+)
 from qqn_jax.oracles.momentum import MomentumOracle, MomentumState
 from qqn_jax.oracles.oracle import Oracle, OracleInfo
 from qqn_jax.oracles.path_history import (
@@ -21,6 +25,8 @@ from qqn_jax.oracles.strategy import resolve_oracle
 
 __all__ = [
     "AdamOracle",
+    "AdamPreconditionedLBFGSOracle",
+    "AdamPreconditionedLBFGSState",
     "AdamState",
     "AnchoredMultiSecantOracle",
     "AnchoredMultiSecantState",

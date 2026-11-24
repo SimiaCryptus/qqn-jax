@@ -9,6 +9,7 @@ from qqn_jax.line_search.util import (
     _metropolis_accept,
     _record_probe,
 )
+from qqn_jax.utils import tree_where
 
 
 def backtracking_search(
@@ -49,8 +50,13 @@ def backtracking_search(
         p, val, g, _slope = eval_at(alpha)
         return p, val, g
 
-    eff_probes = max_probes if record_probes else 1
-    init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(params, eff_probes)
+    eff_probes = max_probes if record_probes else 0
+    if record_probes:
+        init_pp, init_pg, init_pv, init_pval, init_pa = _empty_probes(
+            params, eff_probes
+        )
+    else:
+        init_pp = init_pg = init_pv = init_pval = init_pa = None
     temp0 = jnp.asarray(temperature, dtype=value.dtype)
     key0 = jax.random.PRNGKey(seed)
 
@@ -164,8 +170,8 @@ def backtracking_search(
 
         out_alpha = jnp.where(keep, new_alpha, alpha)
         out_val = jnp.where(keep, new_val, prev_val)
-        out_g = jnp.where(keep, new_g, _g)
-        out_p = jnp.where(keep, new_params, _p)
+        out_g = tree_where(keep, new_g, _g)
+        out_p = tree_where(keep, new_params, _p)
         return (
             out_alpha,
             i + 1,

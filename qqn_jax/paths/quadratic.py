@@ -14,6 +14,7 @@ search.
 """
 
 import jax
+import jax.numpy as jnp
 
 from qqn_jax.paths.base import PathStrategy
 
@@ -33,7 +34,14 @@ def _quadratic_path(t, grad_dir, qn_dir):
     """
     a = t * (1.0 - t)
     b = t * t
-    return jax.tree_util.tree_map(lambda g, q: a * g + b * q, grad_dir, qn_dir)
+    return jax.tree_util.tree_map(
+        lambda g, q: (
+            jnp.asarray(a, dtype=g.dtype) * g
+            + jnp.asarray(b, dtype=g.dtype) * q.astype(g.dtype)
+        ).astype(g.dtype),
+        grad_dir,
+        qn_dir,
+    )
 
 
 def quadratic_path_derivative(t, grad_dir, qn_dir):
@@ -43,7 +51,14 @@ def quadratic_path_derivative(t, grad_dir, qn_dir):
     """
     a = 1.0 - 2.0 * t
     b = 2.0 * t
-    return jax.tree_util.tree_map(lambda g, q: a * g + b * q, grad_dir, qn_dir)
+    return jax.tree_util.tree_map(
+        lambda g, q: (
+            jnp.asarray(a, dtype=g.dtype) * g
+            + jnp.asarray(b, dtype=g.dtype) * q.astype(g.dtype)
+        ).astype(g.dtype),
+        grad_dir,
+        qn_dir,
+    )
 
 
 QUADRATIC_PATH = PathStrategy(

@@ -31,15 +31,24 @@ def _metropolis_accept(delta_e, temp, key, dtype):
     return accepted, key
 
 
+from qqn_jax.utils import tree_scalar_dtype
+
+
 def _empty_probes(params, max_probes):
-    """Allocate empty probe buffers shaped for ``params`` (a flat vector)."""
-    n = params.shape[0]
+    """Allocate empty probe buffers shaped for ``params`` (flat or pytree)."""
+    scalar_dtype = tree_scalar_dtype(params)
+    probe_params = jax.tree_util.tree_map(
+        lambda x: jnp.zeros((max_probes, *x.shape), dtype=x.dtype), params
+    )
+    probe_grads = jax.tree_util.tree_map(
+        lambda x: jnp.zeros((max_probes, *x.shape), dtype=x.dtype), params
+    )
     return (
-        jnp.zeros((max_probes, n), dtype=params.dtype),
-        jnp.zeros((max_probes, n), dtype=params.dtype),
+        probe_params,
+        probe_grads,
         jnp.zeros((max_probes,), dtype=bool),
-        jnp.full((max_probes,), jnp.inf, dtype=params.dtype),
-        jnp.zeros((max_probes,), dtype=params.dtype),
+        jnp.full((max_probes,), jnp.inf, dtype=scalar_dtype),
+        jnp.zeros((max_probes,), dtype=scalar_dtype),
     )
 
 
@@ -56,12 +65,34 @@ def _record_probe(
     a,
     max_probes,
 ):
-    """Write ``(p, g)`` into ``slot`` of the probe buffers (JIT-safe)."""
+    """Write ``(p, g)`` into ``slot`` of the probe buffers (JIT-safe, pytree-safe).
+
+    When ``probe_params`` is ``None`` (probe recording disabled), this is a
+    zero-overhead no-op.
+    """
+    if probe_params is None:
+        return probe_params, probe_grads, probe_valid, probe_values, probe_alphas
     in_range = jnp.logical_and(slot >= 0, slot < max_probes)
     idx = jnp.clip(slot, 0, max_probes - 1)
-    new_params = jnp.where(in_range, probe_params.at[idx].set(p), probe_params)
-    new_grads = jnp.where(in_range, probe_grads.at[idx].set(g), probe_grads)
+    new_params = jax.tree_util.tree_map(
+        lambda buf, leaf: jnp.where(in_range, buf.at[idx].set(leaf), buf),
+        probe_params,
+        p,
+    )
+    new_grads = jax.tree_util.tree_map(
+        lambda buf, leaf: jnp.where(in_range, buf.at[idx].set(leaf), buf),
+        probe_grads,
+        g,
+    )
     new_valid = jnp.where(in_range, probe_valid.at[idx].set(True), probe_valid)
-    new_values = jnp.where(in_range, probe_values.at[idx].set(v), probe_values)
-    new_alphas = jnp.where(in_range, probe_alphas.at[idx].set(a), probe_alphas)
+    new_values = jnp.where(
+        in_range,
+        probe_values.at[idx].set(jnp.asarray(v, dtype=probe_values.dtype)),
+        probe_values,
+    )
+    new_alphas = jnp.where(
+        in_range,
+        probe_alphas.at[idx].set(jnp.asarray(a, dtype=probe_alphas.dtype)),
+        probe_alphas,
+    )
     return new_params, new_grads, new_valid, new_values, new_alphas

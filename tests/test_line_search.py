@@ -644,7 +644,7 @@ class TestBacktracking:
             max_probes=32,
         )
 
-        assert res.probe_params.shape[0] == 1
+        assert res.probe_params is None
 
 
 class TestRegistry:

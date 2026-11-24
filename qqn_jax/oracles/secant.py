@@ -1,16 +1,16 @@
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import jax
 from jax import numpy as jnp
 
 from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.point_history import publish, secant_view
-from qqn_jax.utils import tree_negative
+from qqn_jax.utils import tree_negative, tree_scalar_dtype, tree_vdot
 
 
 class SecantState(NamedTuple):
-    prev_params: jnp.ndarray
-    prev_grad: jnp.ndarray
+    prev_params: Any
+    prev_grad: Any
     alpha: jnp.ndarray
     step_count: jnp.ndarray
 
@@ -33,35 +33,40 @@ def SecantOracle(alpha0: float = 1.0, alpha_max: float = 1e3) -> Oracle:
 
     def init(params):
         zeros = jax.tree_util.tree_map(jnp.zeros_like, params)
+        scalar_dtype = tree_scalar_dtype(params)
         return SecantState(
             prev_params=params,
             prev_grad=zeros,
-            alpha=jnp.asarray(alpha0, dtype=params.dtype),
+            alpha=jnp.asarray(alpha0, dtype=scalar_dtype),
             step_count=jnp.asarray(0, dtype=jnp.int32),
         )
 
     def direction(params, grad, state):
-        d = tree_negative(jax.tree_util.tree_map(lambda g: state.alpha * g, grad))
+        d = tree_negative(
+            jax.tree_util.tree_map(lambda g: state.alpha.astype(g.dtype) * g, grad)
+        )
         return d, state
 
     def update(state, info):
-
+        scalar_dtype = state.alpha.dtype
         points = publish(info)
         if points is None:
-            s = info.new_params - info.params
-            y = info.new_grad - info.grad
+            s = jax.tree_util.tree_map(
+                lambda a, b: a - b, info.new_params, info.params
+            )
+            y = jax.tree_util.tree_map(lambda a, b: a - b, info.new_grad, info.grad)
         else:
             s, y = secant_view(points).newest_secant()
-        ss = jnp.vdot(s, s)
-        sy = jnp.vdot(s, y)
+        ss = tree_vdot(s, s, accum_dtype=scalar_dtype)
+        sy = tree_vdot(s, y, accum_dtype=scalar_dtype)
 
         curvature_ok = sy > eps
-        bb = ss / jnp.where(curvature_ok, sy, 1.0)
+        bb = ss / jnp.where(curvature_ok, sy, jnp.asarray(1.0, dtype=scalar_dtype))
         new_alpha = jnp.where(curvature_ok, jnp.clip(bb, eps, alpha_max), state.alpha)
         return SecantState(
             prev_params=info.new_params,
             prev_grad=info.new_grad,
-            alpha=new_alpha.astype(state.alpha.dtype),
+            alpha=new_alpha.astype(scalar_dtype),
             step_count=state.step_count + 1,
         )
 

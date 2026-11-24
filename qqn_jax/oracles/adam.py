@@ -1,10 +1,11 @@
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import jax
 from jax import numpy as jnp
 
 from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.point_history import publish
+from qqn_jax.utils import tree_scalar_dtype, tree_where
 
 
 class AdamState(NamedTuple):
@@ -15,8 +16,8 @@ class AdamState(NamedTuple):
         step: iteration counter for bias correction.
     """
 
-    m: jnp.ndarray
-    v: jnp.ndarray
+    m: Any
+    v: Any
     step: jnp.ndarray
 
 
@@ -58,26 +59,46 @@ def AdamOracle(
     def direction(params, grad, state):
 
         t = state.step + 1
+        scalar_dtype = tree_scalar_dtype(grad)
         m = jax.tree_util.tree_map(
-            lambda mi, g: beta1 * mi + (1.0 - beta1) * g, state.m, grad
+            lambda mi, g: beta1 * mi + (1.0 - beta1) * g.astype(mi.dtype),
+            state.m,
+            grad,
         )
         v = jax.tree_util.tree_map(
-            lambda vi, g: beta2 * vi + (1.0 - beta2) * (g * g), state.v, grad
+            lambda vi, g: beta2 * vi
+            + (1.0 - beta2) * (g.astype(vi.dtype) * g.astype(vi.dtype)),
+            state.v,
+            grad,
         )
-        bc1 = 1.0 - beta1 ** t.astype(grad.dtype)
-        bc2 = 1.0 - beta2 ** t.astype(grad.dtype)
+        bc1 = 1.0 - beta1 ** t.astype(scalar_dtype)
+        bc2 = 1.0 - beta2 ** t.astype(scalar_dtype)
         d = jax.tree_util.tree_map(
-            lambda mi, vi: -learning_rate * (mi / bc1) / (jnp.sqrt(vi / bc2) + epsilon),
+            lambda mi, vi, g: (
+                -learning_rate
+                * (mi.astype(scalar_dtype) / bc1)
+                / (jnp.sqrt(vi.astype(scalar_dtype) / bc2) + epsilon)
+            ).astype(g.dtype),
             m,
             v,
+            grad,
         )
         return d, state
 
     def update(state, info):
 
         def fold(m, v, g):
-            m = beta1 * m + (1.0 - beta1) * g
-            v = beta2 * v + (1.0 - beta2) * (g * g)
+            m = jax.tree_util.tree_map(
+                lambda mi, gi: beta1 * mi + (1.0 - beta1) * gi.astype(mi.dtype),
+                m,
+                g,
+            )
+            v = jax.tree_util.tree_map(
+                lambda vi, gi: beta2 * vi
+                + (1.0 - beta2) * (gi.astype(vi.dtype) * gi.astype(vi.dtype)),
+                v,
+                g,
+            )
             return m, v
 
         points = publish(info)
@@ -93,8 +114,8 @@ def AdamOracle(
             g, valid = elem
             m_new, v_new = fold(m, v, g)
 
-            m = jnp.where(valid, m_new, m)
-            v = jnp.where(valid, v_new, v)
+            m = tree_where(valid, m_new, m)
+            v = tree_where(valid, v_new, v)
             return (m, v), None
 
         (m, v), _ = jax.lax.scan(body, (state.m, state.v), (grad_seq, valid_seq))

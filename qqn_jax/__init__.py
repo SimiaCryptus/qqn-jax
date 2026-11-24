@@ -16,6 +16,10 @@ from qqn_jax.oracles.adam import AdamOracle
 from qqn_jax.oracles.anderson import AndersonOracle
 from qqn_jax.oracles.fallback import Fallback
 from qqn_jax.oracles.lbfgs import LBFGSOracle
+from qqn_jax.oracles.lbfgs_adam import (
+    AdamPreconditionedLBFGSOracle,
+    AdamPreconditionedLBFGSState,
+)
 from qqn_jax.oracles.momentum import MomentumOracle
 from qqn_jax.oracles.path_history import PathHistoryMomentumOracle
 from qqn_jax.oracles.secant import SecantOracle
@@ -37,6 +41,8 @@ __version__ = "0.1.0"
 __all__ = [
     "QQN",
     "AdamOracle",
+    "AdamPreconditionedLBFGSOracle",
+    "AdamPreconditionedLBFGSState",
     "AndersonOracle",
     "BoxRegion",
     "EntropyGatedRegion",

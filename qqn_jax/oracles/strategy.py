@@ -3,6 +3,7 @@ from qqn_jax.oracles.ams_qn import AnchoredMultiSecantOracle
 from qqn_jax.oracles.anderson import AndersonOracle
 from qqn_jax.oracles.fallback import Fallback
 from qqn_jax.oracles.lbfgs import LBFGSOracle
+from qqn_jax.oracles.lbfgs_adam import AdamPreconditionedLBFGSOracle
 from qqn_jax.oracles.momentum import MomentumOracle
 from qqn_jax.oracles.oracle import Oracle
 from qqn_jax.oracles.path_history import PathHistoryMomentumOracle
@@ -21,6 +22,10 @@ def resolve_oracle(oracle, history_size: int = 10, max_probe_replay: int = 2) ->
             return MomentumOracle()
         elif oracle == "lbfgs":
             return LBFGSOracle(
+                history_size=history_size, max_probe_replay=max_probe_replay
+            )
+        elif oracle == "lbfgs_adam":
+            return AdamPreconditionedLBFGSOracle(
                 history_size=history_size, max_probe_replay=max_probe_replay
             )
         elif oracle == "adam":
