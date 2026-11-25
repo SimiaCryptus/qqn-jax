@@ -26,6 +26,7 @@ from qqn_jax.oracles.secant import SecantOracle
 from qqn_jax.oracles.shampoo import ShampooOracle
 from qqn_jax.regions.box import BoxRegion
 from qqn_jax.regions.entropy_gated import EntropyGatedRegion, make_gated_loss
+from qqn_jax.regions.half_quantization import HalfQuantizationRegion
 from qqn_jax.regions.orthant import OrthantRegion
 from qqn_jax.regions.sequence import Sequential
 from qqn_jax.regions.strategy import (
@@ -47,6 +48,7 @@ __all__ = [
     "BoxRegion",
     "EntropyGatedRegion",
     "Fallback",
+    "HalfQuantizationRegion",
     "IdentityRegion",
     "LBFGSOracle",
     "MomentumOracle",

@@ -13,6 +13,14 @@ from qqn_jax.regions.entropy_gated import (
     gate_statistics,
     make_gated_loss,
 )
+from qqn_jax.regions.half_quantization import (
+    HalfQuantizationRegion,
+    half_quant_bounds,
+    half_quant_cell_width,
+    is_on_half_quant_boundary,
+    round_to_half_quant,
+    round_toward_zero_half_quant,
+)
 from qqn_jax.regions.identity import IdentityRegion
 from qqn_jax.regions.no_decrease import NoDecreaseRegion
 from qqn_jax.regions.orthant import OrthantRegion
@@ -32,6 +40,7 @@ __all__ = [
     "BoxRegion",
     "EntropyGatedRegion",
     "EntropyGatedState",
+    "HalfQuantizationRegion",
     "IdentityRegion",
     "NoDecreaseRegion",
     "OrthantRegion",
@@ -46,6 +55,11 @@ __all__ = [
     "TrustRegionState",
     "entropy_gate_report",
     "gate_statistics",
+    "half_quant_bounds",
+    "half_quant_cell_width",
+    "is_on_half_quant_boundary",
     "make_gated_loss",
     "resolve_region",
+    "round_to_half_quant",
+    "round_toward_zero_half_quant",
 ]
